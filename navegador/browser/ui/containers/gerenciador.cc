@@ -219,7 +219,7 @@ class PainelDeContainers : public views::View,
   // Apaga os dados do container (cookies, armazenamento, cache) e tira da
   // lista. Abas abertas nele continuam abertas, sem login.
   void Excluir(std::string id) {
-    ApagarDados(profile_, id, base::DoNothing());
+    ApagarDados(profile_, id);
     Remove(profile_, id);
     Reconstruir();
   }

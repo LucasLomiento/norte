@@ -47,7 +47,9 @@ class EditorNoLugar : public views::Textfield,
   EditorNoLugar(views::Label* rotulo,
                 std::u16string_view inicial,
                 base::OnceCallback<void(std::u16string)> pronto)
-      : rotulo_(rotulo), pronto_(std::move(pronto)) {
+      : rotulo_(rotulo),
+        pronto_(std::move(pronto)),
+        inicial_(base::TrimWhitespace(inicial, base::TRIM_ALL)) {
     observacao_.Observe(rotulo);
     SetFontList(rotulo->font_list());
     set_controller(this);
@@ -117,6 +119,9 @@ class EditorNoLugar : public views::Textfield,
               auto pronto = std::move(editor->pronto_);
               std::u16string texto(
                   base::TrimWhitespace(editor->GetText(), base::TRIM_ALL));
+              // Sem mudança não grava: o nome da página continua valendo
+              // (um clique duplo sem querer congelava o título da aba).
+              gravar = gravar && texto != editor->inicial_;
               editor->parent()->RemoveChildViewT(editor.get());
               if (gravar && pronto) {
                 std::move(pronto).Run(std::move(texto));
@@ -146,6 +151,7 @@ class EditorNoLugar : public views::Textfield,
   base::ScopedObservation<views::View, views::ViewObserver> observacao_{
       &observador_};
   base::OnceCallback<void(std::u16string)> pronto_;
+  const std::u16string inicial_;
   bool terminado_ = false;
   base::WeakPtrFactory<EditorNoLugar> weak_factory_{this};
 };

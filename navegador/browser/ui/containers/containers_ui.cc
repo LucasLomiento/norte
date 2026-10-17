@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "base/memory/raw_ptr.h"
+#include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/stringprintf.h"
@@ -13,8 +14,10 @@
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/ui/tabs/tab_enums.h"
+#include "chrome/browser/ui/tabs/tab_group_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tab_groups/tab_group_id.h"
+#include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/navigation_controller.h"
@@ -36,6 +39,14 @@
 namespace navegador::containers {
 
 namespace {
+
+// Os ids dos itens dos submenus são únicos no menu inteiro: o Views acha o
+// comando pelo id, no primeiro item com ele (MenuModel::
+// GetModelAndIndexForCommandId, em profundidade). Com ids repetidos, "Abrir
+// em container → X" executava o "Mover para o espaço" de mesmo id, e
+// "Recarregar" (1) e "Duplicar" (2) do menu da aba caíam no "Fixar no
+// espaço". Faixas daqui: 21000 em diante (os IDC_ do Chromium começam em
+// 33000; os comandos do menu da aba são < 100).
 
 // Paleta dos containers do Firefox (os nomes são os do pref).
 struct CorNomeada {
@@ -88,8 +99,12 @@ class SubmenuDaAba : public ui::SimpleMenuModel,
   SubmenuDaAba(TabStripModel* tab_strip, int index)
       : ui::SimpleMenuModel(this),
         tab_strip_(tab_strip),
-        alvo_(tab_strip->GetWebContentsAt(index)) {
-    std::optional<Container> atual = ContainerDaAba(alvo_);
+        alvo_(tab_strip->GetWebContentsAt(index)->GetWeakPtr()) {
+    // Janela anônima não tem containers (como no Firefox).
+    if (tab_strip->profile()->IsOffTheRecord()) {
+      return;
+    }
+    std::optional<Container> atual = ContainerDaAba(alvo_.get());
     containers_ = GetAll(tab_strip->profile());
     for (size_t i = 0; i < containers_.size(); ++i) {
       if (atual && atual->id == containers_[i].id) {
@@ -108,11 +123,14 @@ class SubmenuDaAba : public ui::SimpleMenuModel,
 
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override {
-    if (command_id == kGerenciar) {
-      MostrarGerenciador(alvo_);
+    if (!alvo_) {
       return;
     }
-    const int index = tab_strip_->GetIndexOfWebContents(alvo_);
+    if (command_id == kGerenciar) {
+      MostrarGerenciador(alvo_.get());
+      return;
+    }
+    const int index = tab_strip_->GetIndexOfWebContents(alvo_.get());
     if (index == TabStripModel::kNoTab) {
       return;
     }
@@ -132,12 +150,13 @@ class SubmenuDaAba : public ui::SimpleMenuModel,
   }
 
  private:
-  static constexpr int kPrimeiro = 1000;
-  static constexpr int kSemContainer = 999;
-  static constexpr int kGerenciar = 998;
+  static constexpr int kPrimeiro = 23100;
+  static constexpr int kSemContainer = 23001;
+  static constexpr int kGerenciar = 23002;
 
   raw_ptr<TabStripModel> tab_strip_;
-  raw_ptr<content::WebContents> alvo_;
+  // A aba pode fechar com o menu aberto (o menu da aba não fecha junto).
+  base::WeakPtr<content::WebContents> alvo_;
   std::vector<Container> containers_;
 };
 
@@ -158,11 +177,11 @@ class SubmenuFixar : public ui::SimpleMenuModel,
   SubmenuFixar(TabStripModel* tab_strip, int index)
       : ui::SimpleMenuModel(this),
         tab_strip_(tab_strip),
-        alvo_(tab_strip->GetWebContentsAt(index)) {
+        alvo_(tab_strip->GetWebContentsAt(index)->GetWeakPtr()) {
     if (PonteFixar().is_null()) {
       return;
     }
-    if (fixos::SiteDaAba(alvo_)) {
+    if (fixos::SiteDaAba(alvo_.get())) {
       AddItem(kDesafixar, u"Desafixar");
       return;
     }
@@ -190,7 +209,7 @@ class SubmenuFixar : public ui::SimpleMenuModel,
 
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override {
-    const int index = tab_strip_->GetIndexOfWebContents(alvo_);
+    const int index = tab_strip_->GetIndexOfWebContents(alvo_.get());
     if (index == TabStripModel::kNoTab || PonteFixar().is_null()) {
       return;
     }
@@ -210,13 +229,13 @@ class SubmenuFixar : public ui::SimpleMenuModel,
   }
 
  private:
-  static constexpr int kSolto = 1;
-  static constexpr int kNovaPasta = 2;
-  static constexpr int kDesafixar = 3;
-  static constexpr int kPrimeiraPasta = 1000;
+  static constexpr int kSolto = 22001;
+  static constexpr int kNovaPasta = 22002;
+  static constexpr int kDesafixar = 22003;
+  static constexpr int kPrimeiraPasta = 22100;
 
   raw_ptr<TabStripModel> tab_strip_;
-  raw_ptr<content::WebContents> alvo_;
+  base::WeakPtr<content::WebContents> alvo_;
   std::vector<std::string> pastas_;
 };
 
@@ -232,7 +251,7 @@ class SubmenuDeEspacos : public ui::SimpleMenuModel,
   SubmenuDeEspacos(TabStripModel* tab_strip, int index)
       : ui::SimpleMenuModel(this),
         tab_strip_(tab_strip),
-        alvo_(tab_strip->GetWebContentsAt(index)) {
+        alvo_(tab_strip->GetWebContentsAt(index)->GetWeakPtr()) {
     if (tab_strip->IsTabPinned(index) || PonteMoverAba().is_null()) {
       return;
     }
@@ -257,7 +276,7 @@ class SubmenuDeEspacos : public ui::SimpleMenuModel,
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override {
     const size_t i = command_id - kPrimeiro;
-    const int index = tab_strip_->GetIndexOfWebContents(alvo_);
+    const int index = tab_strip_->GetIndexOfWebContents(alvo_.get());
     if (i >= espacos_.size() || index == TabStripModel::kNoTab ||
         PonteMoverAba().is_null()) {
       return;
@@ -266,10 +285,10 @@ class SubmenuDeEspacos : public ui::SimpleMenuModel,
   }
 
  private:
-  static constexpr int kPrimeiro = 1000;
+  static constexpr int kPrimeiro = 21000;
 
   raw_ptr<TabStripModel> tab_strip_;
-  raw_ptr<content::WebContents> alvo_;
+  base::WeakPtr<content::WebContents> alvo_;
   std::vector<std::string> espacos_;
 };
 
@@ -282,7 +301,7 @@ class SubmenuDoLink : public ui::SimpleMenuModel,
                 const GURL& link)
       : ui::SimpleMenuModel(this),
         tab_strip_(tab_strip),
-        origem_(origem),
+        origem_(origem->GetWeakPtr()),
         link_(link),
         containers_(GetAll(tab_strip->profile())) {
     for (size_t i = 0; i < containers_.size(); ++i) {
@@ -296,14 +315,16 @@ class SubmenuDoLink : public ui::SimpleMenuModel,
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override {
     if (command_id == kGerenciar) {
-      MostrarGerenciador(origem_);
+      if (origem_) {
+        MostrarGerenciador(origem_.get());
+      }
       return;
     }
     const size_t i = command_id - kPrimeiro;
     if (i >= containers_.size()) {
       return;
     }
-    int index = tab_strip_->GetIndexOfWebContents(origem_);
+    int index = tab_strip_->GetIndexOfWebContents(origem_.get());
     if (index == TabStripModel::kNoTab) {
       index = tab_strip_->count() - 1;
     }
@@ -312,11 +333,11 @@ class SubmenuDoLink : public ui::SimpleMenuModel,
   }
 
  private:
-  static constexpr int kPrimeiro = 1000;
-  static constexpr int kGerenciar = 998;
+  static constexpr int kPrimeiro = 24100;
+  static constexpr int kGerenciar = 24002;
 
   raw_ptr<TabStripModel> tab_strip_;
-  raw_ptr<content::WebContents> origem_;
+  base::WeakPtr<content::WebContents> origem_;
   GURL link_;
   std::vector<Container> containers_;
 };
@@ -329,6 +350,9 @@ class SubmenuNovaAba : public ui::SimpleMenuModel,
       : ui::SimpleMenuModel(this),
         tab_strip_(tab_strip),
         containers_(GetAll(tab_strip->profile())) {
+    if (tab_strip->profile()->IsOffTheRecord()) {
+      return;
+    }
     for (size_t i = 0; i < containers_.size(); ++i) {
       AddItemWithIcon(kPrimeiro + i, base::UTF8ToUTF16(containers_[i].name),
                       Bolinha(containers_[i].color));
@@ -347,13 +371,21 @@ class SubmenuNovaAba : public ui::SimpleMenuModel,
     if (i >= containers_.size()) {
       return;
     }
+    // No fim do espaço da janela (sem grupo, a aba nasceria fora dele).
+    int index = tab_strip_->count() - 1;
+    if (std::optional<tab_groups::TabGroupId> grupo =
+            tab_strip_->GetFocusedGroup();
+        grupo && tab_strip_->group_model()->ContainsTabGroup(*grupo)) {
+      index = tab_strip_->group_model()->GetTabGroup(*grupo)->ListTabs().end() -
+              1;
+    }
     AbrirEmContainer(tab_strip_, GURL("chrome://newtab/"), containers_[i].id,
-                     tab_strip_->count() - 1, /*ativar=*/true);
+                     index, /*ativar=*/true);
   }
 
  private:
-  static constexpr int kPrimeiro = 1000;
-  static constexpr int kGerenciar = 998;
+  static constexpr int kPrimeiro = 25100;
+  static constexpr int kGerenciar = 25002;
 
   raw_ptr<TabStripModel> tab_strip_;
   std::vector<Container> containers_;
@@ -449,9 +481,16 @@ void AbrirEmContainer(TabStripModel* tab_strip,
                  : CreateSiteInstance(profile, url, id);
   content::WebContents::CreateParams params(profile, site_instance);
   params.initially_hidden = !ativar;
+  // No grupo (espaço) da aba de referência: inserir sem grupo no meio de um
+  // grupo dá CHECK no TabCollection::ToDirectIndex, e no fim dele tiraria a
+  // janela do espaço.
+  std::optional<tab_groups::TabGroupId> grupo;
+  if (index >= 0 && index < tab_strip->count()) {
+    grupo = tab_strip->GetTabGroupForTab(index);
+  }
   const int inserida = tab_strip->InsertWebContentsAt(
       index + 1, content::WebContents::Create(params),
-      ativar ? AddTabTypes::ADD_ACTIVE : AddTabTypes::ADD_NONE);
+      ativar ? AddTabTypes::ADD_ACTIVE : AddTabTypes::ADD_NONE, grupo);
   content::NavigationController::LoadURLParams load(url);
   load.transition_type = ui::PAGE_TRANSITION_AUTO_TOPLEVEL;
   tab_strip->GetWebContentsAt(inserida)->GetController().LoadURLWithParams(

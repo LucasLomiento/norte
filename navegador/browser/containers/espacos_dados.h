@@ -13,6 +13,7 @@
 #define NAVEGADOR_BROWSER_CONTAINERS_ESPACOS_DADOS_H_
 
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -125,6 +126,9 @@ void LigarGrupo(Profile* profile,
                 std::string_view grupo,
                 std::string_view espaco);
 void DesligarGrupo(Profile* profile, std::string_view grupo);
+// Esquece os grupos que não estão em `vivos` (grupos de janelas fechadas:
+// sem isso a pref só crescia). Um grupo que volte depois é religado pelo nome.
+void PodarGrupos(Profile* profile, const std::set<std::string>& vivos);
 // O grupo é de um espaço temporário.
 bool GrupoTemporario(Profile* profile, std::string_view grupo);
 

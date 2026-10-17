@@ -68,11 +68,10 @@ void Update(Profile* profile, const Container& container);
 // Tira da lista. Os dados ficam até alguém chamar ApagarDados.
 void Remove(Profile* profile, std::string_view id);
 
-// Apaga tudo o que o container guardou (cookies, armazenamento, cache).
-// Abas abertas nele perdem o login. `feito` roda no fim.
-void ApagarDados(Profile* profile,
-                 std::string_view id,
-                 base::OnceClosure feito);
+// Apaga tudo o que o container guardou (cookies, armazenamento, cache HTTP
+// e de código), mesmo sem aba dele aberta nesta sessão. Abas abertas nele
+// perdem o login. Roda em segundo plano.
+void ApagarDados(Profile* profile, std::string_view id);
 
 // Container padrão do espaço (id do espaço, ver espacos_dados.h).
 std::optional<std::string> ContainerDoEspaco(Profile* profile,
@@ -112,6 +111,14 @@ scoped_refptr<content::SiteInstance> SiteInstanceForNewTab(
 scoped_refptr<content::SiteInstance> SiteInstanceForRestoredTab(
     Profile* profile,
     const std::map<std::string, std::string>& extra_data);
+
+// tab_lifecycle_unit.cc (FinishDiscard): a aba descartada pra economizar
+// memória ganha uma WebContents nova. Ela nasce no container da antiga
+// (nullptr = partição normal) e leva o nome dado e o site fixado.
+scoped_refptr<content::SiteInstance> SiteInstanceDaAba(
+    Profile* profile,
+    content::WebContents* contents);
+void CopiarDadosDaAba(content::WebContents* de, content::WebContents* para);
 
 // Coleta do extra_data (sessão e "reabrir aba fechada").
 void AddExtraData(content::WebContents* contents,

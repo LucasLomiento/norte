@@ -1,5 +1,6 @@
 #include "navegador/browser/ui/atualizador.h"
 
+#include <array>
 #include <memory>
 #include <optional>
 #include <set>
@@ -15,13 +16,13 @@
 #endif
 
 #include "base/command_line.h"
+#include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
 #include "base/json/json_reader.h"
 #include "base/memory/raw_ptr.h"
 #include "base/no_destructor.h"
-#include "base/files/file_util.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
 #include "base/process/process.h"
@@ -42,6 +43,8 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "components/prefs/pref_service.h"
+#include "crypto/hash.h"
+#include "crypto/secure_hash.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "net/traffic_annotation/network_traffic_annotation.h"
 #include "services/network/public/cpp/resource_request.h"
@@ -133,6 +136,9 @@ struct Estado {
   Situacao situacao = Situacao::kNada;
   std::string nova;
   std::string url_pacote;
+  // SHA-256 do pacote que o GitHub informa ("digest" do arquivo), em
+  // hexadecimal; vazio se a release não traz.
+  std::string sha256_pacote;
   std::string url_pagina;
   std::u16string erro;
   std::unique_ptr<network::SimpleURLLoader> pedido;
@@ -188,6 +194,7 @@ void Chegou(std::optional<std::string> corpo) {
     return;
   }
   std::string url;
+  std::string sha256;
   if (const base::ListValue* arquivos = release.FindList("assets")) {
     for (const base::Value& arquivo : *arquivos) {
       const base::DictValue* d = arquivo.GetIfDict();
@@ -196,6 +203,10 @@ void Chegou(std::optional<std::string> corpo) {
           d ? d->FindString("browser_download_url") : nullptr;
       if (nome && endereco && nome->ends_with(kFimDoPacote)) {
         url = *endereco;
+        const std::string* digest = d->FindString("digest");
+        sha256 = digest && digest->starts_with("sha256:")
+                     ? base::ToLowerASCII(digest->substr(7))
+                     : std::string();
       }
     }
   }
@@ -206,6 +217,7 @@ void Chegou(std::optional<std::string> corpo) {
   estado.situacao = Situacao::kDisponivel;
   estado.nova = tag->starts_with("v") ? tag->substr(1) : *tag;
   estado.url_pacote = url;
+  estado.sha256_pacote = sha256;
   if (const std::string* pagina = release.FindString("html_url")) {
     estado.url_pagina = *pagina;
   }
@@ -339,17 +351,67 @@ void Instalar() {
   if (!base::EndsWith(nome, ".pkg.tar.zst")) {
     nome = "navegador.pkg.tar.zst";
   }
-  base::FilePath destino;
-  base::GetTempDir(&destino);
-  estado.pedido->DownloadToFile(
-      g_browser_process->shared_url_loader_factory().get(),
-      base::BindOnce(&InstalarArquivo), destino.AppendASCII(nome),
-      512 * 1024 * 1024);
+  // Numa pasta só nossa (0700): no /tmp aberto, com nome previsível, outro
+  // usuário da máquina podia pôr ou trocar o arquivo antes do pacman, que
+  // instala como root.
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce([]() {
+        base::FilePath pasta;
+        if (!base::CreateNewTempDirectory("norte-atualizacao-", &pasta)) {
+          pasta.clear();
+        }
+        return pasta;
+      }),
+      base::BindOnce(
+          [](std::string nome, base::FilePath pasta) {
+            Estado& estado = Atual();
+            if (pasta.empty() || !estado.pedido) {
+              estado.pedido.reset();
+              estado.situacao = Situacao::kErro;
+              estado.erro = u"Não deu pra baixar a versão nova.";
+              AvisarTodos();
+              return;
+            }
+            estado.pedido->DownloadToFile(
+                g_browser_process->shared_url_loader_factory().get(),
+                base::BindOnce(&InstalarArquivo), pasta.AppendASCII(nome),
+                512 * 1024 * 1024);
+          },
+          std::move(nome)));
 #endif
 }
 
 #if !BUILDFLAG(IS_WIN)
-// O pacote já baixado: pkexec pacman -U no arquivo, que é apagado depois.
+// Código de saída nosso: o SHA-256 do pacote não bateu (o pacman nem roda).
+constexpr int kPacoteDiferente = -2;
+
+// SHA-256 do arquivo em hexadecimal minúsculo (vazio se não deu pra ler).
+std::string Sha256DoArquivo(const base::FilePath& caminho) {
+  base::File arquivo(caminho, base::File::FLAG_OPEN | base::File::FLAG_READ);
+  if (!arquivo.IsValid()) {
+    return std::string();
+  }
+  std::unique_ptr<crypto::SecureHash> hash =
+      crypto::SecureHash::Create(crypto::SecureHash::SHA256);
+  std::vector<uint8_t> bloco(1 << 20);
+  while (true) {
+    std::optional<size_t> lidos = arquivo.ReadAtCurrentPos(bloco);
+    if (!lidos) {
+      return std::string();
+    }
+    if (*lidos == 0) {
+      break;
+    }
+    hash->Update(base::span(bloco).first(*lidos));
+  }
+  std::array<uint8_t, crypto::hash::kSha256Size> resultado;
+  hash->Finish(resultado);
+  return base::HexEncodeLower(resultado);
+}
+
+// O pacote já baixado: pkexec pacman -U no arquivo, que é apagado depois
+// (com a pasta dele).
 void InstalarArquivo(base::FilePath pacote) {
   Atual().pedido.reset();
   if (pacote.empty()) {
@@ -361,7 +423,13 @@ void InstalarArquivo(base::FilePath pacote) {
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
       base::BindOnce(
-          [](base::FilePath pacote) {
+          [](base::FilePath pacote, std::string sha256) {
+            // O pacote tem que ser o que a release diz (download cortado ou
+            // trocado no caminho não chega no pacman).
+            if (!sha256.empty() && Sha256DoArquivo(pacote) != sha256) {
+              base::DeletePathRecursively(pacote.DirName());
+              return kPacoteDiferente;
+            }
             // O Chromium lança os filhos com PR_SET_NO_NEW_PRIVS, e com essa
             // trava o pkexec (setuid) não vira root: sai na hora com 127
             // ("pkexec must be setuid root"), sem pedir a senha. Daí o
@@ -396,14 +464,18 @@ void InstalarArquivo(base::FilePath pacote) {
                 !processo.WaitForExitWithTimeout(base::Minutes(15), &codigo)) {
               codigo = -1;
             }
-            base::DeleteFile(pacote);
+            base::DeletePathRecursively(pacote.DirName());
             return codigo;
           },
-          pacote),
+          pacote, Atual().sha256_pacote),
       base::BindOnce([](int codigo) {
         Estado& estado = Atual();
         if (codigo == 0) {
           estado.situacao = Situacao::kInstalada;
+        } else if (codigo == kPacoteDiferente) {
+          estado.situacao = Situacao::kErro;
+          estado.erro = u"O pacote baixado não confere com o da release. "
+                        u"Tente de novo.";
         } else {
           estado.situacao = Situacao::kErro;
           // 126/127: senha cancelada ou sem a janela de senha do sistema.

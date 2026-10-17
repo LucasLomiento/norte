@@ -2,6 +2,7 @@
 
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/containers/fixos.h"
+#include "navegador/browser/containers/titulos.h"
 
 #include <utility>
 
@@ -16,6 +17,8 @@
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "content/public/browser/browsing_data_filter_builder.h"
+#include "content/public/browser/browsing_data_remover.h"
 #include "content/public/browser/security_principal.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/storage_partition.h"
@@ -26,6 +29,13 @@
 namespace navegador::containers {
 
 namespace {
+
+// O que a pessoa escolhe é do perfil normal: na janela anônima as prefs são
+// uma cópia em memória por cima dele, e o que se gravasse ali sumia ao
+// fechar a janela.
+PrefService* Prefs(Profile* profile) {
+  return profile->GetOriginalProfile()->GetPrefs();
+}
 
 constexpr char kId[] = "id";
 constexpr char kName[] = "name";
@@ -107,7 +117,7 @@ void DefinirContainerDoEspaco(Profile* profile,
 std::vector<Container> GetAll(Profile* profile) {
   std::vector<Container> result;
   for (const base::Value& value :
-       profile->GetPrefs()->GetList(kContainersPref)) {
+       Prefs(profile)->GetList(kContainersPref)) {
     if (std::optional<Container> container = FromValue(value)) {
       result.push_back(std::move(*container));
     }
@@ -130,13 +140,13 @@ Container Add(Profile* profile,
               std::string_view icon) {
   Container container{NewId(), std::string(name), std::string(color),
                       std::string(icon)};
-  ScopedListPrefUpdate update(profile->GetPrefs(), kContainersPref);
+  ScopedListPrefUpdate update(Prefs(profile), kContainersPref);
   update->Append(ToDict(container));
   return container;
 }
 
 void Update(Profile* profile, const Container& container) {
-  ScopedListPrefUpdate update(profile->GetPrefs(), kContainersPref);
+  ScopedListPrefUpdate update(Prefs(profile), kContainersPref);
   for (base::Value& value : *update) {
     base::DictValue* dict = value.GetIfDict();
     const std::string* id = dict ? dict->FindString(kId) : nullptr;
@@ -148,7 +158,7 @@ void Update(Profile* profile, const Container& container) {
 }
 
 void Remove(Profile* profile, std::string_view id) {
-  ScopedListPrefUpdate update(profile->GetPrefs(), kContainersPref);
+  ScopedListPrefUpdate update(Prefs(profile), kContainersPref);
   update->EraseIf([&](const base::Value& value) {
     const base::DictValue* dict = value.GetIfDict();
     const std::string* value_id = dict ? dict->FindString(kId) : nullptr;
@@ -156,21 +166,20 @@ void Remove(Profile* profile, std::string_view id) {
   });
 }
 
-void ApagarDados(Profile* profile,
-                 std::string_view id,
-                 base::OnceClosure feito) {
-  content::StoragePartition* particao = profile->GetStoragePartition(
-      PartitionConfig(profile, id), /*can_create=*/false);
-  if (!particao) {
-    std::move(feito).Run();
-    return;
-  }
-  particao->ClearData(content::StoragePartition::REMOVE_DATA_MASK_ALL,
-                      /*filter_builder=*/nullptr,
-                      content::StoragePartition::StorageKeyPolicyMatcherFunction(),
-                      network::mojom::CookieDeletionFilter::New(),
-                      /*perform_storage_cleanup=*/true, base::Time(),
-                      base::Time::Max(), std::move(feito));
+void ApagarDados(Profile* profile, std::string_view id) {
+  // Pelo BrowsingDataRemover, como o "Limpar dados de navegação": ele abre a
+  // partição mesmo sem aba dela nesta sessão (o ClearData só via as já
+  // abertas, e aí não apagava nada) e limpa também os caches.
+  std::unique_ptr<content::BrowsingDataFilterBuilder> filtro =
+      content::BrowsingDataFilterBuilder::Create(
+          content::BrowsingDataFilterBuilder::Mode::kPreserve);
+  filtro->SetStoragePartitionConfig(PartitionConfig(profile, id));
+  profile->GetBrowsingDataRemover()->RemoveWithFilter(
+      base::Time(), base::Time::Max(),
+      content::BrowsingDataRemover::DATA_TYPE_ON_STORAGE_PARTITION,
+      content::BrowsingDataRemover::ORIGIN_TYPE_UNPROTECTED_WEB |
+          content::BrowsingDataRemover::ORIGIN_TYPE_PROTECTED_WEB,
+      std::move(filtro));
 }
 
 content::StoragePartitionConfig PartitionConfig(Profile* profile,
@@ -209,6 +218,11 @@ scoped_refptr<content::SiteInstance> SiteInstanceForNewTab(
     content::WebContents* source_contents,
     std::optional<std::string> espaco,
     const GURL& url) {
+  // Janela anônima não tem containers: as abas dela ficam todas na partição
+  // anônima (as prefs que ela lê são as do perfil normal).
+  if (profile->IsOffTheRecord()) {
+    return nullptr;
+  }
   std::optional<std::string> id;
   if (source_contents) {
     // Só herda dentro do mesmo perfil: uma aba levada pra janela de outro
@@ -240,10 +254,30 @@ scoped_refptr<content::SiteInstance> SiteInstanceForRestoredTab(
     Profile* profile,
     const std::map<std::string, std::string>& extra_data) {
   auto it = extra_data.find(kSessionExtraDataKey);
-  if (it == extra_data.end() || !Get(profile, it->second)) {
+  if (profile->IsOffTheRecord() || it == extra_data.end() ||
+      !Get(profile, it->second)) {
     return nullptr;
   }
   return CreateSiteInstance(profile, GURL(), it->second);
+}
+
+scoped_refptr<content::SiteInstance> SiteInstanceDaAba(
+    Profile* profile,
+    content::WebContents* contents) {
+  std::optional<std::string> id = IdForWebContents(contents);
+  if (!id || !Get(profile, *id)) {
+    return nullptr;
+  }
+  return CreateSiteInstance(profile, GURL(), *id);
+}
+
+void CopiarDadosDaAba(content::WebContents* de, content::WebContents* para) {
+  if (const std::u16string* titulo = titulos::Titulo(de)) {
+    titulos::Guardar(para, *titulo);
+  }
+  if (std::optional<std::string> site = fixos::SiteDaAba(de)) {
+    fixos::LigarAba(para, *site);
+  }
 }
 
 void AddExtraData(content::WebContents* contents,

@@ -16,6 +16,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface_iterator.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
+#include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/browser/ui/views/toolbar/toolbar_view.h"
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
@@ -26,7 +27,10 @@
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/animation/tween.h"
+#include "ui/views/bubble/bubble_dialog_delegate_view.h"
+#include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/focus/focus_manager.h"
+#include "ui/views/widget/widget_delegate.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
 #include "ui/views/window/non_client_view.h"
@@ -138,8 +142,8 @@ class Espia : public views::FocusChangeListener,
   void OnDidChangeFocus(views::View* antes, views::View* agora) override {
     // Sem foco = a janela perdeu a vez (outra janela, um menu): a barra fica,
     // o foco volta pra ela quando a janela voltar.
-    if (!espiando_ || !agora || !view_->toolbar() ||
-        view_->toolbar()->Contains(agora)) {
+    if (!espiando_ || !agora || !view_->top_container() ||
+        view_->top_container()->Contains(agora)) {
       return;
     }
     // Fora do aviso de mudança de foco: o layout esconde a barra e mexe na
@@ -151,6 +155,12 @@ class Espia : public views::FocusChangeListener,
   // ui::EventHandler: o ponteiro na janela (antes da página e das views).
   void OnMouseEvent(ui::MouseEvent* event) override {
     if (!Ligada(view_) || !view_->multi_contents_view()) {
+      return;
+    }
+    // Tela cheia de um site (vídeo): a barra nunca aparece ali, e cada
+    // passagem pelo alto animava o layout da janela à toa.
+    if (content::WebContents* ativa = view_->GetActiveWebContents();
+        ativa && ativa->IsFullscreen()) {
       return;
     }
     const gfx::Point ponto = event->root_location();
@@ -228,14 +238,45 @@ class Espia : public views::FocusChangeListener,
   }
 
   void FimDaFolga() {
+    // Um menu ou um balão da barra aberto (o pop-up de uma extensão,
+    // informações do site, favorito): o ponteiro foi pra ele, e subir a barra
+    // levava o balão junto. Espera fechar, como a lateral.
+    if (MenuOuBalaoAberto()) {
+      ContarFolga(base::Milliseconds(200));
+      return;
+    }
     pelo_ponteiro_ = false;
-    // Digitando na barra (clicou no endereço): fica até o foco sair dela.
+    // Digitando na barra (clicou no endereço) ou nos favoritos: fica até o
+    // foco sair dela.
     views::FocusManager* foco = view_->GetFocusManager();
-    if (foco && view_->toolbar() &&
-        view_->toolbar()->Contains(foco->GetFocusedView())) {
+    if (foco && view_->top_container() &&
+        view_->top_container()->Contains(foco->GetFocusedView())) {
       espiando_ = true;
     }
     Animar();
+  }
+
+  bool MenuOuBalaoAberto() const {
+    if (views::MenuController::GetActiveInstance()) {
+      return true;
+    }
+    views::View* topo = view_->top_container();
+    if (!topo) {
+      return false;
+    }
+    for (views::Widget* outro :
+         views::Widget::GetAllOwnedWidgets(widget_->GetNativeView())) {
+      if (!outro->IsVisible() || !outro->widget_delegate()) {
+        continue;
+      }
+      views::BubbleDialogDelegate* balao =
+          outro->widget_delegate()->AsBubbleDialogDelegate();
+      views::View* ancora = balao ? balao->GetAnchorView() : nullptr;
+      if (ancora && topo->Contains(ancora)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   void FimDoFoco() {

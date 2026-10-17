@@ -19,6 +19,13 @@ namespace navegador::fixos {
 
 namespace {
 
+// O que a pessoa escolhe é do perfil normal: na janela anônima as prefs são
+// uma cópia em memória por cima dele, e o que se gravasse ali sumia ao
+// fechar a janela.
+PrefService* Prefs(Profile* profile) {
+  return profile->GetOriginalProfile()->GetPrefs();
+}
+
 constexpr char kId[] = "id";
 constexpr char kUrl[] = "url";
 constexpr char kTitulo[] = "titulo";
@@ -151,7 +158,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
 std::vector<Entrada> Do(Profile* profile, std::string_view espaco) {
   std::vector<Entrada> resultado;
   const base::ListValue* lista =
-      profile->GetPrefs()->GetDict(kFixosPref).FindList(espaco);
+      Prefs(profile)->GetDict(kFixosPref).FindList(espaco);
   if (!lista) {
     return resultado;
   }
@@ -190,7 +197,7 @@ std::vector<Entrada> Do(Profile* profile, std::string_view espaco) {
 std::vector<Site> Favoritos(Profile* profile, std::string_view espaco) {
   std::vector<Site> resultado;
   if (const base::ListValue* lista =
-          profile->GetPrefs()->GetDict(kFixosPref).FindList(
+          Prefs(profile)->GetDict(kFixosPref).FindList(
               ChaveDosFavoritos(espaco))) {
     for (const base::Value& valor : *lista) {
       if (std::optional<Site> site = SiteDe(valor)) {
@@ -206,7 +213,7 @@ std::string Favoritar(Profile* profile,
                       const GURL& url,
                       std::string_view titulo) {
   const Site site{NovoId("f"), url, std::string(titulo)};
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   ListaDoEspaco(update.Get(), ChaveDosFavoritos(espaco))
       .Append(DictDoSite(site));
   return site.id;
@@ -214,7 +221,7 @@ std::string Favoritar(Profile* profile,
 
 bool EFavorito(Profile* profile, std::string_view id) {
   const base::ListValue* lista = nullptr;
-  for (auto [chave, valor] : profile->GetPrefs()->GetDict(kFixosPref)) {
+  for (auto [chave, valor] : Prefs(profile)->GetDict(kFixosPref)) {
     if (!chave.starts_with(kPrefixoFavoritos) || !(lista = valor.GetIfList())) {
       continue;
     }
@@ -240,7 +247,7 @@ std::optional<Site> SitePorId(Profile* profile,
                               std::string* espaco,
                               std::string* pasta) {
   // Busca numa cópia: Achar precisa de acesso de escrita.
-  base::DictValue todos = profile->GetPrefs()->GetDict(kFixosPref).Clone();
+  base::DictValue todos = Prefs(profile)->GetDict(kFixosPref).Clone();
   std::optional<Lugar> lugar = Achar(todos, id, espaco, pasta);
   if (!lugar) {
     return std::nullopt;
@@ -254,7 +261,7 @@ std::string Fixar(Profile* profile,
                   std::string_view titulo,
                   std::string_view pasta) {
   const Site site{NovoId("s"), url, std::string(titulo)};
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   base::ListValue* destino = &ListaDoEspaco(update.Get(), espaco);
   if (!pasta.empty()) {
     if (std::optional<Lugar> lugar = Achar(update.Get(), pasta)) {
@@ -277,7 +284,7 @@ std::string CriarPasta(Profile* profile,
   pasta.Set(kNome, nome);
   pasta.Set(kAberta, true);
   pasta.Set(kItens, base::ListValue());
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   ListaDoEspaco(update.Get(), espaco).Append(std::move(pasta));
   return id;
 }
@@ -285,14 +292,14 @@ std::string CriarPasta(Profile* profile,
 void RenomearPasta(Profile* profile,
                    std::string_view id,
                    std::string_view nome) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   if (std::optional<Lugar> lugar = Achar(update.Get(), id)) {
     (*lugar->lista)[lugar->indice].GetDict().Set(kNome, nome);
   }
 }
 
 void AbrirPasta(Profile* profile, std::string_view id, bool aberta) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   if (std::optional<Lugar> lugar = Achar(update.Get(), id)) {
     (*lugar->lista)[lugar->indice].GetDict().Set(kAberta, aberta);
   }
@@ -301,28 +308,28 @@ void AbrirPasta(Profile* profile, std::string_view id, bool aberta) {
 void RenomearSite(Profile* profile,
                   std::string_view id,
                   std::string_view titulo) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   if (std::optional<Lugar> lugar = Achar(update.Get(), id)) {
     (*lugar->lista)[lugar->indice].GetDict().Set(kTitulo, titulo);
   }
 }
 
 void TrocarEndereco(Profile* profile, std::string_view id, const GURL& url) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   if (std::optional<Lugar> lugar = Achar(update.Get(), id)) {
     (*lugar->lista)[lugar->indice].GetDict().Set(kUrl, url.spec());
   }
 }
 
 void Remover(Profile* profile, std::string_view id) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   if (std::optional<Lugar> lugar = Achar(update.Get(), id)) {
     lugar->lista->erase(lugar->lista->begin() + lugar->indice);
   }
 }
 
 void Mover(Profile* profile, std::string_view id, int sentido) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   std::optional<Lugar> lugar = Achar(update.Get(), id);
   if (!lugar) {
     return;
@@ -343,7 +350,7 @@ void Posicionar(Profile* profile,
   if (id == vizinho) {
     return;
   }
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   std::string espaco;
   std::optional<Lugar> origem = Achar(update.Get(), id, &espaco);
   std::string pasta_do_vizinho;
@@ -382,7 +389,7 @@ void Posicionar(Profile* profile,
 void MoverParaPasta(Profile* profile,
                     std::string_view id,
                     std::string_view pasta) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   std::string espaco;
   std::optional<Lugar> lugar = Achar(update.Get(), id, &espaco);
   if (!lugar || !SiteDe((*lugar->lista)[lugar->indice])) {
@@ -404,7 +411,7 @@ void MoverParaPasta(Profile* profile,
 }
 
 void RemoverEspaco(Profile* profile, std::string_view espaco) {
-  ScopedDictPrefUpdate update(profile->GetPrefs(), kFixosPref);
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   update->Remove(espaco);
   update->Remove(ChaveDosFavoritos(espaco));
 }
@@ -438,6 +445,13 @@ void RestaurarDaSessao(content::WebContents* contents,
   auto it = extra_data.find(kSessionKey);
   if (it != extra_data.end() && !it->second.empty()) {
     LigarAba(contents, it->second);
+  }
+}
+
+void AddExtraData(content::WebContents* contents,
+                  std::map<std::string, std::string>& extra_data) {
+  if (std::optional<std::string> site = SiteDaAba(contents)) {
+    extra_data[kSessionKey] = *site;
   }
 }
 

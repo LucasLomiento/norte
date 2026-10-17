@@ -1,8 +1,27 @@
 diff --git i/chrome/browser/ui/browser_command_controller.cc w/chrome/browser/ui/browser_command_controller.cc
-index 3741ba7671..779be59085 100644
+index 3741ba7671..efb91b1122 100644
 --- i/chrome/browser/ui/browser_command_controller.cc
 +++ w/chrome/browser/ui/browser_command_controller.cc
-@@ -2763,14 +2763,15 @@ void BrowserCommandController::UpdateCommandsForTabGroupFocusChanged() {
+@@ -1725,11 +1725,15 @@ void BrowserCommandController::InitCommandState() {
+   command_updater_->UpdateCommandEnabled(IDC_RELOAD_CLEARING_CACHE, can_reload);
+ 
+   // Tab group commands
++  // navegador: os grupos são os espaços. Sem os atalhos de fechar e girar
++  // grupos do Chromium (Shift+Alt+W fechava o espaço inteiro sem perguntar;
++  // Shift+Alt+X/Z giravam na ordem dos grupos da faixa, não na dos espaços).
++  // A troca de espaço tem os atalhos nossos.
+   command_updater_->UpdateCommandEnabled(IDC_ADD_NEW_TAB_TO_GROUP, true);
+   command_updater_->UpdateCommandEnabled(IDC_CREATE_NEW_TAB_GROUP, true);
+-  command_updater_->UpdateCommandEnabled(IDC_FOCUS_NEXT_TAB_GROUP, true);
+-  command_updater_->UpdateCommandEnabled(IDC_FOCUS_PREV_TAB_GROUP, true);
+-  command_updater_->UpdateCommandEnabled(IDC_CLOSE_TAB_GROUP, true);
++  command_updater_->UpdateCommandEnabled(IDC_FOCUS_NEXT_TAB_GROUP, false);
++  command_updater_->UpdateCommandEnabled(IDC_FOCUS_PREV_TAB_GROUP, false);
++  command_updater_->UpdateCommandEnabled(IDC_CLOSE_TAB_GROUP, false);
+   command_updater_->UpdateCommandEnabled(IDC_GROUP_UNGROUPED_TABS, true);
+   command_updater_->UpdateCommandEnabled(IDC_ADD_NEW_TAB_RECENT_GROUP, true);
+   command_updater_->UpdateCommandEnabled(IDC_UNFOCUS_TAB_GROUP, true);
+@@ -2763,14 +2767,15 @@ void BrowserCommandController::UpdateCommandsForTabGroupFocusChanged() {
    }
  
    if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {

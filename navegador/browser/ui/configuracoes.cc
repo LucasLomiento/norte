@@ -143,9 +143,11 @@ void MostrarSobre(views::Widget* dialogo, BrowserWindowInterface* browser) {
 // Refaz o layout (e as cores) das janelas abertas do perfil: a moldura, os
 // botões da janela, a opacidade da lateral e a barra na cor do site são
 // lidos no layout e nas cores da janela.
+// As configurações são do perfil normal mesmo abertas numa janela anônima:
+// lá as prefs são uma cópia em memória, que some ao fechar a janela.
 void RefazerJanelas(Profile* perfil) {
   for (BrowserWindowInterface* browser : GetAllBrowserWindowInterfaces()) {
-    if (browser->GetProfile() != perfil) {
+    if (browser->GetProfile()->GetOriginalProfile() != perfil) {
       continue;
     }
     BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser);
@@ -583,7 +585,7 @@ BEGIN_METADATA(LinhaDeVersao)
 END_METADATA
 
 std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
-  Profile* perfil = browser->GetProfile();
+  Profile* perfil = browser->GetProfile()->GetOriginalProfile();
   auto pagina = std::make_unique<Pagina>(u"Geral");
 
   Cartao* abrir = pagina->Secao(u"Ao abrir o navegador");
@@ -666,7 +668,7 @@ std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
 // --- Aparência ---------------------------------------------------------------
 
 std::unique_ptr<views::View> PaginaAparencia(BrowserWindowInterface* browser) {
-  Profile* perfil = browser->GetProfile();
+  Profile* perfil = browser->GetProfile()->GetOriginalProfile();
   auto pagina = std::make_unique<Pagina>(u"Aparência");
 
   Cartao* tema = pagina->Secao(u"Tema");
@@ -784,7 +786,7 @@ void DefinirInteiro(Profile* perfil, const char* pref, int valor) {
 }
 
 std::unique_ptr<views::View> PaginaLateral(BrowserWindowInterface* browser) {
-  Profile* perfil = browser->GetProfile();
+  Profile* perfil = browser->GetProfile()->GetOriginalProfile();
   auto pagina = std::make_unique<Pagina>(
       u"Lateral",
       u"Escondida (Ctrl+S), a lateral aparece por cima da página quando o "
@@ -956,7 +958,7 @@ class PaginaDeEspacos : public views::View,
 
  public:
   explicit PaginaDeEspacos(BrowserWindowInterface* browser)
-      : browser_(browser), perfil_(browser->GetProfile()) {
+      : browser_(browser), perfil_(browser->GetProfile()->GetOriginalProfile()) {
     SetLayoutManager(std::make_unique<views::FillLayout>());
     prefs_.Init(perfil_->GetPrefs());
     prefs_.Add(espacos::kListaPref,
@@ -1254,7 +1256,7 @@ std::unique_ptr<views::View> PaginaContainers(BrowserWindowInterface* browser) {
   // O painel dos containers já traz a explicação no alto.
   auto pagina = std::make_unique<Pagina>(u"Containers");
   Cartao* cartao = pagina->Secao(std::u16string());
-  cartao->Adicionar(containers::CriarPainel(browser->GetProfile()));
+  cartao->Adicionar(containers::CriarPainel(browser->GetProfile()->GetOriginalProfile()));
   pagina->Rodape(
       u"Histórico, favoritos e senhas continuam do perfil; o container separa "
       u"cookies, logins e dados dos sites.");
@@ -1598,7 +1600,7 @@ class JanelaDeConfiguracoes : public views::View {
         break;
       case Aba::kAtalhos:
         conteudo_->AddChildView(
-            std::make_unique<PaginaDeAtalhos>(browser_->GetProfile()));
+            std::make_unique<PaginaDeAtalhos>(browser_->GetProfile()->GetOriginalProfile()));
         break;
     }
     conteudo_->InvalidateLayout();
@@ -1786,7 +1788,7 @@ void EditarEspaco(BrowserWindowInterface* browser,
                   const std::string& espaco,
                   base::OnceCallback<void(const std::string&)> pronto) {
   views::Widget* widget = constrained_window::CreateBrowserModalDialogViews(
-      std::make_unique<EditorDeEspaco>(browser->GetProfile(), espaco,
+      std::make_unique<EditorDeEspaco>(browser->GetProfile()->GetOriginalProfile(), espaco,
                                        std::move(pronto)),
       JanelaDe(browser));
   MostrarSobre(widget, browser);

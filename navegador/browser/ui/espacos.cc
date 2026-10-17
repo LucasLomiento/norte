@@ -5,9 +5,11 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <utility>
 #include <vector>
 
+#include "base/files/file_path.h"
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
@@ -69,6 +71,7 @@
 #include "ui/events/event_handler.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/font_list.h"
+#include "ui/gfx/geometry/vector2d_f.h"
 #include "ui/menus/simple_menu_model.h"
 #include "components/vector_icons/vector_icons.h"
 #include "ui/accessibility/ax_enums.mojom.h"
@@ -390,18 +393,57 @@ class TrocaNaLateral : public ui::EventHandler {
   }
 
   void OnScrollEvent(ui::ScrollEvent* event) override {
-    // Touchpad: deslizar de lado troca de espaço.
-    if (event->type() == ui::EventType::kScroll &&
-        std::abs(event->x_offset()) > std::abs(event->y_offset()) * 2 &&
-        std::abs(event->x_offset()) > 30) {
-      girar_rodinha_.Run(event->x_offset() < 0);
-      event->SetHandled();
+    // Touchpad: deslizar de lado troca de espaço uma vez por gesto, como o
+    // Zen. O eixo trava nos primeiros 15 px; o gesto acaba com os dedos
+    // levantando (fling) ou 300 ms parado. A rolagem de lado é toda nossa:
+    // solta, ela virava rodinha (Widget::OnScrollEvent) e girava de novo.
+    if (event->type() == ui::EventType::kScrollFlingStart ||
+        event->type() == ui::EventType::kScrollFlingCancel) {
+      ZerarGesto();
+      return;
+    }
+    if (event->type() != ui::EventType::kScroll) {
+      return;
+    }
+    if (event->time_stamp() - ultimo_ > base::Milliseconds(300)) {
+      ZerarGesto();
+    }
+    ultimo_ = event->time_stamp();
+    acumulado_ += gfx::Vector2dF(event->x_offset(), event->y_offset());
+    if (eixo_ == Eixo::kNenhum &&
+        std::max(std::abs(acumulado_.x()), std::abs(acumulado_.y())) >= 15) {
+      eixo_ = std::abs(acumulado_.x()) > std::abs(acumulado_.y())
+                  ? Eixo::kHorizontal
+                  : Eixo::kVertical;
+    }
+    if (eixo_ == Eixo::kVertical ||
+        (eixo_ == Eixo::kNenhum &&
+         std::abs(event->x_offset()) < std::abs(event->y_offset()))) {
+      return;  // Rola a lista de abas.
+    }
+    event->SetHandled();
+    if (eixo_ == Eixo::kHorizontal && !girou_ &&
+        std::abs(acumulado_.x()) >= 60) {
+      girou_ = true;
+      girar_rodinha_.Run(acumulado_.x() < 0);
     }
   }
 
  private:
+  enum class Eixo { kNenhum, kHorizontal, kVertical };
+
+  void ZerarGesto() {
+    acumulado_ = gfx::Vector2dF();
+    eixo_ = Eixo::kNenhum;
+    girou_ = false;
+  }
+
   base::RepeatingCallback<void(bool)> girar_;
   base::RepeatingCallback<void(bool)> girar_rodinha_;
+  gfx::Vector2dF acumulado_;
+  Eixo eixo_ = Eixo::kNenhum;
+  bool girou_ = false;
+  base::TimeTicks ultimo_;
 };
 
 // A faixa no pé da lateral e o controle dos espaços da janela.
@@ -484,6 +526,12 @@ class FaixaDeEspacos : public views::View,
     if (!Get(Perfil(), espaco)) {
       return;
     }
+    // O temporário é só da janela da extensão: noutra janela não ganha aba
+    // nem vira o Ativo (a janela nova nasceria nele).
+    const bool temporario = Temporario(espaco);
+    if (temporario && !GrupoDoEspaco(espaco)) {
+      return;
+    }
     if (std::optional<tab_groups::TabGroupId> grupo = GrupoDoEspaco(espaco)) {
       // Volta pra última aba usada no espaço: ativar uma aba de outro grupo
       // já foca o grupo dela (patch no TabStripModel::ActivateTab). Sem
@@ -509,11 +557,23 @@ class FaixaDeEspacos : public views::View,
     } else {
       CriarAbaNoEspaco(espaco, GURL(chrome::kChromeUINewTabURL));
     }
-    DefinirAtivo(Perfil(), espaco);
+    if (!temporario) {
+      DefinirAtivo(Perfil(), espaco);
+    }
+  }
+
+  // Os espaços por onde a troca passa: o temporário (o grupo de uma
+  // extensão) só na janela que tem o grupo dele.
+  std::vector<Espaco> Navegaveis() const {
+    std::vector<Espaco> todos = Todos(Perfil());
+    std::erase_if(todos, [this](const Espaco& espaco) {
+      return espaco.temporario && !GrupoDoEspaco(espaco.id);
+    });
+    return todos;
   }
 
   void Girar(bool pra_frente) {
-    const std::vector<Espaco> todos = Todos(Perfil());
+    const std::vector<Espaco> todos = Navegaveis();
     if (todos.size() < 2) {
       return;
     }
@@ -530,7 +590,7 @@ class FaixaDeEspacos : public views::View,
   }
 
   void IrParaPosicao(size_t posicao) {
-    const std::vector<Espaco> todos = Todos(Perfil());
+    const std::vector<Espaco> todos = Navegaveis();
     if (posicao < todos.size()) {
       Focar(todos[posicao].id);
     }
@@ -562,9 +622,13 @@ class FaixaDeEspacos : public views::View,
     // Como no Zen: quem move a aba fica no espaço; a aba ativa passa pra
     // outra do espaço (ou, se era a última, a janela segue a aba).
     if (era_ativa && origem) {
-      const TabGroup* grupo = model_->group_model()->GetTabGroup(*origem);
-      if (model_->group_model()->ContainsTabGroup(*origem) && grupo &&
-          grupo->GetFirstTab()) {
+      // A aba era a única do espaço: o grupo já sumiu (o GetTabGroup de
+      // um grupo que não existe dá CHECK).
+      const TabGroup* grupo =
+          model_->group_model()->ContainsTabGroup(*origem)
+              ? model_->group_model()->GetTabGroup(*origem)
+              : nullptr;
+      if (grupo && grupo->GetFirstTab()) {
         model_->ActivateTabAt(model_->GetIndexOfTab(grupo->GetFirstTab()));
       } else {
         Focar(espaco);
@@ -919,6 +983,29 @@ class FaixaDeEspacos : public views::View,
 
   // Espaços temporários sem grupo em nenhuma janela do perfil somem. Não
   // durante a restauração da sessão: os grupos deles ainda vão chegar.
+  // Uma vez por perfil, depois da restauração da partida: os grupos que
+  // sobraram na pref de janelas que já fecharam.
+  static void PodarGruposUmaVez(Profile* perfil) {
+    static base::NoDestructor<std::set<base::FilePath>> podados;
+    // A anônima tem o mesmo caminho e os grupos dela não ficam gravados.
+    if (perfil->IsOffTheRecord() ||
+        !podados->insert(perfil->GetPath()).second) {
+      return;
+    }
+    std::set<std::string> vivos;
+    for (const auto& [janela, faixa] : Faixas()) {
+      if (janela->GetProfile() != perfil || !janela->GetTabStripModel() ||
+          !janela->GetTabStripModel()->group_model()) {
+        continue;
+      }
+      for (const tab_groups::TabGroupId& id :
+           janela->GetTabStripModel()->group_model()->ListTabGroups()) {
+        vivos.insert(id.ToString());
+      }
+    }
+    PodarGrupos(perfil, vivos);
+  }
+
   static void LimparTemporarios(base::WeakPtr<Profile> perfil) {
     if (!perfil || SessionRestore::IsRestoring(perfil.get()) ||
         !grupos_salvos::Pronto(perfil.get())) {
@@ -935,6 +1022,7 @@ class FaixaDeEspacos : public views::View,
           });
       if (!tem_grupo) {
         Remover(perfil.get(), espaco.id);
+        fixos::RemoverEspaco(perfil.get(), espaco.id);
       }
     }
   }
@@ -968,6 +1056,16 @@ class FaixaDeEspacos : public views::View,
               EspacoDoGrupo(Perfil(), grupo->ToString())) {
         return *espaco;
       }
+    }
+    return EspacoDaJanela();
+  }
+
+  // O espaço que esta janela mostra (o Chromium tira o foco do grupo a cada
+  // aba inserida sem grupo). O Ativo é do perfil inteiro, o último usado em
+  // qualquer janela: só vale pra janela que ainda não entrou em nenhum.
+  std::string EspacoDaJanela() const {
+    if (!espaco_visivel_.empty() && Get(Perfil(), espaco_visivel_)) {
+      return espaco_visivel_;
     }
     return Ativo(Perfil());
   }
@@ -1118,6 +1216,7 @@ class FaixaDeEspacos : public views::View,
         grupos_salvos::Pronto(perfil)) {
       limpou_temporarios_ = true;
       LimparTemporarios(perfil->GetWeakPtr());
+      PodarGruposUmaVez(perfil);
     }
 
     // A última aba de um espaço fechou: reabre o espaço com aba nova.
@@ -1298,13 +1397,13 @@ class FaixaDeEspacos : public views::View,
     if (!soltas.empty()) {
       std::optional<tab_groups::TabGroupId> alvo = model_->GetFocusedGroup();
       if (!alvo) {
-        alvo = GrupoDoEspaco(Ativo(perfil));
+        alvo = GrupoDoEspaco(EspacoDaJanela());
       }
       if (alvo) {
         model_->AddToExistingGroup(soltas, *alvo, /*add_to_end=*/true);
       } else {
         const tab_groups::TabGroupId novo = model_->AddToNewGroup(soltas);
-        Ligar(novo, Ativo(perfil));
+        Ligar(novo, EspacoDaJanela());
       }
     }
 
@@ -1316,7 +1415,7 @@ class FaixaDeEspacos : public views::View,
         foco = model_->GetTabGroupForTab(model_->active_index());
       }
       if (!foco) {
-        foco = GrupoDoEspaco(Ativo(perfil));
+        foco = GrupoDoEspaco(EspacoDaJanela());
       }
       if (!foco && !model_->group_model()->ListTabGroups().empty()) {
         foco = model_->group_model()->ListTabGroups().front();
@@ -1359,7 +1458,10 @@ class FaixaDeEspacos : public views::View,
     std::vector<content::WebContents*> vazias;
     for (size_t i = faixa.start(); i < faixa.end(); ++i) {
       content::WebContents* aba = model_->GetWebContentsAt(static_cast<int>(i));
+      // A metade de uma divisão (Ctrl+Alt+V/H na Nova guia) fica.
+      tabs::TabInterface* tab = model_->GetTabAtIndex(static_cast<int>(i));
       if (aba && aba != model_->GetActiveWebContents() && !aba->IsLoading() &&
+          !(tab && tab->IsSplit()) &&
           aba->GetVisibleURL() == GURL(chrome::kChromeUINewTabURL) &&
           aba->GetController().GetEntryCount() <= 1) {
         vazias.push_back(aba);

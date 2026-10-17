@@ -798,10 +798,10 @@ index b4d971dbff..86c5265c90 100644
    net::CertStatus GetCertStatus() const override;
    std::unique_ptr<security_state::VisibleSecurityState>
 diff --git i/chrome/browser/ui/ui_features.cc w/chrome/browser/ui/ui_features.cc
-index 7a0e331ded..8d2dee8dfa 100644
+index 7a0e331ded..83841e5241 100644
 --- i/chrome/browser/ui/ui_features.cc
 +++ w/chrome/browser/ui/ui_features.cc
-@@ -551,7 +551,8 @@ BASE_FEATURE_PARAM(bool,
+@@ -551,9 +551,13 @@ BASE_FEATURE_PARAM(bool,
  BASE_FEATURE(kAiOverlayDisableNavigationContext,
               base::FEATURE_DISABLED_BY_DEFAULT);
  
@@ -809,8 +809,14 @@ index 7a0e331ded..8d2dee8dfa 100644
 +// navegador: espaços do Dia (grupo focado = espaço).
 +BASE_FEATURE(kTabGroupsFocusing, base::FEATURE_ENABLED_BY_DEFAULT);
  
- BASE_FEATURE_PARAM(bool, kTabGroupsFocusFreezing, &kTabGroupsFocusing, true);
+-BASE_FEATURE_PARAM(bool, kTabGroupsFocusFreezing, &kTabGroupsFocusing, true);
++// navegador: abas dos outros espaços não congelam (como no Zen): um upload,
++// um chat ou um cronômetro num espaço continuam rodando enquanto se usa
++// outro. Ficam como abas em segundo plano comuns.
++BASE_FEATURE_PARAM(bool, kTabGroupsFocusFreezing, &kTabGroupsFocusing, false);
  
+ bool IsTabGroupsFocusFreezingEnabled() {
+   return base::FeatureList::IsEnabled(kTabGroupsFocusing) &&
 diff --git i/chrome/browser/ui/views/frame/browser_desktop_window_tree_host_linux.cc w/chrome/browser/ui/views/frame/browser_desktop_window_tree_host_linux.cc
 index 32e5c1a27f..0ab4b1f800 100644
 --- i/chrome/browser/ui/views/frame/browser_desktop_window_tree_host_linux.cc
@@ -1404,7 +1410,7 @@ index cd6fa39dad..6b9401874b 100644
    // BrowserFrameView:
    BoundsAndMargins GetCaptionButtonBounds() const override;
 diff --git i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-index b7cdb8f557..8c5750e7e6 100644
+index b7cdb8f557..cabd15408c 100644
 --- i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 @@ -4,6 +4,16 @@
@@ -1474,6 +1480,21 @@ index b7cdb8f557..8c5750e7e6 100644
    resize_area_ = AddChildView(std::make_unique<views::ResizeArea>(this));
    resize_area_->SetProperty(views::kViewIgnoredByLayoutKey, true);
    resize_area_->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
+@@ -189,10 +216,10 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+       kExpandOnHoverShadowElevation, kExpandOnHoverShadowAlpha));
+   shadow_frame_->SetProperty(views::kViewIgnoredByLayoutKey, true);
+ 
+-  if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {
+-    focus_swipe_controller_ =
+-        std::make_unique<VerticalTabStripFocusSwipeController>(this);
+-  }
++  // navegador: sem o VerticalTabStripFocusSwipeController. A troca de espaço
++  // pela rolagem de lado é nossa (TrocaNaLateral, navegador/browser/ui/
++  // espacos.cc), na ordem da lista de espaços e uma vez por gesto; com os
++  // dois, um deslizar no touchpad pulava dois espaços.
+ 
+   SetNotifyEnterExitOnChild(true);
+   UpdateColors();
 @@ -296,8 +323,10 @@ bool VerticalTabStripRegionView::IsPositionInWindowCaption(
    }
  
@@ -1891,7 +1912,7 @@ index 76f8e997d6..a4b8aa7040 100644
  };
  
 diff --git i/chrome/browser/ui/views/location_bar/location_bar_view.cc w/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 9251f8590b..66cf8ac8be 100644
+index 9251f8590b..cfdd1804bd 100644
 --- i/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ w/chrome/browser/ui/views/location_bar/location_bar_view.cc
 @@ -4,6 +4,9 @@
@@ -1904,7 +1925,15 @@ index 9251f8590b..66cf8ac8be 100644
  #include <algorithm>
  #include <memory>
  #include <ranges>
-@@ -274,6 +277,10 @@ LocationBarView::~LocationBarView() {
+@@ -120,6 +123,7 @@
+ #include "content/public/browser/render_widget_host_view.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_observer.h"
++#include "navegador/browser/ui/barra.h"
+ #include "services/device/public/cpp/device_features.h"
+ #include "third_party/metrics_proto/omnibox_event.pb.h"
+ #include "third_party/skia/include/core/SkColor.h"
+@@ -274,6 +278,10 @@ LocationBarView::~LocationBarView() {
  }
  
  void LocationBarView::Init() {
@@ -1915,7 +1944,7 @@ index 9251f8590b..66cf8ac8be 100644
    TRACE_EVENT0("omnibox", "LocationBarView::Init");
    static bool has_logged_startup_to_init = false;
    if (!has_logged_startup_to_init) {
-@@ -853,6 +860,7 @@ void LocationBarView::Layout(PassKey) {
+@@ -853,6 +861,7 @@ void LocationBarView::Layout(PassKey) {
      }
    }
  
@@ -1923,7 +1952,7 @@ index 9251f8590b..66cf8ac8be 100644
    if (ShouldShowKeywordBubble()) {
      location_icon_view_->SetVisible(false);
      leading_decorations.AddDecoration(
-@@ -862,14 +870,25 @@ void LocationBarView::Layout(PassKey) {
+@@ -862,14 +871,25 @@ void LocationBarView::Layout(PassKey) {
    } else if (location_icon_view_->GetShowText() &&
               !ShouldChipOverrideLocationIcon()) {
      location_icon_view_->SetVisible(true);
@@ -1952,7 +1981,7 @@ index 9251f8590b..66cf8ac8be 100644
    } else {
      location_icon_view_->SetVisible(false);
    }
-@@ -882,6 +901,10 @@ void LocationBarView::Layout(PassKey) {
+@@ -882,6 +902,10 @@ void LocationBarView::Layout(PassKey) {
            /*max_fraction=*/0, intra_item_padding, edge_padding, view);
      }
    };
@@ -1963,7 +1992,7 @@ index 9251f8590b..66cf8ac8be 100644
  
    if (features::IsPageActionsElevatedToolbarEnabled()) {
      if (page_action_container_ && page_action_container_->GetVisible()) {
-@@ -1066,6 +1089,12 @@ void LocationBarView::Update(WebContents* contents) {
+@@ -1066,6 +1090,12 @@ void LocationBarView::Update(WebContents* contents) {
    } else {
      omnibox_view_->Update();
    }
@@ -1976,7 +2005,7 @@ index 9251f8590b..66cf8ac8be 100644
  
    // Ensures that the page action updates is performed after the omnibox update.
    // So we can determine whether page actions should be hidden or not.
-@@ -1437,6 +1466,29 @@ void LocationBarView::RefreshBackground() {
+@@ -1437,6 +1467,29 @@ void LocationBarView::RefreshBackground() {
      permission_dashboard_view_->SetDividerBackgroundColor(background_color_);
    }
  
@@ -2006,7 +2035,21 @@ index 9251f8590b..66cf8ac8be 100644
    SchedulePaint();
  }
  
-@@ -2041,6 +2093,10 @@ void LocationBarView::OnOmniboxFocused() {
+@@ -1581,6 +1634,13 @@ void LocationBarView::OnPageInfoBubbleClosed(
+ }
+ 
+ void LocationBarView::FocusSearch() {
++  // navegador: com a barra escondida, Ctrl+K/Ctrl+E mostram a barra antes
++  // (escondida, o endereço não aceita foco e o que se digitava ia pra página).
++  if (browser_) {
++    if (BrowserView* view = BrowserView::GetBrowserViewForBrowser(browser_)) {
++      navegador::barra::Espiar(view);
++    }
++  }
+   // This is called by keyboard accelerator, so it's user-initiated.
+   FocusLocation(/*is_user_initiated=*/true, /*clear_focus_if_failed=*/false);
+   omnibox_view_->EnterKeywordModeForDefaultSearchProvider();
+@@ -2041,6 +2101,10 @@ void LocationBarView::OnOmniboxFocused() {
    // the omnibox is intentional, snapping is better than transitioning here.
    hover_animation_.Reset();
    RefreshBackground();
@@ -2017,7 +2060,7 @@ index 9251f8590b..66cf8ac8be 100644
  
    // The AI mode page action should only be visible when the omnibox
    // is focused, so if there is a change in focus, refresh the icon.
-@@ -2067,6 +2123,8 @@ void LocationBarView::OnOmniboxBlurred() {
+@@ -2067,6 +2131,8 @@ void LocationBarView::OnOmniboxBlurred() {
    RefreshAiModePageAction();
  
    location_icon_view_->Update(false, false);
@@ -2026,7 +2069,7 @@ index 9251f8590b..66cf8ac8be 100644
  }
  
  bool LocationBarView::IsFullWebUiOmniboxReady() const {
-@@ -2075,6 +2133,13 @@ bool LocationBarView::IsFullWebUiOmniboxReady() const {
+@@ -2075,6 +2141,13 @@ bool LocationBarView::IsFullWebUiOmniboxReady() const {
  }
  
  void LocationBarView::OnOmniboxHovered(bool is_hovering) {
@@ -2040,7 +2083,7 @@ index 9251f8590b..66cf8ac8be 100644
    if (is_hovering) {
      // Only show the hover animation when omnibox is in unfocused steady state.
      if (!omnibox_view_->HasFocus()) {
-@@ -2083,6 +2148,33 @@ void LocationBarView::OnOmniboxHovered(bool is_hovering) {
+@@ -2083,6 +2156,33 @@ void LocationBarView::OnOmniboxHovered(bool is_hovering) {
    } else {
      hover_animation_.Hide();
    }

@@ -36,6 +36,15 @@ std::optional<std::string> EspacoFocado(BrowserWindowInterface* browser) {
     if (browser->GetType() != BrowserWindowInterface::Type::TYPE_NORMAL) {
       return std::nullopt;
     }
+    // Janela que perdeu o foco do grupo (o Chromium tira a cada aba inserida
+    // sem grupo): o espaço que ela mostra, não o da última janela usada.
+    if (std::optional<tab_groups::TabGroupId> visivel =
+            espacos::GrupoVisivel(browser->GetTabStripModel())) {
+      if (std::optional<std::string> espaco = espacos::EspacoDoGrupo(
+              browser->GetProfile(), visivel->ToString())) {
+        return espaco;
+      }
+    }
     return espacos::Ativo(browser->GetProfile());
   }
   return espacos::EspacoDoGrupo(browser->GetProfile(), grupo->ToString());

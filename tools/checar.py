@@ -3,8 +3,8 @@
 sem esperar a compilação inteira chegar neles.
 
 Lista: os .cc em navegador/ e os .cc do Chromium tocados pelos patches
-(git diff no src). Usa out/dev/compile_commands.json (gn gen
---export-compile-commands). Roda em paralelo, em prioridade baixa.
+(git diff no src). Usa out/release/compile_commands.json (gn gen
+--export-compile-commands), ou o do out/dev. Roda em paralelo, em prioridade baixa.
 
   python3 -I tools/checar.py [arquivo.cc ...]
 """
@@ -17,7 +17,12 @@ import subprocess
 import sys
 
 SRC = os.path.expanduser("~/Work/navegador-chromium/src")
-OUT = os.path.join(SRC, "out/dev")
+# O out/release é o que se compila pro pacote; o out/dev fica pra trás.
+# CHECAR_OUT=out/dev pra usar outro.
+OUT = os.path.join(SRC, os.environ.get(
+    "CHECAR_OUT",
+    "out/release" if os.path.exists(
+        os.path.join(SRC, "out/release/compile_commands.json")) else "out/dev"))
 
 
 def arquivos_mudados():

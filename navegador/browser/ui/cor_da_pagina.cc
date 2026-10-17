@@ -5,7 +5,6 @@
 #include <cstdlib>
 #include <map>
 #include <memory>
-#include <set>
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
@@ -103,7 +102,7 @@ bool Diferentes(std::optional<SkColor> a, std::optional<SkColor> b) {
 }
 
 // 5 bits por canal: tons quase iguais viram a mesma cor (e reaproveitam o
-// mesmo fornecedor de cores, ver LembrarCor).
+// mesmo fornecedor de cores, ver LimparFornecedoresSePreciso).
 SkColor Arredondar(SkColor cor) {
   const auto canal = [](U8CPU v) { return std::min<U8CPU>(255, (v + 4) & ~7u); };
   return SkColorSetRGB(canal(SkColorGetR(cor)), canal(SkColorGetG(cor)),
@@ -112,24 +111,23 @@ SkColor Arredondar(SkColor cor) {
 
 // Cada cor da barra vira uma chave de cores da janela, e o Chromium guarda
 // um ColorProvider inteiro (milhares de cores) por chave, sem limite, até o
-// tema mudar. Visitando muitos sites, isso só crescia. Passando de
-// kMaximoDeCores cores desde a última limpeza, limpa o cache: as janelas
-// pedem o fornecedor de novo na próxima pintura (Widget::GetColorProvider não
-// guarda ponteiro), e as cores continuam as mesmas.
-constexpr size_t kMaximoDeCores = 32;
+// tema mudar: e a chave leva também a cor do espaço e o modo (cada aba pede
+// o claro e o escuro). Visitando muitos sites, isso só crescia. Passando de
+// kMaximoDeFornecedores criados desde a última limpeza, limpa o cache: as
+// janelas pedem o fornecedor de novo na próxima pintura
+// (Widget::GetColorProvider não guarda ponteiro), e as cores continuam as
+// mesmas.
+constexpr size_t kMaximoDeFornecedores = 64;
 
-void LembrarCor(SkColor cor) {
-  static base::NoDestructor<std::set<SkColor>> vistas;
-  if (!vistas->insert(cor).second || vistas->size() <= kMaximoDeCores) {
+void LimparFornecedoresSePreciso() {
+  static size_t na_ultima_limpeza = 0;
+  ui::ColorProviderManager& gerente = ui::ColorProviderManager::Get();
+  if (gerente.num_providers_initialized() - na_ultima_limpeza <=
+      kMaximoDeFornecedores) {
     return;
   }
-  ui::ColorProviderManager::Get().ResetColorProviderCache();
-  vistas->clear();
-  for (const auto& [janela, atual] : Cores()) {
-    if (atual) {
-      vistas->insert(*atual);
-    }
-  }
+  gerente.ResetColorProviderCache();
+  na_ultima_limpeza = gerente.num_providers_initialized();
 }
 
 // Invisível, fora do layout: só existe pra viver junto com a janela.
@@ -157,7 +155,10 @@ class Observador : public views::View,
     Amostrar();
     Agendar();
   }
-  void RemovedFromWidget() override { relogio_.Stop(); }
+  void RemovedFromWidget() override {
+    relogio_.Stop();
+    aviso_.Stop();
+  }
 
   // TabStripModelObserver:
   void OnTabStripModelChanged(
@@ -174,8 +175,11 @@ class Observador : public views::View,
   // content::WebContentsObserver:
   void DidFirstVisuallyNonEmptyPaint() override { Acordar(); }
   void DidStopLoading() override { Acordar(); }
-  void DidChangeThemeColor() override { Acordar(); }
-  void OnBackgroundColorChanged() override { Acordar(); }
+  // A cor de fundo e o theme-color podem mudar a cada quadro (transição ou
+  // animação do fundo do body): cada aviso era uma cópia da tela e um
+  // ThemeChanged da janela inteira. Espera os avisos pararem.
+  void DidChangeThemeColor() override { AcordarDepois(); }
+  void OnBackgroundColorChanged() override { AcordarDepois(); }
   // O vídeo parou (pausa, fim): a página volta a poder ser amostrada.
   void MediaStoppedPlaying(const MediaPlayerInfo& info,
                            const content::MediaPlayerId& id,
@@ -208,10 +212,17 @@ class Observador : public views::View,
                    base::BindOnce(&Observador::Tique, base::Unretained(this)));
   }
 
-  // Tela cheia: a barra nem aparece.
+  // Tela cheia sem a barra: a de um site, ou a da janela com a opção "barra
+  // e abas na tela cheia" desligada (ligada, a barra continua à vista e
+  // precisa seguir a página).
   bool TelaCheia() {
     content::WebContents* contents = web_contents();
-    return browser_view_->IsFullscreen() || (contents && contents->IsFullscreen());
+    if (contents && contents->IsFullscreen()) {
+      return true;
+    }
+    return browser_view_->IsFullscreen() &&
+           !browser_view_->browser()->GetProfile()->GetPrefs()->GetBoolean(
+               espacos::kBarraNaTelaCheiaPref);
   }
 
   // Cada cópia passa um quadro da página pelo compositor de novo: com vídeo
@@ -241,6 +252,12 @@ class Observador : public views::View,
       Amostrar();
     }
     Agendar();
+  }
+
+  void AcordarDepois() {
+    // Reinicia a cada aviso: só amostra quando a página para de mudar.
+    aviso_.Start(FROM_HERE, kEsperaDoAviso,
+                 base::BindOnce(&Observador::Acordar, base::Unretained(this)));
   }
 
   // Copia uma faixa de 6 de altura no topo da página, reduzida pra 64x2.
@@ -333,9 +350,7 @@ class Observador : public views::View,
       return;
     }
     cores[browser_view_] = cor;
-    if (cor) {
-      LembrarCor(*cor);
-    }
+    LimparFornecedoresSePreciso();
     if (views::Widget* widget = GetWidget()) {
       widget->ThemeChanged();
     }
@@ -350,6 +365,8 @@ class Observador : public views::View,
   static constexpr base::TimeDelta kIntervaloMaximo = base::Seconds(6);
   base::TimeDelta intervalo_ = kIntervaloMinimo;
   base::OneShotTimer relogio_;
+  static constexpr base::TimeDelta kEsperaDoAviso = base::Milliseconds(250);
+  base::OneShotTimer aviso_;
   base::WeakPtrFactory<Observador> weak_factory_{this};
 };
 

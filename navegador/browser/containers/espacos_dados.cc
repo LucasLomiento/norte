@@ -21,6 +21,14 @@ namespace navegador::espacos {
 
 namespace {
 
+// A lista de espaços e os atalhos são do perfil normal: na janela anônima
+// as prefs são uma cópia em memória por cima dele, e o que se gravasse ali
+// sumia ao fechar a janela. Os grupos (de abas desta janela) e o espaço
+// ativo ficam no perfil da própria janela.
+PrefService* Prefs(Profile* profile) {
+  return profile->GetOriginalProfile()->GetPrefs();
+}
+
 constexpr char kId[] = "id";
 constexpr char kNome[] = "nome";
 constexpr char kIcone[] = "icone";
@@ -130,7 +138,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
 
 std::vector<Espaco> Todos(Profile* profile) {
   std::vector<Espaco> resultado;
-  for (const base::Value& valor : profile->GetPrefs()->GetList(kListaPref)) {
+  for (const base::Value& valor : Prefs(profile)->GetList(kListaPref)) {
     if (std::optional<Espaco> espaco = DeValor(valor)) {
       resultado.push_back(std::move(*espaco));
     }
@@ -165,7 +173,7 @@ Espaco Criar(Profile* profile,
     lista.Append(ParaDict(existente));
   }
   lista.Append(ParaDict(espaco));
-  profile->GetPrefs()->SetList(kListaPref, std::move(lista));
+  Prefs(profile)->SetList(kListaPref, std::move(lista));
   return espaco;
 }
 
@@ -174,7 +182,7 @@ void Atualizar(Profile* profile, const Espaco& espaco) {
   for (const Espaco& existente : Todos(profile)) {
     lista.Append(ParaDict(existente.id == espaco.id ? espaco : existente));
   }
-  profile->GetPrefs()->SetList(kListaPref, std::move(lista));
+  Prefs(profile)->SetList(kListaPref, std::move(lista));
 }
 
 void Remover(Profile* profile, std::string_view id) {
@@ -188,7 +196,7 @@ void Remover(Profile* profile, std::string_view id) {
       lista.Append(ParaDict(existente));
     }
   }
-  profile->GetPrefs()->SetList(kListaPref, std::move(lista));
+  Prefs(profile)->SetList(kListaPref, std::move(lista));
 
   // Os grupos que eram dele ficam soltos (a janela religa).
   ScopedDictPrefUpdate grupos(profile->GetPrefs(), kGruposPref);
@@ -220,7 +228,7 @@ void Mover(Profile* profile, std::string_view id, size_t posicao) {
   for (const Espaco& existente : todos) {
     lista.Append(ParaDict(existente));
   }
-  profile->GetPrefs()->SetList(kListaPref, std::move(lista));
+  Prefs(profile)->SetList(kListaPref, std::move(lista));
 }
 
 std::string ProximaCor(Profile* profile) {
@@ -247,6 +255,22 @@ void LigarGrupo(Profile* profile,
 void DesligarGrupo(Profile* profile, std::string_view grupo) {
   ScopedDictPrefUpdate grupos(profile->GetPrefs(), kGruposPref);
   grupos->Remove(grupo);
+}
+
+void PodarGrupos(Profile* profile, const std::set<std::string>& vivos) {
+  std::vector<std::string> mortos;
+  for (const auto [grupo, espaco] : profile->GetPrefs()->GetDict(kGruposPref)) {
+    if (!vivos.contains(grupo)) {
+      mortos.push_back(grupo);
+    }
+  }
+  if (mortos.empty()) {
+    return;
+  }
+  ScopedDictPrefUpdate grupos(profile->GetPrefs(), kGruposPref);
+  for (const std::string& grupo : mortos) {
+    grupos->Remove(grupo);
+  }
 }
 
 bool GrupoTemporario(Profile* profile, std::string_view grupo) {
@@ -298,7 +322,7 @@ const std::vector<Atalho>& Atalhos() {
 
 std::string AtalhoDe(Profile* profile, std::string_view acao) {
   if (const std::string* escolhido =
-          profile->GetPrefs()->GetDict(kAtalhosPref).FindString(acao)) {
+          Prefs(profile)->GetDict(kAtalhosPref).FindString(acao)) {
     return *escolhido;
   }
   for (const Atalho& atalho : Atalhos()) {
@@ -312,7 +336,7 @@ std::string AtalhoDe(Profile* profile, std::string_view acao) {
 void DefinirAtalho(Profile* profile,
                    std::string_view acao,
                    std::string_view atalho) {
-  ScopedDictPrefUpdate atalhos(profile->GetPrefs(), kAtalhosPref);
+  ScopedDictPrefUpdate atalhos(Prefs(profile), kAtalhosPref);
   for (const Atalho& conhecido : Atalhos()) {
     if (conhecido.acao == acao && conhecido.padrao == atalho) {
       atalhos->Remove(acao);
@@ -323,7 +347,7 @@ void DefinirAtalho(Profile* profile,
 }
 
 void RestaurarAtalhos(Profile* profile) {
-  profile->GetPrefs()->ClearPref(kAtalhosPref);
+  Prefs(profile)->ClearPref(kAtalhosPref);
 }
 
 bool MostrarQuadroDeFavoritos(Profile* profile) {

@@ -1,5 +1,6 @@
 #include "navegador/browser/ui/bloqueador.h"
 
+#include <algorithm>
 #include <map>
 #include <memory>
 #include <optional>
@@ -86,6 +87,55 @@ void Juntar(std::string& css, const std::vector<std::string_view>& seletores) {
   }
 }
 
+std::optional<std::string_view> ValorConhecido(std::string_view valor) {
+  static constexpr std::pair<std::string_view, std::string_view> kValores[] = {
+      {"undefined", "undefined"},
+      {"false", "false"},
+      {"true", "true"},
+      {"null", "null"},
+      {"noopFunc", "function() {}"},
+      {"trueFunc", "function() { return true; }"},
+      {"falseFunc", "function() { return false; }"},
+      {"emptyObj", "{}"},
+      {"{}", "{}"},
+      {"emptyArr", "[]"},
+      {"[]", "[]"},
+      {"''", "''"},
+      {"emptyStr", "''"},
+      {"yes", "'yes'"},
+      {"no", "'no'"},
+  };
+  for (const auto& [nome, js] : kValores) {
+    if (nome == valor) {
+      return js;
+    }
+  }
+  return std::nullopt;
+}
+
+std::string_view ValorEmJs(std::string_view valor) {
+  return ValorConhecido(valor).value_or(valor);  // Número (ValorValido).
+}
+
+bool CaminhoValido(std::string_view caminho) {
+  return !caminho.empty() && std::ranges::all_of(caminho, [](char c) {
+    return base::IsAsciiAlphaNumeric(c) || c == '_' || c == '$' || c == '.';
+  });
+}
+
+bool ValorValido(std::string_view valor) {
+  if (ValorConhecido(valor)) {
+    return true;
+  }
+  if (valor.starts_with('-')) {
+    valor.remove_prefix(1);
+  }
+  return !valor.empty() && valor.size() <= 16 &&
+         std::ranges::all_of(valor, [](char c) {
+           return base::IsAsciiDigit(c) || c == '.';
+         });
+}
+
 std::unique_ptr<Cosmetico> LerCosmetico(const base::FilePath& caminho) {
   std::string texto;
   if (!base::ReadFileToString(caminho, &texto)) {
@@ -101,6 +151,12 @@ std::unique_ptr<Cosmetico> LerCosmetico(const base::FilePath& caminho) {
       continue;
     }
     if (campos.size() == 4 && campos[0] == "J") {
+      // Vão pro JavaScript da página: só caminho de variável e valor
+      // conhecido ou número (o tools/cosmetico.py já filtra; aqui é a
+      // garantia, caso o arquivo venha de outro lugar).
+      if (!CaminhoValido(campos[2]) || !ValorValido(campos[3])) {
+        continue;
+      }
       Constante constante{.caminho = std::string(campos[2]),
                           .valor = std::string(campos[3])};
       std::vector<std::string> dentro;
@@ -239,31 +295,6 @@ std::string CssDoSite(const Cosmetico& regras, std::string_view host) {
 
 // Os valores do "set" em JS (tools/cosmetico.py só deixa passar estes e
 // números).
-std::string_view ValorEmJs(std::string_view valor) {
-  static constexpr std::pair<std::string_view, std::string_view> kValores[] = {
-      {"undefined", "undefined"},
-      {"false", "false"},
-      {"true", "true"},
-      {"null", "null"},
-      {"noopFunc", "function() {}"},
-      {"trueFunc", "function() { return true; }"},
-      {"falseFunc", "function() { return false; }"},
-      {"emptyObj", "{}"},
-      {"{}", "{}"},
-      {"emptyArr", "[]"},
-      {"[]", "[]"},
-      {"''", "''"},
-      {"emptyStr", "''"},
-      {"yes", "'yes'"},
-      {"no", "'no'"},
-  };
-  for (const auto& [nome, js] : kValores) {
-    if (nome == valor) {
-      return js;
-    }
-  }
-  return valor;  // Número.
-}
 
 // Roda no começo do documento, antes dos scripts da página. Pra "a.b.c": se
 // "a" ou "a.b" ainda não existem, fica esperando a página criar (um setter

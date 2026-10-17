@@ -1,3 +1,56 @@
+diff --git i/chrome/browser/browsing_data/BUILD.gn w/chrome/browser/browsing_data/BUILD.gn
+index 5181cf3a52..f68ceeb1da 100644
+--- i/chrome/browser/browsing_data/BUILD.gn
++++ w/chrome/browser/browsing_data/BUILD.gn
+@@ -95,6 +95,7 @@ source_set("impl") {
+   }
+ 
+   deps = [
++    "//navegador/browser/containers",  # navegador
+     ":browsing_data",
+     ":constants",
+     "//chrome/browser:browser_process",
+diff --git i/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc w/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
+index bdb99adb00..faf0c88c06 100644
+--- i/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
++++ w/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
+@@ -163,6 +163,7 @@
+ #include "media/mojo/services/webrtc_video_perf_history.h"
+ #include "mojo/public/cpp/bindings/callback_helpers.h"
+ #include "mojo/public/cpp/bindings/remote.h"
++#include "navegador/browser/containers/containers.h"
+ #include "net/base/features.h"
+ #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
+ #include "net/http/http_transaction_factory.h"
+@@ -1473,6 +1474,28 @@ void ChromeBrowsingDataRemoverDelegate::RemoveEmbedderData(
+   }
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ 
++  // navegador: cada container é uma StoragePartition própria, e sem
++  // partição no filtro só a padrão era limpa (cookies, armazenamento e cache
++  // dos containers ficavam). Mesmo filtro, uma vez por container.
++  if (!filter_builder->GetStoragePartitionConfig().has_value() &&
++      !profile_->IsOffTheRecord()) {
++    const uint64_t mascara =
++        content::BrowsingDataRemover::DATA_TYPE_ON_STORAGE_PARTITION &
++        remove_mask;
++    if (mascara) {
++      for (const navegador::containers::Container& container :
++           navegador::containers::GetAll(profile_)) {
++        std::unique_ptr<content::BrowsingDataFilterBuilder> do_container =
++            filter_builder->Copy();
++        do_container->SetStoragePartitionConfig(
++            navegador::containers::PartitionConfig(profile_, container.id));
++        profile_->GetBrowsingDataRemover()->RemoveWithFilter(
++            delete_begin, delete_end, mascara, origin_type_mask,
++            std::move(do_container));
++      }
++    }
++  }
++
+   //////////////////////////////////////////////////////////////////////////////
+   // DATA_TYPE_TABS
+   if (remove_mask & constants::DATA_TYPE_TABS) {
 diff --git i/chrome/browser/prefs/BUILD.gn w/chrome/browser/prefs/BUILD.gn
 index 817cd91bda..27fafcf284 100644
 --- i/chrome/browser/prefs/BUILD.gn
@@ -119,7 +172,7 @@ index b2e9ee838f..7430aec948 100644
      "//base",
      "//base:i18n",
 diff --git i/chrome/browser/renderer_context_menu/render_view_context_menu.cc w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-index 1a4de31b32..0ce71ed9e6 100644
+index 1a4de31b32..7fc9dad7d8 100644
 --- i/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 @@ -4,6 +4,9 @@
@@ -276,14 +329,15 @@ index 1a4de31b32..0ce71ed9e6 100644
  }
  
  Profile* RenderViewContextMenu::GetProfile() const {
-@@ -2146,6 +2279,20 @@ void RenderViewContextMenu::AppendLinkItems() {
+@@ -2146,6 +2279,21 @@ void RenderViewContextMenu::AppendLinkItems() {
      }
  #endif  // !BUILDFLAG(IS_CHROMEOS)
  
 +    // navegador: "Abrir link em container". O id do item é o do submenu de
 +    // perfis (habilitado quando o link é válido); os itens têm delegate
-+    // próprio.
-+    if (GetBrowser() && !GetProfile()->IsOffTheRecord()) {
++    // próprio. Só em janela normal: num popup ou app a aba ficaria
++    // escondida dentro dele.
++    if (IsNormalBrowser() && !GetProfile()->IsOffTheRecord()) {
 +      navegador_containers_submenu_ = navegador::containers::CriarSubmenuDoLink(
 +          GetBrowser()->GetTabStripModel(), source_web_contents_,
 +          params_.link_url);
@@ -310,6 +364,45 @@ index cbf156d81c..9844fedb18 100644
    std::vector<base::FilePath> profile_link_paths_;
    bool multiple_profiles_open_;
  
+diff --git i/chrome/browser/resource_coordinator/BUILD.gn w/chrome/browser/resource_coordinator/BUILD.gn
+index 8fb038ce79..7e05bdd73f 100644
+--- i/chrome/browser/resource_coordinator/BUILD.gn
++++ w/chrome/browser/resource_coordinator/BUILD.gn
+@@ -128,6 +128,7 @@ source_set("impl") {
+     deps += [
+       "//chrome/browser/devtools",
+       "//chrome/browser/memory",
++      "//navegador/browser/containers",  # navegador
+       "//chrome/browser/permissions",
+       "//chrome/browser/sessions",
+       "//chrome/browser/ui",
+diff --git i/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc w/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
+index 6f872ee5a8..db1bf14595 100644
+--- i/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
++++ w/chrome/browser/resource_coordinator/tab_lifecycle_unit.cc
+@@ -43,6 +43,7 @@
+ #include "content/public/browser/navigation_entry.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/content_features.h"
++#include "navegador/browser/containers/containers.h"
+ #include "third_party/abseil-cpp/absl/cleanup/cleanup.h"
+ #include "url/gurl.h"
+ 
+@@ -281,9 +282,14 @@ void TabLifecycleUnitSource::TabLifecycleUnit::FinishDiscard(
+       content::WebContents::CreateParams::kNoRendererProcess;
+   create_params.last_active_time = old_contents->GetLastActiveTime();
+   create_params.last_active_time_ticks = old_contents->GetLastActiveTimeTicks();
++  // navegador: a aba descartada continua no container, com o nome dado e o
++  // site fixado (são dados da WebContents, que aqui é trocada).
++  create_params.site_instance = navegador::containers::SiteInstanceDaAba(
++      tab_strip_model_->profile(), old_contents);
+   std::unique_ptr<content::WebContents> null_contents =
+       content::WebContents::Create(create_params);
+   content::WebContents* raw_null_contents = null_contents.get();
++  navegador::containers::CopiarDadosDaAba(old_contents, raw_null_contents);
+ 
+   UpdatePreDiscardResourceUsage(raw_null_contents, discard_reason,
+                                 tab_memory_footprint_estimate);
 diff --git i/chrome/browser/sessions/BUILD.gn w/chrome/browser/sessions/BUILD.gn
 index 3c44e7f7a5..56c864ee98 100644
 --- i/chrome/browser/sessions/BUILD.gn
@@ -389,19 +482,20 @@ index 0fdde07d4d..2f92f1f1c1 100644
    content::SessionStorageNamespaceHandle* session_storage_namespace =
        tab->GetController().GetDefaultSessionStorageNamespace();
 diff --git i/chrome/browser/ui/browser_live_tab_context.cc w/chrome/browser/ui/browser_live_tab_context.cc
-index b220ba6c8f..1733bae731 100644
+index b220ba6c8f..31f92c9880 100644
 --- i/chrome/browser/ui/browser_live_tab_context.cc
 +++ w/chrome/browser/ui/browser_live_tab_context.cc
-@@ -58,6 +58,8 @@
+@@ -58,6 +58,9 @@
  #include "content/public/browser/navigation_controller.h"
  #include "content/public/browser/session_storage_namespace_handle.h"
  #include "content/public/browser/web_contents.h"
 +#include "navegador/browser/containers/containers.h"
++#include "navegador/browser/containers/fixos.h"
 +#include "navegador/browser/containers/titulos.h"
  #include "ui/base/mojom/window_show_state.mojom.h"
  #include "ui/base/window_open_disposition.h"
  
-@@ -172,6 +174,10 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
+@@ -172,6 +175,12 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
  
    glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
                                &extra_data);
@@ -409,6 +503,8 @@ index b220ba6c8f..1733bae731 100644
 +      tab_strip_model_->GetWebContentsAt(index), extra_data);
 +  navegador::titulos::AddExtraData(tab_strip_model_->GetWebContentsAt(index),
 +                                   extra_data);
++  navegador::fixos::AddExtraData(tab_strip_model_->GetWebContentsAt(index),
++                                 extra_data);
  
    return extra_data;
  }
@@ -501,7 +597,7 @@ index 812ea8e40e..4fe077a98d 100644
        "//chrome/browser/apps/link_capturing",
        "//chrome/browser/ui:browser_init_state",
 diff --git i/chrome/browser/ui/navigator/browser_navigator.cc w/chrome/browser/ui/navigator/browser_navigator.cc
-index 5029e26405..95cf66678a 100644
+index 5029e26405..0dbaa9088d 100644
 --- i/chrome/browser/ui/navigator/browser_navigator.cc
 +++ w/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -74,6 +74,8 @@
@@ -513,7 +609,7 @@ index 5029e26405..95cf66678a 100644
  #include "extensions/buildflags/buildflags.h"
  #include "ui/base/page_transition_types.h"
  #include "ui/base/window_open_disposition.h"
-@@ -504,8 +506,20 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
+@@ -504,8 +506,23 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
    // preserving the requested opener relationship along the way.
    scoped_refptr<content::SiteInstance> initial_site_instance_for_new_contents =
        params.opener ? params.opener->GetSiteInstance()
@@ -521,10 +617,13 @@ index 5029e26405..95cf66678a 100644
 -                          params.browser->GetProfile(), url);
 +                    : navegador::containers::SiteInstanceForNewTab(
 +                          params.browser->GetProfile(),
-+                          // Só link herda o container de quem abriu; aba em
-+                          // branco (Ctrl+T) segue o espaço.
++                          // Link e endereço digitado na barra da aba (Alt+Enter)
++                          // herdam o container de quem abriu; aba em branco
++                          // (Ctrl+T) segue o espaço.
 +                          ui::PageTransitionCoreTypeIs(
-+                              params.transition, ui::PAGE_TRANSITION_LINK)
++                              params.transition, ui::PAGE_TRANSITION_LINK) ||
++                                  (params.transition &
++                                   ui::PAGE_TRANSITION_FROM_ADDRESS_BAR)
 +                              ? params.source_contents.get()
 +                              : nullptr,
 +                          navegador::containers::EspacoFocado(params.browser),
@@ -810,3 +909,20 @@ index bf1d6b6d81..9e70424c68 100644
    TRACE_EVENT_END("loading");
    GetPrefetch(
        *prefetch_service, tentative_resource_request.url,
+diff --git i/content/browser/web_contents/web_contents_impl.cc w/content/browser/web_contents/web_contents_impl.cc
+index 6d6d0947fa..70ab7898d5 100644
+--- i/content/browser/web_contents/web_contents_impl.cc
++++ w/content/browser/web_contents/web_contents_impl.cc
+@@ -5696,6 +5696,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
+       // as long as they preserve the guest's StoragePartition.
+       site_instance =
+           SiteInstance::CreateForGuest(GetBrowserContext(), partition_config);
++    } else if (source_site_instance->IsFixedStoragePartition() &&
++               partition_config.partition_domain() == "navegador") {
++      // navegador: a janela nova (target=_blank, noopener, COOP) fica no
++      // container da aba de origem; sem isso nascia na partição padrão.
++      site_instance = SiteInstance::CreateForFixedStoragePartition(
++          GetBrowserContext(), params.target_url, partition_config);
+     } else {
+       site_instance = SiteInstance::Create(GetBrowserContext());
+     }

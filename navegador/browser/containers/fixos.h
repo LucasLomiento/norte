@@ -129,6 +129,9 @@ void LigarAba(content::WebContents* contents, std::string_view id);
 // browser_tabrestore.cc: a aba volta da sessão ligada ao mesmo site.
 void RestaurarDaSessao(content::WebContents* contents,
                        const std::map<std::string, std::string>& extra_data);
+// Coleta pro extra_data da aba fechada ("reabrir aba fechada").
+void AddExtraData(content::WebContents* contents,
+                  std::map<std::string, std::string>& extra_data);
 
 }  // namespace navegador::fixos
 

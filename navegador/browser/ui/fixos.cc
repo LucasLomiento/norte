@@ -33,6 +33,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/keyed_service/core/service_access_type.h"
@@ -1093,7 +1094,10 @@ class AreaDeFixos : public views::View,
     if (content::WebContents* aba = AbaDoSite(id)) {
       const int index = model_->GetIndexOfWebContents(aba);
       if (index != TabStripModel::kNoTab) {
-        model_->CloseWebContentsAt(index, TabCloseTypes::CLOSE_USER_GESTURE);
+        // Vai pro histórico: Ctrl+Shift+T traz de volta (ligada ao site).
+        model_->CloseWebContentsAt(
+            index, TabCloseTypes::CLOSE_USER_GESTURE |
+                       TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
       }
     }
   }
@@ -1350,9 +1354,11 @@ class AreaDeFixos : public views::View,
   void AtualizarEstados() {
     atualizacao_pendente_ = false;
     Profile* perfil = Perfil();
-    if (ConverterFixadasDoChromium()) {
-      Reconstruir();
-      return;
+    // Converter mexe no TabStripModel, e isto roda também no OnThemeChanged,
+    // que vem no meio de notificações dele (AddTab, ActivateTab): mexer ali
+    // dá CHECK de reentrância. Fica pra uma tarefa.
+    if (model_->IndexOfFirstNonPinnedTab() > 0) {
+      ConverterDepois();
     }
     std::map<std::string, content::WebContents*> abertas;
     bool mudou = false;
@@ -1369,7 +1375,10 @@ class AreaDeFixos : public views::View,
               model_->GetTabGroupForTab(i)) {
         espaco_da_aba = espacos::EspacoDoGrupo(perfil, grupo->ToString());
       }
-      if (!existe || abertas.contains(*id) ||
+      // Na divisão de tela a aba aparece no par, na lista: vira aba comum
+      // (senão aparecia duas vezes, ali e no lugar do site).
+      tabs::TabInterface* tab = model_->GetTabAtIndex(i);
+      if (!existe || abertas.contains(*id) || (tab && tab->IsSplit()) ||
           (espaco_da_aba && *espaco_da_aba != espaco)) {
         Ligar(aba, std::string());
         mudou = true;
@@ -1393,6 +1402,31 @@ class AreaDeFixos : public views::View,
       content::WebContents* aba = it == abertas.end() ? nullptr : it->second;
       ladrilho->Mostrar(aba != nullptr, aba && aba == ativa,
                         IconeDe(ladrilho->site(), aba));
+    }
+  }
+
+  void ConverterDepois() {
+    if (conversao_pendente_) {
+      return;
+    }
+    conversao_pendente_ = true;
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&AreaDeFixos::Converter,
+                                  weak_factory_.GetWeakPtr()));
+  }
+
+  void Converter() {
+    // No meio de um arrasto a aba ainda vai mudar de lugar (ou de janela).
+    if (TabDragController::IsActive()) {
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE,
+          base::BindOnce(&AreaDeFixos::Converter, weak_factory_.GetWeakPtr()),
+          base::Milliseconds(300));
+      return;
+    }
+    conversao_pendente_ = false;
+    if (ConverterFixadasDoChromium()) {
+      Reconstruir();
     }
   }
 
@@ -1440,6 +1474,11 @@ class AreaDeFixos : public views::View,
         if (TabUIHelper* ajudante = TabUIHelper::From(tab)) {
           icone = ajudante->GetFavicon();
         }
+      }
+      // Guarda pra quando a aba fechar (site que não estava no histórico
+      // de favicons ficava com o globo).
+      if (!icone.IsEmpty()) {
+        icones_[site.url] = icone;
       }
     } else {
       auto guardado = icones_.find(site.url);
@@ -1518,6 +1557,7 @@ class AreaDeFixos : public views::View,
   std::string ultimo_clique_;
   base::TimeTicks quando_ultimo_clique_;
   bool atualizacao_pendente_ = false;
+  bool conversao_pendente_ = false;
   bool tem_pasta_fechada_ = false;
 
   // Arrastar: o que, de onde, e pra perto de quem.
