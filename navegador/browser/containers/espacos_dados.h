@@ -93,6 +93,9 @@ struct Espaco {
   std::string cor;
   // Id do container das abas novas do espaço; vazio = perfil normal.
   std::string container;
+  // Espaço de um grupo criado por extensão (o do Claude): some quando o
+  // grupo fecha, não vira o espaço ativo e a última aba não fica.
+  bool temporario = false;
 };
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
@@ -104,7 +107,8 @@ Espaco Criar(Profile* profile,
              std::string_view nome,
              std::string_view icone,
              std::string_view cor,
-             std::string_view container);
+             std::string_view container,
+             bool temporario = false);
 void Atualizar(Profile* profile, const Espaco& espaco);
 // Não apaga o último espaço (a lista nunca fica vazia).
 void Remover(Profile* profile, std::string_view id);
@@ -121,6 +125,8 @@ void LigarGrupo(Profile* profile,
                 std::string_view grupo,
                 std::string_view espaco);
 void DesligarGrupo(Profile* profile, std::string_view grupo);
+// O grupo é de um espaço temporário.
+bool GrupoTemporario(Profile* profile, std::string_view grupo);
 
 std::string Ativo(Profile* profile);
 void DefinirAtivo(Profile* profile, std::string_view espaco);

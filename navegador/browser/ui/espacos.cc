@@ -22,6 +22,7 @@
 #include "chrome/browser/ui/tabs/tab_enums.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/navigation_controller.h"
+#include "chrome/browser/lifetime/browser_shutdown.h"
 #include "chrome/browser/sessions/session_restore.h"
 #include "chrome/browser/ui/browser_commands.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
@@ -106,6 +107,9 @@ constexpr float kRaioBolinha = 3.0f;
 constexpr float kRaioBolinhaAtual = 4.0f;
 // Como o Zen: entre duas trocas pela rodinha, pelo menos isto.
 constexpr base::TimeDelta kIntervaloRodinha = base::Milliseconds(200);
+// Quanto um grupo novo sem nome espera pelo nome antes de ir pro espaço
+// atual (FaixaDeEspacos::LigarGruposNovos).
+constexpr base::TimeDelta kEsperaPeloNome = base::Seconds(1);
 
 // Cor da paleta dos containers -> cor de grupo do Chromium.
 tab_groups::TabGroupColorId CorDoGrupo(std::string_view cor_escolhida) {
@@ -835,7 +839,10 @@ class FaixaDeEspacos : public views::View,
     if (new_focused_group_id) {
       if (std::optional<std::string> espaco =
               EspacoDoGrupo(Perfil(), new_focused_group_id->ToString())) {
-        DefinirAtivo(Perfil(), *espaco);
+        // O temporário não vira o ativo: janela nova não nasce nele.
+        if (!Temporario(*espaco)) {
+          DefinirAtivo(Perfil(), *espaco);
+        }
         if (!TabDragController::IsActive()) {
           espaco_visivel_ = *espaco;
         }
@@ -848,11 +855,18 @@ class FaixaDeEspacos : public views::View,
   }
 
   void OnTabGroupAdded(const tab_groups::TabGroupId& group_id) override {
+    // Fora de arrasto e da sessão, pode ser o grupo de uma extensão
+    // (LigarGruposNovos). Os nossos já nascem ligados a um espaço.
+    if (!TabDragController::IsActive() &&
+        !SessionRestore::IsRestoring(Perfil())) {
+      novos_[group_id] = base::TimeTicks::Now();
+    }
     GarantirDepois();
   }
 
   void OnTabGroupWillBeRemoved(
       const tab_groups::TabGroupId& group_id) override {
+    novos_.erase(group_id);
     // A janela inteira fechando: os grupos saem junto, mas continuam dos
     // espaços (a sessão traz eles de volta). Desligar e reabrir o espaço com
     // aba nova aqui estragava o "continuar de onde parou": o espaço em uso
@@ -861,8 +875,10 @@ class FaixaDeEspacos : public views::View,
       return;
     }
     // A última aba do espaço fechou: como no Zen, a janela fica no espaço,
-    // com uma aba nova.
-    if (model_->GetFocusedGroup() == group_id && model_->count() > 1) {
+    // com uma aba nova. O temporário vai embora com o grupo
+    // (OnTabGroupChanged).
+    if (model_->GetFocusedGroup() == group_id && model_->count() > 1 &&
+        !GrupoTemporario(Perfil(), group_id.ToString())) {
       if (std::optional<std::string> espaco =
               EspacoDoGrupo(Perfil(), group_id.ToString())) {
         espaco_a_manter_ = *espaco;
@@ -870,6 +886,57 @@ class FaixaDeEspacos : public views::View,
     }
     DesligarGrupo(Perfil(), group_id.ToString());
     GarantirDepois();
+  }
+
+  void OnTabGroupChanged(const TabGroupChange& change) override {
+    // Grupo de espaço temporário que esvaziou (a extensão fechou as abas;
+    // não saiu pra outra janela): o espaço vai junto, mesmo com a janela
+    // fechando por ser a última aba dela. Menos com o navegador saindo ou a
+    // última janela fechando: aí a sessão traz o grupo de volta, ou a
+    // limpeza da partida tira o espaço.
+    if (change.type != TabGroupChange::kClosed) {
+      return;
+    }
+    const TabGroupChange::CloseChange* fechou = change.GetCloseChange();
+    if ((fechou && fechou->reason() == TabGroupChange::TabGroupClosureReason::
+                                          kDetachedToAnotherTabstrip) ||
+        !GrupoTemporario(Perfil(), change.group.ToString()) ||
+        browser_shutdown::IsTryingToQuit()) {
+      return;
+    }
+    if (model_->closing_all() &&
+        std::ranges::none_of(Faixas(), [this](const auto& janela) {
+          return janela.second != this &&
+                 janela.first->GetProfile() == Perfil();
+        })) {
+      return;
+    }
+    DesligarGrupo(Perfil(), change.group.ToString());
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&FaixaDeEspacos::LimparTemporarios,
+                                  Perfil()->GetWeakPtr()));
+  }
+
+  // Espaços temporários sem grupo em nenhuma janela do perfil somem. Não
+  // durante a restauração da sessão: os grupos deles ainda vão chegar.
+  static void LimparTemporarios(base::WeakPtr<Profile> perfil) {
+    if (!perfil || SessionRestore::IsRestoring(perfil.get()) ||
+        !grupos_salvos::Pronto(perfil.get())) {
+      return;
+    }
+    for (const Espaco& espaco : Todos(perfil.get())) {
+      if (!espaco.temporario) {
+        continue;
+      }
+      const bool tem_grupo =
+          std::ranges::any_of(Faixas(), [&](const auto& janela) {
+            return janela.first->GetProfile() == perfil.get() &&
+                   janela.second->GrupoDoEspaco(espaco.id);
+          });
+      if (!tem_grupo) {
+        Remover(perfil.get(), espaco.id);
+      }
+    }
   }
 
  private:
@@ -887,6 +954,11 @@ class FaixaDeEspacos : public views::View,
       }
     }
     return std::nullopt;
+  }
+
+  bool Temporario(const std::string& espaco) const {
+    std::optional<Espaco> dados = Get(Perfil(), espaco);
+    return dados && dados->temporario;
   }
 
   std::string EspacoAtual() const {
@@ -952,6 +1024,69 @@ class FaixaDeEspacos : public views::View,
                                   weak_factory_.GetWeakPtr()));
   }
 
+  void GarantirEm(base::TimeDelta espera) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(&FaixaDeEspacos::GarantirDepois,
+                       weak_factory_.GetWeakPtr()),
+        espera);
+  }
+
+  // Grupo que nasceu agora sem espaço, fora de arrasto e da sessão: é de uma
+  // extensão. A do Claude cria o grupo e dá o nome ("Claude") logo depois,
+  // noutra chamada, e se perder o grupo para de funcionar. Sem nome, espera
+  // um pouco sem mexer em nada da janela (senão ela voltava pro espaço de
+  // onde a aba saiu, com uma aba nova); com nome, vira um espaço temporário,
+  // que some quando o grupo fechar. Nunca ganhou nome: segue a regra de
+  // sempre (vai pro espaço atual). Devolve false enquanto espera.
+  bool LigarGruposNovos() {
+    Profile* perfil = Perfil();
+    const base::TimeTicks agora = base::TimeTicks::Now();
+    for (auto it = novos_.begin(); it != novos_.end();) {
+      const tab_groups::TabGroupId id = it->first;
+      if (!model_->group_model()->ContainsTabGroup(id) ||
+          EspacoDoGrupo(perfil, id.ToString())) {
+        it = novos_.erase(it);
+        continue;
+      }
+      const TabGroup* grupo = model_->group_model()->GetTabGroup(id);
+      const std::u16string nome = grupo->visual_data()->title();
+      if (nome.empty()) {
+        const base::TimeDelta idade = agora - it->second;
+        if (idade < kEsperaPeloNome) {
+          GarantirEm(kEsperaPeloNome - idade);
+          return false;
+        }
+        it = novos_.erase(it);
+        continue;
+      }
+      it = novos_.erase(it);
+      // Nome de um espaço que já existe (grupo reaberto com Ctrl+Shift+T,
+      // aba movida de outra janela): fica com a regra de sempre, que junta
+      // no espaço.
+      if (std::ranges::any_of(Todos(perfil), [&nome](const Espaco& existente) {
+            return base::UTF8ToUTF16(existente.nome) == nome ||
+                   Titulo(existente) == nome;
+          })) {
+        continue;
+      }
+      const Espaco espaco =
+          Criar(perfil, base::UTF16ToUTF8(nome), "",
+                CorDaPaleta(grupo->visual_data()->color()), "",
+                /*temporario=*/true);
+      Ligar(id, espaco.id);
+      // A aba em uso está nele (a janela que a extensão abriu): a janela
+      // mostra o espaço novo.
+      if (model_->active_index() != TabStripModel::kNoTab &&
+          model_->GetTabGroupForTab(model_->active_index()) == id) {
+        model_->SetFocusedGroup(id);
+        espaco_visivel_ = espaco.id;
+        espaco_a_manter_.clear();
+      }
+    }
+    return true;
+  }
+
   // Regras da janela: todo grupo é de um espaço, toda aba solta (não fixada)
   // entra no espaço atual e sempre tem um espaço focado.
   void Garantir() {
@@ -974,6 +1109,17 @@ class FaixaDeEspacos : public views::View,
     }
     Profile* perfil = Perfil();
 
+    if (!LigarGruposNovos()) {
+      return;
+    }
+    // Temporários que sobraram de antes (o navegador fechou com o grupo
+    // aberto e a sessão não voltou).
+    if (!limpou_temporarios_ && !SessionRestore::IsRestoring(perfil) &&
+        grupos_salvos::Pronto(perfil)) {
+      limpou_temporarios_ = true;
+      LimparTemporarios(perfil->GetWeakPtr());
+    }
+
     // A última aba de um espaço fechou: reabre o espaço com aba nova.
     if (!espaco_a_manter_.empty()) {
       const std::string espaco = std::move(espaco_a_manter_);
@@ -984,10 +1130,14 @@ class FaixaDeEspacos : public views::View,
     }
     // A última aba do espaço que a janela mostra saiu num arrasto (pra outra
     // janela ou uma nova): a janela fica nele, com uma aba nova, em vez de
-    // pular pro espaço da aba que o Chromium ativou.
-    if (!espaco_visivel_.empty() && Get(perfil, espaco_visivel_) &&
-        !GrupoDoEspaco(espaco_visivel_)) {
-      Focar(espaco_visivel_);
+    // pular pro espaço da aba que o Chromium ativou. O temporário sem grupo
+    // acabou: a janela vai pro espaço da aba ativa.
+    if (!espaco_visivel_.empty() && !GrupoDoEspaco(espaco_visivel_)) {
+      if (Temporario(espaco_visivel_)) {
+        espaco_visivel_.clear();
+      } else if (Get(perfil, espaco_visivel_)) {
+        Focar(espaco_visivel_);
+      }
     }
 
     // Grupo sem espaço (sessão antiga, grupo vindo de outra janela): vira o
@@ -1356,6 +1506,10 @@ class FaixaDeEspacos : public views::View,
   std::map<ui::Accelerator, std::string> acoes_;
   std::map<std::string, tabs::TabHandle> ultima_aba_;
   std::string espaco_a_manter_;
+  // Grupos que nasceram fora de arrasto e da sessão, ainda sem espaço, e
+  // quando (LigarGruposNovos).
+  std::map<tab_groups::TabGroupId, base::TimeTicks> novos_;
+  bool limpou_temporarios_ = false;
   // O espaço que esta janela mostra (vazio numa janela recém-criada, até o
   // primeiro Garantir). Não muda no meio de um arrasto.
   std::string espaco_visivel_;

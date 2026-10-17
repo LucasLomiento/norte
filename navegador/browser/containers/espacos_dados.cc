@@ -26,6 +26,7 @@ constexpr char kNome[] = "nome";
 constexpr char kIcone[] = "icone";
 constexpr char kCor[] = "cor";
 constexpr char kContainer[] = "container";
+constexpr char kTemporario[] = "temporario";
 
 // Rodízio das cores dos espaços novos (nomes da paleta dos containers).
 constexpr const char* kCores[] = {"azul",    "roxo",    "verde", "laranja",
@@ -38,6 +39,9 @@ base::DictValue ParaDict(const Espaco& espaco) {
   dict.Set(kIcone, espaco.icone);
   dict.Set(kCor, espaco.cor);
   dict.Set(kContainer, espaco.container);
+  if (espaco.temporario) {
+    dict.Set(kTemporario, true);
+  }
   return dict;
 }
 
@@ -54,8 +58,12 @@ std::optional<Espaco> DeValor(const base::Value& valor) {
   const std::string* icone = dict->FindString(kIcone);
   const std::string* cor = dict->FindString(kCor);
   const std::string* container = dict->FindString(kContainer);
-  return Espaco{*id, *nome, icone ? *icone : "", cor ? *cor : "azul",
-                container ? *container : ""};
+  return Espaco{*id,
+                *nome,
+                icone ? *icone : "",
+                cor ? *cor : "azul",
+                container ? *container : "",
+                dict->FindBool(kTemporario).value_or(false)};
 }
 
 // Id fixo: a lista padrão é igual em todo perfil novo e só é gravada quando
@@ -146,9 +154,11 @@ Espaco Criar(Profile* profile,
              std::string_view nome,
              std::string_view icone,
              std::string_view cor,
-             std::string_view container) {
-  Espaco espaco{NovoId(), std::string(nome), std::string(icone),
-                std::string(cor), std::string(container)};
+             std::string_view container,
+             bool temporario) {
+  Espaco espaco{NovoId(),          std::string(nome),
+                std::string(icone), std::string(cor),
+                std::string(container), temporario};
   // A lista padrão só existe em memória: grava ela antes de acrescentar.
   base::ListValue lista;
   for (const Espaco& existente : Todos(profile)) {
@@ -237,6 +247,15 @@ void LigarGrupo(Profile* profile,
 void DesligarGrupo(Profile* profile, std::string_view grupo) {
   ScopedDictPrefUpdate grupos(profile->GetPrefs(), kGruposPref);
   grupos->Remove(grupo);
+}
+
+bool GrupoTemporario(Profile* profile, std::string_view grupo) {
+  const std::optional<std::string> id = EspacoDoGrupo(profile, grupo);
+  if (!id) {
+    return false;
+  }
+  const std::optional<Espaco> espaco = Get(profile, *id);
+  return espaco && espaco->temporario;
 }
 
 std::string Ativo(Profile* profile) {

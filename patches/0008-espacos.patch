@@ -31,19 +31,20 @@ index 9190f16df0..a1e73f1094 100644
    // Update the local group with the new data. This will open new tabs, close
    // tabs, and navigate tabs to match the saved group.
 diff --git i/chrome/browser/ui/tabs/tab_strip_model.cc w/chrome/browser/ui/tabs/tab_strip_model.cc
-index 01f863a9f4..8ce4af925e 100644
+index 01f863a9f4..3e6ec50e80 100644
 --- i/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ w/chrome/browser/ui/tabs/tab_strip_model.cc
-@@ -4,6 +4,8 @@
+@@ -4,6 +4,9 @@
  
  #include "chrome/browser/ui/tabs/tab_strip_model.h"
  
++#include "navegador/browser/containers/espacos_dados.h"
 +#include "navegador/browser/containers/fixos.h"
 +
  #include <algorithm>
  #include <cstddef>
  #include <cstdint>
-@@ -163,6 +165,63 @@ bool ShouldForgetOpenersForTransition(ui::PageTransition transition) {
+@@ -163,6 +166,68 @@ bool ShouldForgetOpenersForTransition(ui::PageTransition transition) {
                                        ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
  }
  
@@ -64,6 +65,11 @@ index 01f863a9f4..8ce4af925e 100644
 +  };
 +  const std::optional<tab_groups::TabGroupId> grupo =
 +      model->GetFocusedGroup();
++  // O espaço temporário (o grupo de uma extensão) fecha com a última aba.
++  if (grupo && navegador::espacos::GrupoTemporario(model->profile(),
++                                                   grupo->ToString())) {
++    return tabs::TabHandle();
++  }
 +  int index = -1;
 +  if (grupo && model->group_model() &&
 +      model->group_model()->ContainsTabGroup(*grupo)) {
@@ -107,7 +113,7 @@ index 01f863a9f4..8ce4af925e 100644
  }  // namespace
  
  TabGroupModelFactory::TabGroupModelFactory() {
-@@ -1114,15 +1173,24 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
+@@ -1114,15 +1179,24 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
  
    // If this tab was activated, eg. by an extension, but is not in the focused
    // group, unfocus the focused group (unless it is a pinned tab).
@@ -133,7 +139,7 @@ index 01f863a9f4..8ce4af925e 100644
    SetSelection(
        new_model,
        user_gesture.type != TabStripUserGestureDetails::GestureType::kNone
-@@ -1424,7 +1492,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
+@@ -1424,7 +1498,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
  
    CHECK(contents);
    CHECK_NE(GetIndexOfWebContents(contents), kNoTab);
@@ -149,7 +155,7 @@ index 01f863a9f4..8ce4af925e 100644
  }
  
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
-@@ -2815,6 +2891,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
+@@ -2815,6 +2897,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
      }
  
      case CommandTogglePinned: {
@@ -161,7 +167,7 @@ index 01f863a9f4..8ce4af925e 100644
        base::UmaHistogramCounts1000(
            "Tab.ContextMenu.TogglePinned.SelectedTabsCount",
            selection_model_.size());
-@@ -3340,6 +3421,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3340,6 +3427,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
          get_tabs_to_close,
      bool delete_groups) {
    std::vector<tabs::TabInterface*> tabs_to_close = get_tabs_to_close.Run();
@@ -172,7 +178,7 @@ index 01f863a9f4..8ce4af925e 100644
    std::vector<tab_groups::TabGroupId> groups_to_delete =
        GetGroupsDestroyedFromRemovingTabs(get_tabs_to_close.Run());
  
-@@ -3363,7 +3448,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3363,7 +3454,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
      delegate_->OnGroupsDestruction(groups_to_delete, std::move(close_callback),
                                     delete_groups);
    } else {
@@ -184,7 +190,7 @@ index 01f863a9f4..8ce4af925e 100644
    }
  }
  
-@@ -5027,12 +5116,21 @@ void TabStripModel::MoveTabsToIndexImpl(
+@@ -5027,12 +5122,21 @@ void TabStripModel::MoveTabsToIndexImpl(
    CHECK(all_tabs_pinned || all_tabs_unpinned);
    CHECK(std::ranges::is_sorted(tab_indices));
  
