@@ -148,7 +148,11 @@ class BotaoDeDownloads : public views::Button {
 
   void Girar() {
     angulo_ = (angulo_ + 12) % 360;
-    SchedulePaint();
+    // Fora de vista (lateral escondida, janela minimizada) não repinta: o
+    // relógio é de 30 ms e cada pintura recompõe a janela.
+    if (AVista() && GetWidget()->IsVisible() && !GetWidget()->IsMinimized()) {
+      SchedulePaint();
+    }
   }
 
   raw_ptr<BrowserWindowInterface> browser_;

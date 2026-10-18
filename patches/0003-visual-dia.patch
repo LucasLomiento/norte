@@ -762,10 +762,10 @@ index b46ad7ecdf..6c3db54f84 100644
  // Per-window state for the vertical tab strip.
  struct VerticalTabStripState {
 diff --git i/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc w/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
-index 4e23238dea..5c4d998425 100644
+index 4e23238dea..9d2fd31993 100644
 --- i/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
 +++ w/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
-@@ -89,6 +89,18 @@ bool ChromeLocationBarModelDelegate::ShouldPreventElision() {
+@@ -89,6 +89,29 @@ bool ChromeLocationBarModelDelegate::ShouldPreventElision() {
    return net::IsCertStatusError(GetVisibleSecurityState()->cert_status);
  }
  
@@ -778,7 +778,18 @@ index 4e23238dea..5c4d998425 100644
 +  // endereço, que aqui seria repetido.
 +  content::NavigationEntry* entry =
 +      contents->GetController().GetLastCommittedEntry();
-+  return entry ? entry->GetTitle() : std::u16string();
++  if (!entry) {
++    return std::u16string();
++  }
++  // Sem os controles de direção do texto (U+200E/F, U+202A-E, U+2066-9):
++  // vindos da página, eles podiam reordenar o que a barra mostra e imitar
++  // outro endereço ao lado do domínio de verdade.
++  std::u16string titulo = entry->GetTitle();
++  std::erase_if(titulo, [](char16_t c) {
++    return c == 0x200E || c == 0x200F || (c >= 0x202A && c <= 0x202E) ||
++           (c >= 0x2066 && c <= 0x2069);
++  });
++  return titulo;
 +}
 +
  bool ChromeLocationBarModelDelegate::ShouldDisplayURL() const {

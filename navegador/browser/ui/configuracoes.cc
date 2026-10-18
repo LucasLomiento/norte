@@ -1315,8 +1315,12 @@ class BotaoDeAtalho : public views::LabelButton {
     const bool tecla_de_funcao = tecla >= ui::VKEY_F1 && tecla <= ui::VKEY_F12;
     const std::string texto =
         atalhos::Escrever(ui::Accelerator(tecla, modificadores));
-    if (texto.empty() || (!modificadores && !tecla_de_funcao)) {
-      // Tecla sozinha atrapalharia a digitação nas páginas.
+    // Tecla sozinha (ou só com Shift, que é letra maiúscula) atrapalharia a
+    // digitação nas páginas: o atalho vale antes delas.
+    const bool com_comando =
+        modificadores & (ui::EF_CONTROL_DOWN | ui::EF_ALT_DOWN |
+                         ui::EF_COMMAND_DOWN);
+    if (texto.empty() || (!com_comando && !tecla_de_funcao)) {
       Mostrar();
       return true;
     }
