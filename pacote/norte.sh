@@ -18,6 +18,13 @@ done
 IDIOMA="${NORTE_IDIOMA:-${NAVEGADOR_IDIOMA:-pt-BR}}"
 export LANGUAGE="${IDIOMA/-/_}"
 
+# Quem eu sou pro sistema (definir como padrão, app_id no Wayland). O Chromium
+# lê o CHROME_DESKTOP antes do nome embutido, e todo app Electron (Resenha,
+# Vesktop, Slack) põe o dele no ambiente: um Norte aberto por um link clicado
+# no Resenha se achava "resenha.desktop" e, em 17/10/2026, o "definir como
+# padrão" deixou o Resenha como navegador do sistema. O chromium do Arch faz igual.
+export CHROME_DESKTOP=norte.desktop
+
 # Integração com o sistema (as mesmas do chromium-flags.conf do Omarchy):
 # - método de entrada no Wayland (fcitx5: japonês com Mozc);
 # - senhas no chaveiro do GNOME (sem isto, no Hyprland, iriam em texto puro);
