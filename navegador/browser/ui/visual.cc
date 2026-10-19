@@ -31,10 +31,9 @@ std::optional<int> LayoutConstantOverride(LayoutConstant constant) {
     case LayoutConstant::kLocationBarHeight:
       return 32;
 
-    // Cantos do cartão de conteúdo.
-    case LayoutConstant::kToolbarCornerRadius:
-    case LayoutConstant::kMainBackgroundRegionCornerRadius:
-      return kCartaoRaio;
+    // Os cantos do cartão de conteúdo (kCartaoRaio) vão direto no layout; o
+    // kToolbarCornerRadius fica no do Chromium, que também arredonda os
+    // botões das sugestões da barra de endereço.
 
     default:
       return std::nullopt;

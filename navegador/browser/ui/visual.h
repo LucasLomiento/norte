@@ -19,10 +19,11 @@
 namespace navegador::visual {
 
 // Cartão do conteúdo: a barra de navegação e a página juntas, com margem até
-// a borda da janela e cantos arredondados (medido no Dia rodando: margem ~6,
-// cantos ~8).
+// a borda da janela (medido no Dia rodando: margem ~6). Cantos retos: os
+// arredondados do Dia (~8) deixavam um dente escuro entre a lateral e a
+// página.
 inline constexpr int kCartaoMargem = 6;
-inline constexpr int kCartaoRaio = 8;
+inline constexpr int kCartaoRaio = 0;
 
 // Folga entre as abas da lateral: no Dia, uma aba (destaque de 30) a cada 35.
 inline constexpr int kEspacoEntreAbas = 5;
