@@ -56,6 +56,11 @@ void Girar(BrowserWindowInterface* browser, bool pra_frente);
 // Abre o editor pra criar um espaço novo e leva a janela pra ele.
 void NovoEspaco(BrowserWindowInterface* browser);
 
+// Fecha as abas do espaço que a janela mostra, como o "Limpar" do Arc e do
+// Zen. Ficam as ligadas a sites fixados; sem abas, o espaço fica com uma
+// nova. Ctrl+Shift+T traz de volta.
+void FecharAbasDoEspaco(BrowserWindowInterface* browser);
+
 // Move a aba `index` da janela pro espaço (no fim das abas dele).
 void MoverAbaPara(BrowserWindowInterface* browser,
                   int index,

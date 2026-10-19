@@ -11,7 +11,7 @@ index 34da8786ae..a1085836d7 100644
      "//chrome/browser:browser_process_platform_part",
      "//chrome/browser:chrome_browser_main",
 diff --git i/chrome/browser/metrics/chrome_feature_list_creator.cc w/chrome/browser/metrics/chrome_feature_list_creator.cc
-index 90e572fe4e..d1171582ea 100644
+index 90e572fe4e..ce660e7976 100644
 --- i/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ w/chrome/browser/metrics/chrome_feature_list_creator.cc
 @@ -4,6 +4,8 @@
@@ -23,12 +23,13 @@ index 90e572fe4e..d1171582ea 100644
  #include <vector>
  
  #include "base/command_line.h"
-@@ -63,6 +65,8 @@ ChromeFeatureListCreator::~ChromeFeatureListCreator() = default;
+@@ -63,6 +65,9 @@ ChromeFeatureListCreator::~ChromeFeatureListCreator() = default;
  void ChromeFeatureListCreator::CreateFeatureList() {
    CreatePrefService();
    ConvertFlagsToSwitches();
 +  // navegador: sem as funções de IA do Google.
 +  navegador::DesligarIA(base::CommandLine::ForCurrentProcess());
++  navegador::LigarRecursos(base::CommandLine::ForCurrentProcess());
    CreateMetricsServices();
    SetupInitialPrefs();
    SetUpFieldTrials();

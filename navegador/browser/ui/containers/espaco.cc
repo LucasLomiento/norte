@@ -60,4 +60,25 @@ EspacoPendente::~EspacoPendente() {
   Pendentes().erase(browser_);
 }
 
+namespace {
+
+AbridorDePrevia& Abridor() {
+  static base::NoDestructor<AbridorDePrevia> abridor;
+  return *abridor;
+}
+
+}  // namespace
+
+void DefinirAbridorDePrevia(AbridorDePrevia abridor) {
+  Abridor() = std::move(abridor);
+}
+
+bool AbrirPrevia(BrowserWindowInterface* browser,
+                 content::WebContents* origem,
+                 const GURL& url,
+                 const content::Referrer& referrer,
+                 const std::optional<url::Origin>& iniciador) {
+  return Abridor() && Abridor().Run(browser, origem, url, referrer, iniciador);
+}
+
 }  // namespace navegador::containers

@@ -181,6 +181,13 @@ void PintarSistemaEscuro(ui::ColorMixer& mixer) {
 
   mixer[ui::kColorSysError] = {kVermelho};
   mixer[ui::kColorSysShadow] = {SK_ColorBLACK};
+
+  // Avisos rápidos ("Link copiado"): o Material usa a superfície invertida
+  // (um balão claro no escuro); aqui ficam no cinza elevado, como os menus.
+  mixer[ui::kColorToastBackground] = {kSobre};
+  mixer[ui::kColorToastBackgroundProminent] = {kSobre};
+  mixer[ui::kColorToastForeground] = {kTexto};
+  mixer[ui::kColorToastButton] = {kAcentoTexto};
 }
 
 // Cor da página na barra de navegação, com texto e ícones no contraste.

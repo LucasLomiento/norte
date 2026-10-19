@@ -597,7 +597,7 @@ index 812ea8e40e..4fe077a98d 100644
        "//chrome/browser/apps/link_capturing",
        "//chrome/browser/ui:browser_init_state",
 diff --git i/chrome/browser/ui/navigator/browser_navigator.cc w/chrome/browser/ui/navigator/browser_navigator.cc
-index 5029e26405..0dbaa9088d 100644
+index 5029e26405..93a24333c7 100644
 --- i/chrome/browser/ui/navigator/browser_navigator.cc
 +++ w/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -74,6 +74,8 @@
@@ -635,6 +635,27 @@ index 5029e26405..0dbaa9088d 100644
  
    WebContents::CreateParams create_params(
        params.browser->GetProfile(), initial_site_instance_for_new_contents);
+@@ -640,6 +657,20 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+     return nullptr;
+   }
+ 
++  // navegador: Shift+clique num link (a página pede janela nova) abre a
++  // prévia por cima da aba, como o Glance do Zen e o Peek do Arc. O "Abrir em
++  // nova janela" do menu não é da página e segue abrindo a janela.
++  if (params->disposition == WindowOpenDisposition::NEW_WINDOW &&
++      params->is_renderer_initiated && !params->contents_to_insert &&
++      !params->post_data && params->browser && params->source_contents &&
++      ui::PageTransitionCoreTypeIs(params->transition,
++                                   ui::PAGE_TRANSITION_LINK) &&
++      navegador::containers::AbrirPrevia(
++          params->browser, params->source_contents, params->url,
++          params->referrer, params->initiator_origin)) {
++    return nullptr;
++  }
++
+ #if BUILDFLAG(IS_CHROMEOS)
+   // Block navigation requests when in locked fullscreen mode. We allow
+   // navigation requests in the webapp when locked for OnTask (only relevant for
 diff --git i/chrome/browser/ui/tabs/BUILD.gn w/chrome/browser/ui/tabs/BUILD.gn
 index 3396b27000..0a140cef0b 100644
 --- i/chrome/browser/ui/tabs/BUILD.gn

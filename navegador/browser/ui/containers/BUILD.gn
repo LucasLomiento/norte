@@ -44,4 +44,9 @@ source_set("espaco") {
     "//components/tab_groups",
     "//navegador/browser/containers",
   ]
+  public_deps = [
+    "//content/public/browser",
+    "//content/public/common",
+    "//url",
+  ]
 }

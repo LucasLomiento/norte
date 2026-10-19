@@ -605,6 +605,21 @@ std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
                   },
                   perfil))));
 
+  Cartao* links = pagina->Secao(u"Links");
+  links->Adicionar(Linha(
+      u"Prévia com Shift + clique",
+      u"Shift + clique num link abre a página num cartão por cima da aba, "
+      u"sem sair dela. Esc fecha; dali dá pra abrir como aba ou dividir a "
+      u"tela. Desligado, abre numa janela nova.",
+      Interruptor(perfil->GetPrefs()->GetBoolean(espacos::kPreviaPref),
+                  u"Prévia com Shift + clique",
+                  base::BindRepeating(
+                      [](Profile* perfil, bool ligado) {
+                        perfil->GetPrefs()->SetBoolean(espacos::kPreviaPref,
+                                                       ligado);
+                      },
+                      perfil))));
+
   Cartao* atualizacoes = pagina->Secao(u"Atualizações");
   atualizacoes->Adicionar(Linha(
       u"Procurar ao abrir",

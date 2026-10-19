@@ -37,6 +37,7 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/views/tabs/common/tab_strip_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/common/webui_url_constants.h"
 #include "components/prefs/pref_change_registrar.h"
@@ -60,6 +61,8 @@
 #include "navegador/browser/ui/atualizador.h"
 #include "navegador/browser/ui/downloads/botao.h"
 #include "navegador/browser/ui/grupos_salvos.h"
+#include "navegador/browser/ui/previa.h"
+#include "navegador/browser/ui/tocando.h"
 #include "navegador/browser/ui/containers/espaco.h"
 #include "ui/base/accelerators/accelerator.h"
 #include "ui/base/metadata/metadata_header_macros.h"
@@ -78,6 +81,10 @@
 #include "ui/base/mojom/menu_source_type.mojom.h"
 #include "ui/color/color_id.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/gfx/animation/animation.h"
+#include "ui/gfx/geometry/transform.h"
+#include "ui/compositor/layer.h"
+#include "ui/views/animation/animation_builder.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/border.h"
 #include "ui/views/context_menu_controller.h"
@@ -292,6 +299,8 @@ class TituloDoEspaco : public views::Button,
       configuracoes::Mostrar(browser_, configuracoes::Aba::kAtalhos);
     } else if (command_id == kConfiguracoes) {
       configuracoes::Mostrar(browser_);
+    } else if (command_id == kFecharAbas) {
+      espacos::FecharAbasDoEspaco(browser_);
     } else if (const size_t i = command_id - kPrimeiro; i < ids_.size()) {
       espacos::IrPara(browser_, ids_[i]);
     }
@@ -325,6 +334,7 @@ class TituloDoEspaco : public views::Button,
     menu_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_->AddItem(kNovo, u"Novo espaço…");
     menu_->AddItem(kEditar, u"Editar espaços…");
+    menu_->AddItem(kFecharAbas, u"Fechar as abas deste espaço");
     menu_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_->AddItem(kAtalhos, u"Atalhos do teclado…");
     menu_->AddItem(kConfiguracoes, u"Configurações do Norte…");
@@ -350,6 +360,7 @@ class TituloDoEspaco : public views::Button,
   static constexpr int kEditar = 2;
   static constexpr int kAtalhos = 3;
   static constexpr int kConfiguracoes = 4;
+  static constexpr int kFecharAbas = 5;
   static constexpr int kPrimeiro = 100;
 
   raw_ptr<BrowserWindowInterface> browser_;
@@ -615,6 +626,97 @@ class FaixaDeEspacos : public views::View,
     Focar(todos[(i + (pra_frente ? 1 : n - 1)) % n].id);
   }
 
+  // A lista (fixados e abas) desliza de lado na troca de espaço, como no
+  // Zen: vem da direita indo pra um espaço mais à frente, da esquerda
+  // voltando.
+  void AnimarTroca(const std::string& de, const std::string& para) {
+    if (!gfx::Animation::ShouldRenderRichAnimation() || !GetWidget() ||
+        !GetWidget()->IsVisible()) {
+      return;
+    }
+    views::View* lista = ListaDeAbas();
+    if (!lista || !lista->IsDrawn()) {
+      return;
+    }
+    const std::vector<Espaco> todos = Navegaveis();
+    auto posicao = [&todos](const std::string& id) {
+      return std::ranges::find(todos, id, &Espaco::id) - todos.begin();
+    };
+    const bool pra_frente = posicao(para) > posicao(de);
+    if (!lista->layer()) {
+      lista->SetPaintToLayer();
+      lista->layer()->SetFillsBoundsOpaquely(false);
+      camada_da_troca_ = true;
+    }
+    const int geracao = ++geracao_da_troca_;
+    gfx::Transform inicio;
+    inicio.Translate(pra_frente ? 28 : -28, 0);
+    lista->layer()->SetTransform(inicio);
+    lista->layer()->SetOpacity(0.0f);
+    views::AnimationBuilder()
+        .OnEnded(base::BindOnce(&FaixaDeEspacos::FimDaTroca,
+                                weak_factory_.GetWeakPtr(), geracao))
+        .OnAborted(base::BindOnce(&FaixaDeEspacos::FimDaTroca,
+                                  weak_factory_.GetWeakPtr(), geracao))
+        .Once()
+        .SetDuration(base::Milliseconds(230))
+        .SetTransform(lista, gfx::Transform(), gfx::Tween::FAST_OUT_SLOW_IN)
+        .SetOpacity(lista, 1.0f, gfx::Tween::EASE_OUT);
+  }
+
+  // A troca acabou: tira a camada que só existia pra animar (trocas seguidas
+  // reaproveitam a mesma; só a última tira).
+  void FimDaTroca(int geracao) {
+    if (geracao != geracao_da_troca_) {
+      return;
+    }
+    if (views::View* lista = ListaDeAbas();
+        lista && lista->layer() && camada_da_troca_) {
+      lista->DestroyLayer();
+    }
+    camada_da_troca_ = false;
+  }
+
+  views::View* ListaDeAbas() const {
+    for (views::View* filho : lateral_->children()) {
+      if (views::IsViewClass<TabStripView>(filho)) {
+        return filho;
+      }
+    }
+    return nullptr;
+  }
+
+  void FecharAbas() {
+    if (anonima_) {
+      return;
+    }
+    std::optional<tab_groups::TabGroupId> grupo = GrupoDoEspaco(EspacoAtual());
+    if (!grupo) {
+      return;
+    }
+    auto fechar = [this, grupo](int i) {
+      return model_->GetTabGroupForTab(i) == *grupo &&
+             !model_->IsTabPinned(i) &&
+             !fixos::SiteDaAba(model_->GetWebContentsAt(i));
+    };
+    constexpr uint32_t kComo = TabCloseTypes::CLOSE_USER_GESTURE |
+                               TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB;
+    // Primeiro as de fundo, de trás pra frente (fechar uma não mexe no
+    // índice das anteriores); a ativa por último, pra a janela não pular
+    // pra outro espaço no meio. A última que sair põe uma aba nova no
+    // espaço (NavegadorManterEspaco).
+    content::WebContents* ativa = model_->GetActiveWebContents();
+    for (int i = model_->count() - 1; i >= 0; --i) {
+      if (model_->GetWebContentsAt(i) != ativa && fechar(i)) {
+        model_->CloseWebContentsAt(i, kComo);
+      }
+    }
+    if (const int i = model_->GetIndexOfWebContents(ativa);
+        i != TabStripModel::kNoTab && fechar(i)) {
+      model_->CloseWebContentsAt(i, kComo);
+    }
+  }
+
   void IrParaPosicao(size_t posicao) {
     const std::vector<Espaco> todos = Navegaveis();
     if (posicao < todos.size()) {
@@ -782,6 +884,8 @@ class FaixaDeEspacos : public views::View,
       NovoEspaco();
     } else if (acao.starts_with("espaco_")) {
       IrParaPosicao(acao.back() - '1');
+    } else if (acao == "copiar_endereco") {
+      chrome::ExecuteCommand(browser_, IDC_COPY_URL);
     } else if (acao == "configuracoes") {
       configuracoes::Mostrar(browser_);
     } else if (acao == "containers") {
@@ -843,6 +947,7 @@ class FaixaDeEspacos : public views::View,
     }
     menu_->AddSubMenu(kContainerDoEspaco, u"Container do espaço",
                       submenu_containers_.get());
+    menu_->AddItem(kFecharAbasCmd, u"Fechar as abas deste espaço");
     menu_->AddSeparator(ui::NORMAL_SEPARATOR);
     menu_->AddItem(kNovo, u"Novo espaço");
     menu_->AddItem(kConfigurar, u"Configurar espaços…");
@@ -880,6 +985,9 @@ class FaixaDeEspacos : public views::View,
         return;
       case kAtalhosCmd:
         configuracoes::Mostrar(browser_, configuracoes::Aba::kAtalhos);
+        return;
+      case kFecharAbasCmd:
+        FecharAbas();
         return;
       case kSemContainer:
         containers::DefinirContainerDoEspaco(Perfil(), atual, "");
@@ -949,6 +1057,9 @@ class FaixaDeEspacos : public views::View,
           DefinirAtivo(Perfil(), *espaco);
         }
         if (!TabDragController::IsActive()) {
+          if (!espaco_visivel_.empty() && espaco_visivel_ != *espaco) {
+            AnimarTroca(espaco_visivel_, *espaco);
+          }
           espaco_visivel_ = *espaco;
         }
       }
@@ -1646,6 +1757,7 @@ class FaixaDeEspacos : public views::View,
   static constexpr int kContainerDoEspaco = 3;
   static constexpr int kConfigurar = 4;
   static constexpr int kAtalhosCmd = 5;
+  static constexpr int kFecharAbasCmd = 6;
   static constexpr int kSemContainer = 100;
   static constexpr int kPrimeiroContainer = 101;
 
@@ -1669,6 +1781,9 @@ class FaixaDeEspacos : public views::View,
   // O espaço que esta janela mostra (vazio numa janela recém-criada, até o
   // primeiro Garantir). Não muda no meio de um arrasto.
   std::string espaco_visivel_;
+  // Animação da troca de espaço (AnimarTroca).
+  int geracao_da_troca_ = 0;
+  bool camada_da_troca_ = false;
   // Abas que entraram nesta janela durante um arrasto (vindas de outra).
   std::vector<tabs::TabHandle> chegaram_;
   // Entrou aba fora de arrasto e de restauração: hora de tirar as "Nova guia"
@@ -1739,6 +1854,8 @@ void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
         base::BindRepeating([](BrowserWindowInterface* janela) {
           configuracoes::Mostrar(janela);
         }));
+    // Shift+clique num link (o browser_navigator não enxerga a interface).
+    containers::DefinirAbridorDePrevia(base::BindRepeating(&previa::Abrir));
     // Clique duplo no nome da aba (as abas não enxergam o TabUIHelper).
     abas::DefinirRenomeador(base::BindRepeating(
         [](tabs::TabInterface* aba, const std::u16string& nome) {
@@ -1757,6 +1874,8 @@ void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
       views::kFlexBehaviorKey,
       views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
                                views::MaximumFlexSizeRule::kUnbounded));
+  // O que toca em outra aba (escondido quando não há).
+  lateral->AddChildView(tocando::CriarCartao(browser));
   // Aviso de versão nova, logo acima da faixa (escondido quando não há).
   lateral->AddChildView(atualizador::CriarAviso(browser));
   lateral->AddChildView(std::make_unique<FaixaDeEspacos>(lateral, browser));
@@ -1785,6 +1904,12 @@ void Girar(BrowserWindowInterface* browser, bool pra_frente) {
 void NovoEspaco(BrowserWindowInterface* browser) {
   if (FaixaDeEspacos* faixa = FaixaDe(browser)) {
     faixa->NovoEspaco();
+  }
+}
+
+void FecharAbasDoEspaco(BrowserWindowInterface* browser) {
+  if (FaixaDeEspacos* faixa = FaixaDe(browser)) {
+    faixa->FecharAbas();
   }
 }
 

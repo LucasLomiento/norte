@@ -37,6 +37,9 @@ inline constexpr int kLarguraMinimaDosFixos = 100;
 // (navegador/browser/ui/fixos.h) dentro do TabStripView: o layout dele põe
 // a área entre os favoritos e as abas.
 inline constexpr int kIdAreaDeFixos = 0x6E66;
+// Id da camada da prévia de link (navegador/browser/ui/previa.h), filha do
+// MultiContentsView: o layout dele estica ela por cima das páginas.
+inline constexpr int kIdPrevia = 0x6E70;
 
 std::optional<int> LayoutConstantOverride(LayoutConstant constant);
 std::optional<gfx::Insets> LayoutInsetsOverride(LayoutInset inset);

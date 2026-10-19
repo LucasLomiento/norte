@@ -1,0 +1,26 @@
+diff --git i/chrome/browser/ui/views/frame/multi_contents_view.cc w/chrome/browser/ui/views/frame/multi_contents_view.cc
+index 76475b5693..e74e87e96e 100644
+--- i/chrome/browser/ui/views/frame/multi_contents_view.cc
++++ w/chrome/browser/ui/views/frame/multi_contents_view.cc
+@@ -37,6 +37,7 @@
+ #include "chrome/common/pref_names.h"
+ #include "chrome/common/webui_url_constants.h"
+ #include "components/prefs/pref_service.h"
++#include "navegador/browser/ui/visual.h"
+ #include "components/split_tabs/split_tab_visual_data.h"
+ #include "components/tabs/public/tab_interface.h"
+ #include "content/public/browser/web_contents.h"
+@@ -552,6 +553,13 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+   layouts.child_layouts.emplace_back(lens_overlay_view_.get(),
+                                      lens_overlay_view_->GetVisible(),
+                                      gfx::Rect(width, height));
++  // navegador: a prévia de link cobre a área inteira, por cima das páginas.
++  for (views::View* filho : children()) {
++    if (filho->GetID() == navegador::visual::kIdPrevia) {
++      layouts.child_layouts.emplace_back(filho, filho->GetVisible(),
++                                         gfx::Rect(width, height));
++    }
++  }
+ 
+   layouts.host_size = gfx::Size(width, height);
+   return layouts;

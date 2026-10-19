@@ -132,6 +132,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(kMostrarNaBordaPref, true);
   registry->RegisterBooleanPref(kAbrirInteiraPref, true);
   registry->RegisterBooleanPref(kProcurarAtualizacoesPref, true);
+  registry->RegisterBooleanPref(kPreviaPref, true);
   registry->RegisterBooleanPref(kInicioHoraPref, true);
   registry->RegisterBooleanPref(kInicioDataPref, true);
 }
@@ -302,6 +303,9 @@ const std::vector<Atalho>& Atalhos() {
           {"alternar_lateral", u"Mostrar ou ocultar a lateral", "Ctrl+S"},
           {"alternar_barra", u"Mostrar ou ocultar a barra de endereço",
            "Ctrl+Shift+S"},
+          // O do Dia e do Zen (o "inspecionar" do DevTools segue no
+          // Ctrl+Shift+I e no F12).
+          {"copiar_endereco", u"Copiar o endereço da aba", "Ctrl+Shift+C"},
           {"proximo_espaco", u"Próximo espaço", "Ctrl+Alt+Right"},
           {"espaco_anterior", u"Espaço anterior", "Ctrl+Alt+Left"},
           {"novo_espaco", u"Novo espaço", "Ctrl+Alt+N"},

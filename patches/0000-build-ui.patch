@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/ui/BUILD.gn w/chrome/browser/ui/BUILD.gn
-index 82f397571f..45c1179b86 100644
+index 82f397571f..cd96976615 100644
 --- i/chrome/browser/ui/BUILD.gn
 +++ w/chrome/browser/ui/BUILD.gn
 @@ -144,6 +144,8 @@ if (!is_android) {
@@ -19,7 +19,7 @@ index 82f397571f..45c1179b86 100644
        ":tab_ui_helper",
        "//base",
        "//chrome/browser/apps/app_service",
-@@ -1522,6 +1525,36 @@ static_library("ui") {
+@@ -1522,6 +1525,40 @@ static_library("ui") {
        "browser_commands.cc",
        "browser_commands.h",
        "browser_live_tab_context.cc",
@@ -51,12 +51,16 @@ index 82f397571f..45c1179b86 100644
 +      "//navegador/browser/ui/importar_zen.h",
 +      "//navegador/browser/ui/menu_do_logo.cc",
 +      "//navegador/browser/ui/menu_do_logo.h",
++      "//navegador/browser/ui/previa.cc",
++      "//navegador/browser/ui/previa.h",
 +      "//navegador/browser/ui/seletor_de_cor.cc",
 +      "//navegador/browser/ui/seletor_de_cor.h",
++      "//navegador/browser/ui/tocando.cc",
++      "//navegador/browser/ui/tocando.h",
        "browser_manager_service.cc",
        "browser_manager_service.h",
        "browser_manager_service_factory.cc",
-@@ -1558,6 +1591,11 @@ static_library("ui") {
+@@ -1558,6 +1595,14 @@ static_library("ui") {
  
      # Non-android deps for "ui" target.
      deps += [
@@ -64,11 +68,14 @@ index 82f397571f..45c1179b86 100644
 +      "//navegador/browser/ui/containers:containers_ui",  # navegador
 +      "//navegador/browser/ui/containers:espaco",  # navegador
 +      "//navegador/browser/ui/downloads:ponte",  # navegador
++      "//navegador/icones/menu",  # navegador (cartão "tocando agora")
++      "//services/media_session/public/cpp",  # navegador
++      "//services/media_session/public/mojom",  # navegador
 +      "//sql",  # navegador (importar do Zen)
        ":accelerator_table",
        ":browser_actions",
        ":browser_select_file_dialog_controller",
-@@ -3877,6 +3915,10 @@ source_set("layout_constants") {
+@@ -3877,6 +3922,10 @@ source_set("layout_constants") {
    sources = [
      "layout_constants.cc",
      "layout_constants.h",

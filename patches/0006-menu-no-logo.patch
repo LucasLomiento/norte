@@ -330,7 +330,7 @@ index e23cc845fa..609e7eae4f 100644
    // Closes the menu if it is open, otherwise does nothing.
    void CloseMenu();
 diff --git i/chrome/browser/ui/views/toolbar/toolbar_view.cc w/chrome/browser/ui/views/toolbar/toolbar_view.cc
-index bfc981b7ee..01e718df14 100644
+index bfc981b7ee..92660e25cc 100644
 --- i/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ w/chrome/browser/ui/views/toolbar/toolbar_view.cc
 @@ -211,8 +211,8 @@ auto& GetViewCommandMap() {
@@ -374,7 +374,18 @@ index bfc981b7ee..01e718df14 100644
  }
  
  }  // namespace
-@@ -599,6 +614,9 @@ void ToolbarView::Init() {
+@@ -415,7 +430,9 @@ void ToolbarView::Init() {
+   }
+ 
+   std::unique_ptr<MediaToolbarButtonView> media_button;
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
++  // navegador: no Linux, sem o botão de mídia na barra (o cartão "tocando
++  // agora" do pé da lateral faz o papel dele, e a barra do Dia não tem).
++#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC)
+   if (!features::IsWebUIMediaButtonEnabled()) {
+     media_button = std::make_unique<MediaToolbarButtonView>(
+         browser_view_, std::make_unique<MediaToolbarButtonContextualMenu>(
+@@ -599,6 +616,9 @@ void ToolbarView::Init() {
      bool show_avatar_toolbar_button =
          AvatarToolbarButtonInterface::CanShowForProfile(browser_->GetProfile());
      avatar_->SetVisible(show_avatar_toolbar_button);
@@ -384,7 +395,7 @@ index bfc981b7ee..01e718df14 100644
    }
  
    // Only manage the overflow button when there are at least some views
-@@ -620,6 +638,8 @@ void ToolbarView::Init() {
+@@ -620,6 +640,8 @@ void ToolbarView::Init() {
          l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP));
      app_menu_button->SetID(VIEW_ID_APP_MENU);
      app_menu_button_ = AddChildView(std::move(app_menu_button));
@@ -393,7 +404,7 @@ index bfc981b7ee..01e718df14 100644
    }
  
    if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks) &&
-@@ -1779,7 +1799,8 @@ void ToolbarView::LayoutCommon() {
+@@ -1779,7 +1801,8 @@ void ToolbarView::LayoutCommon() {
  
    if (toolbar_divider_ && extensions_container_) {
      views::ManualLayoutUtil(layout_manager_)

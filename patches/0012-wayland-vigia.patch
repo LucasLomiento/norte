@@ -1,0 +1,350 @@
+diff --git i/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.cc w/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.cc
+index a7506130a0..86b7e71e6c 100644
+--- i/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.cc
++++ w/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.cc
+@@ -100,6 +100,17 @@ void WaylandBufferManagerHost::OnCommitOverlayError(
+   TerminateGpuProcess();
+ }
+ 
++bool WaylandBufferManagerHost::NavegadorReiniciarGpu(
++    const std::string& motivo) {
++  // O callback é de uso único e volta quando o processo novo liga.
++  if (!terminate_gpu_cb_) {
++    return false;
++  }
++  error_message_ = motivo;
++  TerminateGpuProcess();
++  return true;
++}
++
+ wl::SharedImageFormatsWithModifiersMap
+ WaylandBufferManagerHost::GetSupportedSharedImageFormats() const {
+   return connection_->buffer_factory()->GetSupportedSharedImageFormats();
+diff --git i/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.h w/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.h
+index ac4a5a0360..51f8317606 100644
+--- i/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.h
++++ w/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.h
+@@ -64,6 +64,10 @@ class WaylandBufferManagerHost : public ozone::mojom::WaylandBufferManagerHost {
+   // Called by WaylandFrameManager if overlay data is invalid.
+   void OnCommitOverlayError(const std::string& message);
+ 
++  // navegador: reinicia o processo da GPU, se ele está ligado. Usado pelo
++  // vigia de quadros presos do WaylandFrameManager.
++  bool NavegadorReiniciarGpu(const std::string& motivo);
++
+   // Returns supported shared image formats either from zwp_linux_dmabuf or
+   // wl_drm.
+   wl::SharedImageFormatsWithModifiersMap GetSupportedSharedImageFormats() const;
+diff --git i/ui/ozone/platform/wayland/host/wayland_connection.cc w/ui/ozone/platform/wayland/host/wayland_connection.cc
+index 7e3c92a47b..b5b961f0bf 100644
+--- i/ui/ozone/platform/wayland/host/wayland_connection.cc
++++ w/ui/ozone/platform/wayland/host/wayland_connection.cc
+@@ -10,6 +10,7 @@
+ #include <xdg-shell-client-protocol.h>
+ 
+ #include <cstdint>
++#include <cstdlib>
+ 
+ #include "base/command_line.h"
+ #include "base/compiler_specific.h"
+@@ -671,8 +672,11 @@ void WaylandConnection::HandleGlobal(wl_registry* registry,
+   } else if (!linux_drm_syncobj_manager_ &&
+              (UNSAFE_TODO(
+                   strcmp(interface, "wp_linux_drm_syncobj_manager_v1")) == 0)) {
++    // navegador: NORTE_SEM_SYNCOBJ=1 desliga o explicit sync, pra testar se a
++    // tela congelada do NVIDIA vem dele.
+     if (enable_linux_drm_syncobj_for_testing_ ||
+-        MinSupportedKernelForLinuxDrmSyncobj()) {
++        (MinSupportedKernelForLinuxDrmSyncobj() &&
++         !getenv("NORTE_SEM_SYNCOBJ"))) {
+       linux_drm_syncobj_manager_ = wl::Bind<wp_linux_drm_syncobj_manager_v1>(
+           registry, name, std::min(version, kMaxLinuxDrmSyncobjVersion));
+       if (!linux_drm_syncobj_manager_) {
+diff --git i/ui/ozone/platform/wayland/host/wayland_frame_manager.cc w/ui/ozone/platform/wayland/host/wayland_frame_manager.cc
+index 3c61db9680..f9b9322041 100644
+--- i/ui/ozone/platform/wayland/host/wayland_frame_manager.cc
++++ w/ui/ozone/platform/wayland/host/wayland_frame_manager.cc
+@@ -45,6 +45,14 @@ constexpr uint32_t kMaxFramesInFlight = 3u;
+ // that it warrants ignoring frame callbacks during tab capture.
+ constexpr int kFrameCallbackTimeoutMs = 50;
+ 
++// navegador: quanto tempo a janela pode ficar sem nenhuma resposta do
++// compositor, com a pessoa mexendo nela, antes de reiniciar o processo da GPU.
++// E de quanto em quanto tempo isso pode acontecer, somando todas as janelas: o
++// Chromium perdoa uma queda da GPU a cada 5 min e desliga a aceleração com 3.
++constexpr base::TimeDelta kNavegadorFolgaDaTrava = base::Seconds(5);
++constexpr base::TimeDelta kNavegadorIntervaloDeReinicio = base::Minutes(5);
++base::TimeTicks g_navegador_ultimo_reinicio;
++
+ constexpr base::TimeDelta kPresentationFlushTimerDuration =
+     base::Milliseconds(160);
+ constexpr base::TimeDelta kPresentationFlushTimerStopThreshold =
+@@ -615,6 +623,7 @@ void WaylandFrameManager::HandleFrameCallback(wl_callback* callback) {
+       << "surface=" << window_->root_surface()->get_surface_id()
+       << " recovered from frame callback freeze";
+   frame_callback_timer_.Stop();
++  navegador_vigia_.Stop();
+   frame_callback_freeze_detected_ = false;
+   EvaluateShouldSkipFrameCallbacks();
+ 
+@@ -900,6 +909,7 @@ void WaylandFrameManager::MaybeProcessSubmittedFrames() {
+                       on_submission_count);
+ 
+   if (on_submission_count > 0) {
++    navegador_vigia_.Stop();
+     std::vector<wl::WaylandPresentationInfo> presentation_infos =
+         GetReadyPresentations();
+ 
+@@ -1011,6 +1021,60 @@ void WaylandFrameManager::ClearProcessedSubmittedFrames() {
+   }
+ }
+ 
++// navegador: com o NVIDIA 615 no Hyprland, a janela às vezes deixa de
++// receber os callbacks de quadro e as liberações de buffer do compositor. O
++// processo da GPU fica esperando pra sempre: a tela congela com a interface
++// viva (o clique dá play no vídeo, mas nada se redesenha). Reiniciar o processo
++// da GPU destrava. O vigia só liga quando a pessoa mexe na janela com quadro
++// esperando o compositor, e só age se nada andar em kNavegadorFolgaDaTrava:
++// janela escondida ou tela desligada (DPMS) não recebem clique, e quando a
++// tela acorda o compositor volta a responder antes disso.
++bool WaylandFrameManager::NavegadorEsperandoCompositor() const {
++  if (!pending_frames_.empty()) {
++    return true;
++  }
++  for (const auto& frame : submitted_frames_) {
++    if (!frame->submission_acked) {
++      return true;
++    }
++  }
++  return false;
++}
++
++void WaylandFrameManager::NavegadorUsuarioAgiu() {
++  if (navegador_vigia_.IsRunning() || window_->IsSuspended() ||
++      !NavegadorEsperandoCompositor()) {
++    return;
++  }
++  navegador_vigia_.Start(FROM_HERE, kNavegadorFolgaDaTrava, this,
++                         &WaylandFrameManager::NavegadorConferirTrava);
++}
++
++void WaylandFrameManager::NavegadorConferirTrava() {
++  if (window_->IsSuspended() || !NavegadorEsperandoCompositor()) {
++    return;
++  }
++  const base::TimeTicks agora = base::TimeTicks::Now();
++  if (!g_navegador_ultimo_reinicio.is_null() &&
++      agora - g_navegador_ultimo_reinicio < kNavegadorIntervaloDeReinicio) {
++    return;
++  }
++  LOG(ERROR) << "Quadros presos no compositor por "
++             << kNavegadorFolgaDaTrava.InSeconds()
++             << " s: reiniciando o processo da GPU (pendentes="
++             << pending_frames_.size()
++             << ", enviados=" << submitted_frames_.size() << ")";
++  if (connection_->buffer_manager_host()->NavegadorReiniciarGpu(
++          "Quadros presos no compositor")) {
++    g_navegador_ultimo_reinicio = agora;
++  }
++}
++
++// static
++void WaylandFrameManager::NavegadorZerarReinicioParaTeste() {
++  g_navegador_ultimo_reinicio = base::TimeTicks();
++}
++
+ void WaylandFrameManager::FrameCallbackTimeout() {
+   DVLOG(1) << "surface=" << window_->root_surface()->get_surface_id()
+            << " frame callback timed out";
+@@ -1061,6 +1125,8 @@ void WaylandFrameManager::Hide() {
+     submitted_frames_.back()->feedback = gfx::PresentationFeedback::Failure();
+   }
+ 
++  navegador_vigia_.Stop();
++
+   // Discard |pending_frames_| since they're not going to be used when hidden.
+   for (auto& frame : pending_frames_) {
+     DCHECK(frame) << "Can't perform Hide() during a frame playback.";
+@@ -1196,6 +1262,7 @@ void WaylandFrameManager::ClearStates() {
+   pending_frames_.clear();
+ 
+   presentation_flush_timer_.Stop();
++  navegador_vigia_.Stop();
+ }
+ 
+ // static
+diff --git i/ui/ozone/platform/wayland/host/wayland_frame_manager.h w/ui/ozone/platform/wayland/host/wayland_frame_manager.h
+index 59b597cec0..30e58a6362 100644
+--- i/ui/ozone/platform/wayland/host/wayland_frame_manager.h
++++ w/ui/ozone/platform/wayland/host/wayland_frame_manager.h
+@@ -143,6 +143,11 @@ class WaylandFrameManager {
+   void OnWindowSuspensionChanged();
+   void FrameCallbackTimeout();
+ 
++  // navegador: a pessoa apertou um botão, uma tecla ou rolou nesta janela.
++  // Ver NavegadorConferirTrava().
++  void NavegadorUsuarioAgiu();
++  static void NavegadorZerarReinicioParaTeste();
++
+   static base::TimeDelta GetPresentationFlushTimerDurationForTesting();
+ 
+   // Whether a frame is waiting to be committed, typically for the previous
+@@ -275,6 +280,11 @@ class WaylandFrameManager {
+ 
+   base::OneShotTimer frame_callback_timer_;
+ 
++  // navegador: vigia de quadros presos no compositor.
++  bool NavegadorEsperandoCompositor() const;
++  void NavegadorConferirTrava();
++  base::OneShotTimer navegador_vigia_;
++
+   int video_capture_count_ = 0;
+ 
+   // Indicates that a graphics freeze was detected from the compositor no longer
+diff --git i/ui/ozone/platform/wayland/host/wayland_window.cc w/ui/ozone/platform/wayland/host/wayland_window.cc
+index 0295967412..e34796e308 100644
+--- i/ui/ozone/platform/wayland/host/wayland_window.cc
++++ w/ui/ozone/platform/wayland/host/wayland_window.cc
+@@ -724,6 +724,20 @@ bool WaylandWindow::CanDispatchEvent(const PlatformEvent& event) {
+ uint32_t WaylandWindow::DispatchEvent(const PlatformEvent& native_event) {
+   Event* event = static_cast<Event*>(native_event);
+ 
++  // navegador: vigia de quadros presos (WaylandFrameManager).
++  switch (event->type()) {
++    case EventType::kMousePressed:
++    case EventType::kMouseMoved:
++    case EventType::kMousewheel:
++    case EventType::kScroll:
++    case EventType::kKeyPressed:
++    case EventType::kTouchPressed:
++      frame_manager_->NavegadorUsuarioAgiu();
++      break;
++    default:
++      break;
++  }
++
+   if (event->IsLocatedEvent()) {
+     auto* event_grabber =
+         connection_->window_manager()->located_events_grabber();
+diff --git i/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc w/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc
+index 3ced100538..fd1afc2375 100644
+--- i/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc
++++ w/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc
+@@ -3,6 +3,7 @@
+ // found in the LICENSE file.
+ 
+ #include <drm_fourcc.h>
++#include <linux/input.h>
+ #include <errno.h>
+ #include <overlay-prioritizer-client-protocol.h>
+ #include <sys/stat.h>
+@@ -38,10 +39,12 @@
+ #include "ui/ozone/platform/wayland/host/wayland_buffer_manager_host.h"
+ #include "ui/ozone/platform/wayland/host/wayland_connection.h"
+ #include "ui/ozone/platform/wayland/host/wayland_frame_manager.h"
++#include "ui/ozone/platform/wayland/host/wayland_seat.h"
+ #include "ui/ozone/platform/wayland/host/wayland_subsurface.h"
+ #include "ui/ozone/platform/wayland/host/wayland_window_manager.h"
+ #include "ui/ozone/platform/wayland/host/wayland_zwp_linux_dmabuf.h"
+ #include "ui/ozone/platform/wayland/test/mock_drm_syncobj_ioctl_wrapper.h"
++#include "ui/ozone/platform/wayland/test/mock_pointer.h"
+ #include "ui/ozone/platform/wayland/test/mock_surface.h"
+ #include "ui/ozone/platform/wayland/test/mock_zwp_linux_dmabuf.h"
+ #include "ui/ozone/platform/wayland/test/test_overlay_prioritized_surface.h"
+@@ -3036,6 +3039,96 @@ TEST_P(WaylandBufferManagerTest,
+   DisableSyncOnTearDown();
+ }
+ 
++// navegador: vigia de quadros presos (WaylandFrameManager). O compositor
++// para de mandar o callback de quadro: sem ninguém mexendo na janela (tela
++// desligada, janela escondida) nada acontece; com um clique e o compositor
++// respondendo dentro da folga, também não; com um clique e nada andando por
++// 5 s, o processo da GPU é reiniciado uma vez.
++TEST_P(WaylandBufferManagerTest, NavegadorVigiaDeQuadrosPresos) {
++  WaylandFrameManager::NavegadorZerarReinicioParaTeste();
++  constexpr uint32_t kBufferId1 = 1;
++  constexpr uint32_t kBufferId2 = 2;
++  constexpr uint32_t kBufferId3 = 3;
++  const gfx::AcceleratedWidget widget = window_->GetWidget();
++  const gfx::Rect bounds = window_->GetBoundsInPixels();
++  MockSurfaceGpu mock_surface_gpu(buffer_manager_gpu_.get(), widget);
++  EXPECT_CALL(mock_surface_gpu, OnSubmission(_, _, _))
++      .Times(testing::AnyNumber());
++  EXPECT_CALL(mock_surface_gpu, OnPresentation(_, _))
++      .Times(testing::AnyNumber());
++
++  CreateShmBasedBufferAndSetTerminateExpecation(false /*fail*/, kBufferId1);
++  CreateShmBasedBufferAndSetTerminateExpecation(false /*fail*/, kBufferId2);
++  CreateShmBasedBufferAndSetTerminateExpecation(false /*fail*/, kBufferId3);
++
++  PostToServerAndWait([](wl::TestWaylandServerThread* server) {
++    wl_seat_send_capabilities(server->seat()->resource(),
++                              WL_SEAT_CAPABILITY_POINTER);
++  });
++  ASSERT_TRUE(connection_->seat()->pointer());
++  auto clicar = [this]() {
++    PostToServerAndWait([id = surface_id_](
++                            wl::TestWaylandServerThread* server) {
++      wl::MockSurface* surface = server->GetObject<wl::MockSurface>(id);
++      auto* pointer = server->seat()->pointer()->resource();
++      wl_pointer_send_enter(pointer, server->GetNextSerial(),
++                            surface->resource(), 0, 0);
++      wl_pointer_send_frame(pointer);
++      wl_pointer_send_button(pointer, server->GetNextSerial(),
++                             server->GetNextTime(), BTN_LEFT,
++                             WL_POINTER_BUTTON_STATE_PRESSED);
++      wl_pointer_send_frame(pointer);
++      wl_pointer_send_button(pointer, server->GetNextSerial(),
++                             server->GetNextTime(), BTN_LEFT,
++                             WL_POINTER_BUTTON_STATE_RELEASED);
++      wl_pointer_send_frame(pointer);
++    });
++  };
++
++  CommitBuffer(widget, kBufferId1, kBufferId1,
++               gfx::FrameData(delegate_.viz_seq()), bounds,
++               gfx::RoundedCornersF(), kDefaultScale, bounds);
++  // O segundo quadro espera o callback do primeiro, que não vem.
++  CommitBuffer(widget, kBufferId2, kBufferId2,
++               gfx::FrameData(delegate_.viz_seq()), bounds,
++               gfx::RoundedCornersF(), kDefaultScale, bounds);
++
++  // Sem ninguém mexendo: nada.
++  EXPECT_CALL(callback_, Run(_)).Times(0);
++  task_environment_.FastForwardBy(base::Seconds(20));
++  testing::Mock::VerifyAndClearExpectations(&callback_);
++
++  // Um clique, e o compositor responde antes da folga: nada.
++  EXPECT_CALL(callback_, Run(_)).Times(0);
++  clicar();
++  task_environment_.FastForwardBy(base::Seconds(2));
++  SendFrameCallbackForSurface(surface_id_);
++  task_environment_.FastForwardBy(base::Seconds(20));
++  testing::Mock::VerifyAndClearExpectations(&callback_);
++
++  // O terceiro quadro espera o callback do segundo, que não vem. Um clique e
++  // nada anda: reinicia a GPU.
++  CommitBuffer(widget, kBufferId3, kBufferId3,
++               gfx::FrameData(delegate_.viz_seq()), bounds,
++               gfx::RoundedCornersF(), kDefaultScale, bounds);
++  EXPECT_CALL(callback_, Run(_)).Times(0);
++  clicar();
++  task_environment_.FastForwardBy(base::Seconds(4));
++  testing::Mock::VerifyAndClearExpectations(&callback_);
++  EXPECT_CALL(callback_, Run(_)).Times(1);
++  task_environment_.FastForwardBy(base::Seconds(2));
++  testing::Mock::VerifyAndClearExpectations(&callback_);
++
++  // O callback de terminar é de uso único: devolve pro resto do teste.
++  manager_host_->SetTerminateGpuCallback(callback_.Get());
++  EXPECT_CALL(callback_, Run(_)).Times(0);
++  // Logo depois, outro clique preso não reinicia de novo (no máximo uma vez
++  // a cada 5 min).
++  clicar();
++  task_environment_.FastForwardBy(base::Seconds(10));
++  testing::Mock::VerifyAndClearExpectations(&callback_);
++}
++
+ INSTANTIATE_TEST_SUITE_P(XdgVersionStableTest,
+                          WaylandBufferManagerTest,
+                          Values(wl::ServerConfig{}));

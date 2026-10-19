@@ -26,7 +26,9 @@ aggregate_vector_icons("icones_menu") {
     "link.icon",
     "minimize_2.icon",
     "picture_in_picture_2.icon",
+    "pausar.icon",
     "printer.icon",
+    "proxima.icon",
     "qr_code.icon",
     "redo_2.icon",
     "repeat.icon",
@@ -37,6 +39,7 @@ aggregate_vector_icons("icones_menu") {
     "square_arrow_out_up_right.icon",
     "square_mouse_pointer.icon",
     "text_cursor.icon",
+    "tocar.icon",
     "undo_2.icon",
     "volume_x.icon",
   ]

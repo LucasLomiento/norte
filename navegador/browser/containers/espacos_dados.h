@@ -80,6 +80,9 @@ inline constexpr char kAbrirInteiraPref[] = "navegador.lateral.abrir_inteira";
 // Procurar versão nova nas Releases do GitHub ao abrir o navegador.
 inline constexpr char kProcurarAtualizacoesPref[] =
     "navegador.atualizacoes.procurar";
+// Shift+clique num link abre a prévia por cima da aba (navegador/browser/ui/
+// previa.h); desligado, a janela nova do Chromium.
+inline constexpr char kPreviaPref[] = "navegador.previa.shift_clique";
 // Nova aba: hora e data no centro (os atalhos embaixo usam as prefs do
 // próprio Chromium; ver navegador/browser/ui/inicio.h).
 inline constexpr char kInicioHoraPref[] = "navegador.inicio.hora";

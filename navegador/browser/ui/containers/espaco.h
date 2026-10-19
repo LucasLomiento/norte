@@ -8,9 +8,17 @@
 #include <optional>
 #include <string>
 
+#include "base/functional/callback.h"
 #include "base/memory/raw_ptr.h"
+#include "content/public/common/referrer.h"
+#include "url/gurl.h"
+#include "url/origin.h"
 
 class BrowserWindowInterface;
+
+namespace content {
+class WebContents;
+}  // namespace content
 
 namespace navegador::containers {
 
@@ -30,6 +38,22 @@ class EspacoPendente {
  private:
   raw_ptr<BrowserWindowInterface> browser_;
 };
+
+// Prévia de link (Shift+clique, ver navegador/browser/ui/previa.h). A
+// interface registra quem abre; o browser_navigator pergunta antes de abrir
+// a janela nova. Devolve false quando a prévia não abriu (aí segue o normal).
+using AbridorDePrevia = base::RepeatingCallback<bool(
+    BrowserWindowInterface* browser,
+    content::WebContents* origem,
+    const GURL& url,
+    const content::Referrer& referrer,
+    const std::optional<url::Origin>& iniciador)>;
+void DefinirAbridorDePrevia(AbridorDePrevia abridor);
+bool AbrirPrevia(BrowserWindowInterface* browser,
+                 content::WebContents* origem,
+                 const GURL& url,
+                 const content::Referrer& referrer,
+                 const std::optional<url::Origin>& iniciador);
 
 }  // namespace navegador::containers
 

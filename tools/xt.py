@@ -3,7 +3,7 @@
 sessão Wayland do usuário.
 
   DISPLAY=:77 xt.py move X Y
-  DISPLAY=:77 xt.py click X Y [1|2|3|8|9]      (8 = voltar, 9 = avançar)
+  DISPLAY=:77 xt.py click X Y [1|2|3|8|9] [shift+ctrl...]  (8 = voltar, 9 = avançar)
   DISPLAY=:77 xt.py scroll X Y up|down|left|right [n]
   DISPLAY=:77 xt.py key ctrl+comma ctrl+alt+Right
   DISPLAY=:77 xt.py type "texto"
@@ -86,7 +86,17 @@ if cmd == "move":
     mover(int(args[1]), int(args[2]))
 elif cmd == "click":
     mover(int(args[1]), int(args[2]))
+    # Teclas seguradas durante o clique (ex.: "shift" ou "ctrl+shift").
+    segurar = [keycode(t) for t in args[4].split("+")] if len(args) > 4 else []
+    for c in segurar:
+        xtst.XTestFakeKeyEvent(d, c, 1, 0)
+        flush()
+        time.sleep(0.03)
     botao(int(args[3]) if len(args) > 3 else 1)
+    for c in reversed(segurar):
+        xtst.XTestFakeKeyEvent(d, c, 0, 0)
+        flush()
+        time.sleep(0.03)
 elif cmd == "scroll":
     mover(int(args[1]), int(args[2]))
     b = {"up": 4, "down": 5, "left": 6, "right": 7}[args[3]]
