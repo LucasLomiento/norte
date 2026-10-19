@@ -1,3 +1,192 @@
+diff --git i/chrome/browser/resources/new_tab_page_incognito_guest/guest_tab.html w/chrome/browser/resources/new_tab_page_incognito_guest/guest_tab.html
+index 9f9a9f63c2..64c8c6e452 100644
+--- i/chrome/browser/resources/new_tab_page_incognito_guest/guest_tab.html
++++ w/chrome/browser/resources/new_tab_page_incognito_guest/guest_tab.html
+@@ -1,17 +1,63 @@
+ <!doctype html>
++<!-- navegador: nova aba do modo visitante, no mesmo desenho da janela
++     anônima (ver navegador/browser/resources/sem_rastro.css). -->
+ <html dir="$i18n{textdirection}" lang="$i18n{language}">
+ <head>
+ <meta charset="utf-8">
++<meta name="color-scheme" content="dark">
+ <title>$i18n{title}</title>
+-<link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
+-<link rel="stylesheet" href="incognito_and_guest_tab.css">
++<meta name="viewport" content="width=device-width">
++<link rel="stylesheet" href="../../../../navegador/browser/resources/sem_rastro.css">
+ </head>
+ <body>
+-<div class="content">
+-  <h1>$i18n{guestTabHeading}</h1>
+-  <p>$i18n{guestTabDescription}</p>
+-  <a class="learn-more-button" href="$i18n{learnMoreLink}"
+-      aria-label="$i18nPolymer{learnMoreA11yLabel}">$i18n{learnMore}</a>
+-</div>
++  <svg class="bussola" viewBox="0 0 256 256" aria-hidden="true">
++    <defs>
++      <linearGradient id="brilho" x1="0" y1="0" x2="0" y2="1">
++        <stop offset="0" stop-color="#8cb6ff" stop-opacity=".5"/>
++        <stop offset="1" stop-color="#4f8cff" stop-opacity=".04"/>
++      </linearGradient>
++    </defs>
++    <circle class="aro" cx="128" cy="128" r="124" stroke-width="1"/>
++    <g class="mostrador">
++      <circle class="risco" cx="128" cy="128" r="114" stroke-width="5"
++          stroke-dasharray=".9 9.05" transform="rotate(-90.2 128 128)"/>
++      <circle class="risco forte" cx="128" cy="128" r="113" stroke-width="9"
++          stroke-dasharray="1.6 57.57" transform="rotate(-90.4 128 128)"/>
++    </g>
++    <text class="cardeal norte" x="128" y="38">N</text>
++    <text class="cardeal" x="221" y="132">L</text>
++    <text class="cardeal" x="128" y="226">S</text>
++    <text class="cardeal" x="35" y="132">O</text>
++    <g class="agulha">
++      <path class="metade-norte" d="M128 52 L110 128 L146 128 Z"/>
++      <path class="metade-sul" d="M110 128 L128 204 L146 128 Z"/>
++      <circle class="eixo" cx="128" cy="128" r="6"/>
++    </g>
++  </svg>
++
++  <p class="rotulo">De passagem</p>
++  <h1>Modo visitante</h1>
++  <p class="resumo">Para emprestar o computador: quem usa esta janela não vê
++    o seu perfil, e nada fica quando ela fechar.</p>
++
++  <dl class="fatos">
++    <div class="fato">
++      <dt>Não vê</dt>
++      <dd>Os seus favoritos, senhas, histórico, espaços e extensões.</dd>
++    </div>
++    <div class="fato">
++      <dt>Esquece</dt>
++      <dd>Tudo o que acontecer aqui: histórico, cookies e logins dos
++        sites.</dd>
++    </div>
++    <div class="fato guarda">
++      <dt>Guarda</dt>
++      <dd>Só os arquivos baixados, na pasta de downloads.</dd>
++    </div>
++  </dl>
++
++  <div class="selos">
++    <span>Sem espaços nem containers</span>
++  </div>
+ </body>
+ </html>
+diff --git i/chrome/browser/resources/new_tab_page_incognito_guest/incognito_tab.html w/chrome/browser/resources/new_tab_page_incognito_guest/incognito_tab.html
+index 04e88e027a..79875bd8c0 100644
+--- i/chrome/browser/resources/new_tab_page_incognito_guest/incognito_tab.html
++++ w/chrome/browser/resources/new_tab_page_incognito_guest/incognito_tab.html
+@@ -1,54 +1,66 @@
+ <!doctype html>
+-<html dir="$i18n{textdirection}"
+-      hascustombackground="$i18n{hasCustomBackground}"
+-      lang="$i18n{language}"
+-      class="md">
++<!-- navegador: nova aba da janela anônima no desenho do Norte (ver
++     navegador/browser/resources/sem_rastro.css). -->
++<html dir="$i18n{textdirection}" lang="$i18n{language}">
+ <head>
+ <meta charset="utf-8">
+-<meta name="color-scheme" content="light dark">
++<meta name="color-scheme" content="dark">
+ <title>$i18n{title}</title>
+ <link rel="icon" type="image/svg+xml" href="../../../../ui/webui/resources/images/incognito_icon.svg">
+ <meta name="viewport" content="width=device-width">
+-<link id="incognitothemecss" rel="stylesheet">
+-<script>
+-// Until themes can clear the cache, force-reload the theme stylesheet.
+-document.querySelector('#incognitothemecss').href =
+-    'chrome://theme/css/incognito_tab_theme.css?' + Date.now();
+-</script>
+-<link rel="stylesheet" href="chrome://resources/css/text_defaults_md.css">
+-<link rel="stylesheet" href="incognito_tab.css">
++<link rel="stylesheet" href="../../../../navegador/browser/resources/sem_rastro.css">
+ </head>
+ <body>
+-<div class="content">
+-  <div class="icon" role="presentation" alt=""></div>
+-  <h1>$i18n{incognitoTabHeading}</h1>
+-  <p id="subtitle">
+-    <span>$i18n{incognitoTabDescription}</span>
+-    <a class="learn-more-button"
+-        href="$i18n{learnMoreLink}"
+-        aria-label="$i18nPolymer{learnMoreA11yLabel}">$i18n{learnMore}</a>
+-  </p>
+-  <div id="bulletpoints-wrapper">
+-    <div class="bulletpoints first">$i18nRaw{incognitoTabFeatures}</div>
+-    <div class="bulletpoints">$i18nRaw{incognitoTabWarning}</div>
+-  </div>
+-  <div id="cookie-controls">
+-    <div id="cookie-controls-description">
+-      <div id="cookie-controls-header">
+-        <svg viewBox="0 -960 960 960" aria-hidden="true">
+-          <path d="m637-425-62-62q4-38-23-65.5T487-576l-62-62q13-5 27-7.5t28-2.5q70 0 119 49t49 119q0 14-2.5 28t-8.5 27Zm133 133-52-52q36-28 65.5-61.5T833-480q-49-101-144.5-158.5T480-696q-26 0-51 3t-49 10l-58-58q38-15 77.5-21t80.5-6q143 0 261.5 77.5T912-480q-22 57-58.5 103.5T770-292Zm-2 202L638-220q-38 14-77.5 21t-80.5 7q-143 0-261.5-77.5T48-480q22-57 58-104t84-85L90-769l51-51 678 679-51 51ZM241-617q-35 28-65 61.5T127-480q49 101 144.5 158.5T480-264q26 0 51-3.5t50-9.5l-45-45q-14 5-28 7.5t-28 2.5q-70 0-119-49t-49-119q0-14 3.5-28t6.5-28l-81-81Zm287 89Zm-96 96Z"/>
+-        </svg>
+-        <em>$i18n{cookieControlsTitle}</em>
+-      </div>
+-      <span>$i18nRaw{cookieControlsDescription}</span>
++  <svg class="bussola" viewBox="0 0 256 256" aria-hidden="true">
++    <defs>
++      <linearGradient id="brilho" x1="0" y1="0" x2="0" y2="1">
++        <stop offset="0" stop-color="#8cb6ff" stop-opacity=".5"/>
++        <stop offset="1" stop-color="#4f8cff" stop-opacity=".04"/>
++      </linearGradient>
++    </defs>
++    <circle class="aro" cx="128" cy="128" r="124" stroke-width="1"/>
++    <g class="mostrador">
++      <circle class="risco" cx="128" cy="128" r="114" stroke-width="5"
++          stroke-dasharray=".9 9.05" transform="rotate(-90.2 128 128)"/>
++      <circle class="risco forte" cx="128" cy="128" r="113" stroke-width="9"
++          stroke-dasharray="1.6 57.57" transform="rotate(-90.4 128 128)"/>
++    </g>
++    <text class="cardeal norte" x="128" y="38">N</text>
++    <text class="cardeal" x="221" y="132">L</text>
++    <text class="cardeal" x="128" y="226">S</text>
++    <text class="cardeal" x="35" y="132">O</text>
++    <g class="agulha">
++      <path class="metade-norte" d="M128 52 L110 128 L146 128 Z"/>
++      <path class="metade-sul" d="M110 128 L128 204 L146 128 Z"/>
++      <circle class="eixo" cx="128" cy="128" r="6"/>
++    </g>
++  </svg>
++
++  <p class="rotulo">Sem rastro</p>
++  <h1>Janela anônima</h1>
++  <p class="resumo">Quando você fechar esta janela, o Norte esquece tudo o
++    que aconteceu nela.</p>
++
++  <dl class="fatos">
++    <div class="fato">
++      <dt>Esquece</dt>
++      <dd>Histórico, cookies e logins dos sites, e o que você digitar em
++        formulários.</dd>
+     </div>
++    <div class="fato guarda">
++      <dt>Guarda</dt>
++      <dd>Os arquivos que você baixar e os favoritos que salvar.</dd>
++    </div>
++    <div class="fato">
++      <dt>Ainda veem</dt>
++      <dd>Os sites que você visita, a sua rede e o seu provedor de
++        internet.</dd>
++    </div>
++  </dl>
++
++  <div class="selos">
++    <span>Cookies de terceiros bloqueados</span>
++    <span>Sem espaços nem containers</span>
+   </div>
+-  <a class="learn-more-button" href="$i18n{learnMoreLink}"
+-      aria-label="$i18nPolymer{learnMoreA11yLabel}">$i18n{learnMore}</a>
+-</div>
+-<script type="module" src="incognito_tab.js"></script>
+-<!-- Lazy-load cr_elements to avoid performance penalty introduced by loading Polymer -->
+-<script type="module" src="chrome://resources/cr_elements/cr_toggle/cr_toggle.js" async></script>
+-<script type="module" src="chrome://resources/cr_elements/policy/cr_tooltip_icon.js" async></script>
+ </body>
+ </html>
 diff --git i/chrome/browser/resources/new_tab_page_third_party/BUILD.gn w/chrome/browser/resources/new_tab_page_third_party/BUILD.gn
 index 0c145046f3..4f04218cea 100644
 --- i/chrome/browser/resources/new_tab_page_third_party/BUILD.gn
