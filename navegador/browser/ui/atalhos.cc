@@ -6,6 +6,7 @@
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "chrome/browser/profiles/profile.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "ui/events/event_constants.h"
 #include "ui/events/keycodes/keyboard_codes.h"
@@ -188,6 +189,10 @@ bool EDoNavegador(Profile* profile, const ui::Accelerator& atalho) {
     return false;
   }
   for (const espacos::Atalho& acao : espacos::Atalhos()) {
+    // Sem espaços na janela anônima: essas teclas ficam pra página.
+    if (profile->IsOffTheRecord() && espacos::AcaoDeEspaco(acao.acao)) {
+      continue;
+    }
     if (std::optional<ui::Accelerator> tecla =
             Ler(espacos::AtalhoDe(profile, acao.acao));
         tecla && *tecla == atalho) {

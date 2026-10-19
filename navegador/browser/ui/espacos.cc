@@ -262,11 +262,18 @@ class TituloDoEspaco : public views::Button,
         kColorTabForegroundActiveFrameActive);
     views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(), 4);
     SetTooltipText(u"Trocar de espaço");
+    // Janela anônima: sem espaços, o cabeçalho só diz o que ela é.
+    if (browser->GetProfile()->IsOffTheRecord()) {
+      views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::OFF);
+      SetTooltipText(u"Sem espaços nem containers; nada desta janela fica "
+                     u"gravado.");
+    }
   }
 
   void Mostrar(const std::u16string& texto) {
     rotulo_->SetText(texto);
-    GetViewAccessibility().SetName(u"Espaço: " + texto);
+    GetViewAccessibility().SetName(
+        browser_->GetProfile()->IsOffTheRecord() ? texto : u"Espaço: " + texto);
   }
 
   void OnThemeChanged() override {
@@ -293,6 +300,9 @@ class TituloDoEspaco : public views::Button,
  private:
   void AbrirMenu() {
     Profile* perfil = browser_->GetProfile();
+    if (perfil->IsOffTheRecord()) {
+      return;
+    }
     const std::string atual = Ativo(perfil);
     std::string do_grupo;
     if (std::optional<tab_groups::TabGroupId> grupo =
@@ -457,7 +467,8 @@ class FaixaDeEspacos : public views::View,
   FaixaDeEspacos(views::View* lateral, BrowserWindowInterface* browser)
       : lateral_(lateral),
         browser_(browser),
-        model_(browser->GetTabStripModel()) {
+        model_(browser->GetTabStripModel()),
+        anonima_(browser->GetProfile()->IsOffTheRecord()) {
     layout_ = SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(0, 6),
         8));
@@ -495,16 +506,26 @@ class FaixaDeEspacos : public views::View,
     AddChildView(std::make_unique<views::View>())
         ->SetPreferredSize(baixar_->GetPreferredSize());
 
-    model_->AddObserver(this);
-    set_context_menu_controller(this);
     Faixas()[browser_] = this;
-
     prefs_.Init(Perfil()->GetPrefs());
-    prefs_.Add(kListaPref,
-               base::BindRepeating(&FaixaDeEspacos::QuandoListaMudar,
-                                   base::Unretained(this)));
     prefs_.Add(kAtalhosPref,
                base::BindRepeating(&FaixaDeEspacos::RegistrarAtalhos,
+                                   base::Unretained(this)));
+    // Janela anônima (e a de visitante): sem espaços, como uma janela comum
+    // do Chromium. Fica só o botão de downloads e os atalhos que não são de
+    // espaço; as abas não entram em grupos e nada vai pras prefs.
+    if (anonima_) {
+      titulo_->SetVisible(false);
+      bolinhas_->SetVisible(false);
+      novo_->SetVisible(false);
+      Atualizar();
+      return;
+    }
+
+    model_->AddObserver(this);
+    set_context_menu_controller(this);
+    prefs_.Add(kListaPref,
+               base::BindRepeating(&FaixaDeEspacos::QuandoListaMudar,
                                    base::Unretained(this)));
 
     Atualizar();
@@ -513,7 +534,9 @@ class FaixaDeEspacos : public views::View,
   std::optional<SkColor> Tom() const { return tom_; }
 
   ~FaixaDeEspacos() override {
-    model_->RemoveObserver(this);
+    if (!anonima_) {
+      model_->RemoveObserver(this);
+    }
     auto it = Faixas().find(browser_);
     if (it != Faixas().end() && it->second == this) {
       Faixas().erase(it);
@@ -523,7 +546,7 @@ class FaixaDeEspacos : public views::View,
   // --- Troca de espaço ----------------------------------------------------
 
   void Focar(const std::string& espaco) {
-    if (!Get(Perfil(), espaco)) {
+    if (anonima_ || !Get(Perfil(), espaco)) {
       return;
     }
     // O temporário é só da janela da extensão: noutra janela não ganha aba
@@ -573,6 +596,9 @@ class FaixaDeEspacos : public views::View,
   }
 
   void Girar(bool pra_frente) {
+    if (anonima_) {
+      return;
+    }
     const std::vector<Espaco> todos = Navegaveis();
     if (todos.size() < 2) {
       return;
@@ -597,13 +623,17 @@ class FaixaDeEspacos : public views::View,
   }
 
   void NovoEspaco() {
+    if (anonima_) {
+      return;
+    }
     configuracoes::EditarEspaco(
         browser_, std::string(),
         base::BindOnce(&FaixaDeEspacos::Focar, weak_factory_.GetWeakPtr()));
   }
 
   void MoverAbaPara(int index, const std::string& espaco) {
-    if (index < 0 || index >= model_->count() || model_->IsTabPinned(index)) {
+    if (anonima_ || index < 0 || index >= model_->count() ||
+        model_->IsTabPinned(index)) {
       return;
     }
     const std::optional<tab_groups::TabGroupId> origem =
@@ -639,6 +669,9 @@ class FaixaDeEspacos : public views::View,
   // Fecha as abas do espaço nesta janela (antes, se a janela está nele,
   // passa pro espaço seguinte).
   void FecharEspaco(const std::string& espaco) {
+    if (anonima_) {
+      return;
+    }
     std::optional<tab_groups::TabGroupId> grupo = GrupoDoEspaco(espaco);
     if (!grupo) {
       return;
@@ -671,6 +704,9 @@ class FaixaDeEspacos : public views::View,
 
   void AddedToWidget() override {
     RegistrarAtalhos();
+    if (anonima_) {
+      return;  // Voltar/avançar e a rolagem na lateral ficam os de sempre.
+    }
     lateral_->AddPreTargetHandler(&na_lateral_);
     // A sessão restaurada chega depois: arruma no próximo giro.
     GarantirDepois();
@@ -680,7 +716,9 @@ class FaixaDeEspacos : public views::View,
     if (views::FocusManager* foco = GetFocusManager()) {
       foco->UnregisterAccelerators(this);
     }
-    lateral_->RemovePreTargetHandler(&na_lateral_);
+    if (!anonima_) {
+      lateral_->RemovePreTargetHandler(&na_lateral_);
+    }
   }
 
   // Divisão de tela pelo teclado (Ctrl+Alt+V/H, como no Zen): divide a aba
@@ -774,6 +812,9 @@ class FaixaDeEspacos : public views::View,
   // A rodinha em cima da faixa passa de um espaço pro outro (o "deslizar"
   // do Dia). Em cima do resto da lateral, ver OnMouseEvent.
   bool OnMouseWheel(const ui::MouseWheelEvent& event) override {
+    if (anonima_) {
+      return false;
+    }
     const int delta =
         event.y_offset() != 0 ? event.y_offset() : event.x_offset();
     if (delta == 0) {
@@ -1489,6 +1530,9 @@ class FaixaDeEspacos : public views::View,
     foco->UnregisterAccelerators(this);
     acoes_.clear();
     for (const Atalho& atalho : Atalhos()) {
+      if (anonima_ && AcaoDeEspaco(atalho.acao)) {
+        continue;
+      }
       if (std::optional<ui::Accelerator> tecla =
               atalhos::Ler(AtalhoDe(Perfil(), atalho.acao))) {
         acoes_[*tecla] = atalho.acao;
@@ -1560,6 +1604,14 @@ class FaixaDeEspacos : public views::View,
 
   void Atualizar() {
     atualizacao_pendente_ = false;
+    if (anonima_) {
+      if (auto* cabecalho = static_cast<TituloDoEspaco*>(
+              titulo_do_cabecalho_.view())) {
+        cabecalho->Mostrar(Perfil()->IsGuestSession() ? u"Visitante"
+                                                      : u"Anônima");
+      }
+      return;
+    }
     AtualizarTom();
     const std::vector<Espaco> todos = Todos(Perfil());
     const std::string atual = EspacoAtual();
@@ -1604,6 +1656,8 @@ class FaixaDeEspacos : public views::View,
       base::BindRepeating(&FaixaDeEspacos::GirarPelaRodinha,
                           base::Unretained(this))};
   raw_ptr<TabStripModel> model_;
+  // Janela anônima ou de visitante: sem espaços (ver o construtor).
+  const bool anonima_;
   PrefChangeRegistrar prefs_;
   std::map<ui::Accelerator, std::string> acoes_;
   std::map<std::string, tabs::TabHandle> ultima_aba_;

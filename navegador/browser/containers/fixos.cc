@@ -212,10 +212,20 @@ std::string Favoritar(Profile* profile,
                       std::string_view espaco,
                       const GURL& url,
                       std::string_view titulo) {
-  const Site site{NovoId("f"), url, std::string(titulo)};
   ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
-  ListaDoEspaco(update.Get(), ChaveDosFavoritos(espaco))
-      .Append(DictDoSite(site));
+  base::ListValue& lista =
+      ListaDoEspaco(update.Get(), ChaveDosFavoritos(espaco));
+  // O endereço já está nos favoritos do espaço: é ele. Uma extensão que fixa
+  // abas (ou a mesma página fixada de novo) criava um ladrilho repetido a
+  // cada vez.
+  for (const base::Value& valor : lista) {
+    if (std::optional<Site> existente = SiteDe(valor);
+        existente && existente->url == url) {
+      return existente->id;
+    }
+  }
+  const Site site{NovoId("f"), url, std::string(titulo)};
+  lista.Append(DictDoSite(site));
   return site.id;
 }
 

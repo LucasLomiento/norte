@@ -333,6 +333,11 @@ std::string AtalhoDe(Profile* profile, std::string_view acao) {
   return std::string();
 }
 
+bool AcaoDeEspaco(std::string_view acao) {
+  return acao == "proximo_espaco" || acao == "espaco_anterior" ||
+         acao == "novo_espaco" || acao.starts_with("espaco_");
+}
+
 void DefinirAtalho(Profile* profile,
                    std::string_view acao,
                    std::string_view atalho) {

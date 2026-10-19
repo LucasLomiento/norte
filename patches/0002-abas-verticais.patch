@@ -13,7 +13,7 @@ index b6cf0bffe2..b68ec7ae64 100644
          $i18n{tabStripPosition}
        </div>
 diff --git i/chrome/browser/ui/tabs/tab_menu_model.cc w/chrome/browser/ui/tabs/tab_menu_model.cc
-index 97c6ded1ac..c02efc2b61 100644
+index 97c6ded1ac..6f4e3db973 100644
 --- i/chrome/browser/ui/tabs/tab_menu_model.cc
 +++ w/chrome/browser/ui/tabs/tab_menu_model.cc
 @@ -4,6 +4,9 @@
@@ -103,26 +103,34 @@ index 97c6ded1ac..c02efc2b61 100644
    }
  
    if (ExistingWindowSubMenuModel::ShouldShowSubmenu(tab_strip_->profile())) {
-@@ -502,9 +469,15 @@ void TabMenuModel::Build(int index) {
+@@ -502,9 +469,23 @@ void TabMenuModel::Build(int index) {
    SetElementIdentifierAt(GetItemCount() - 1, kDuplicateMenuItem);
  
    bool will_pin = tab_strip_->WillContextMenuPin(index);
 -  AddItemWithStringId(
 -      TabStripModel::CommandTogglePinned,
 -      will_pin ? IDS_TAB_CXMENU_PIN_TAB : IDS_TAB_CXMENU_UNPIN_TAB);
-+  // navegador: aba fixada do Chromium = ladrilho dos favoritos (como no
-+  // Dia); "Fixar" é o "Fixar no espaço" acima.
-+  const std::optional<std::string> fixo =
-+      navegador::fixos::SiteDaAba(tab_strip_->GetWebContentsAt(index));
-+  const bool favorito =
-+      fixo && navegador::fixos::EFavorito(tab_strip_->profile(), *fixo);
-+  AddItem(TabStripModel::CommandTogglePinned,
-+          will_pin && !favorito ? u"Adicionar aos favoritos"
-+                                : u"Tirar dos favoritos");
++  if (tab_strip_->profile()->IsOffTheRecord()) {
++    // navegador: a janela anônima não tem os favoritos do espaço; fixar é o
++    // do Chromium.
++    AddItemWithStringId(
++        TabStripModel::CommandTogglePinned,
++        will_pin ? IDS_TAB_CXMENU_PIN_TAB : IDS_TAB_CXMENU_UNPIN_TAB);
++  } else {
++    // navegador: aba fixada do Chromium = ladrilho dos favoritos (como no
++    // Dia); "Fixar" é o "Fixar no espaço" acima.
++    const std::optional<std::string> fixo =
++        navegador::fixos::SiteDaAba(tab_strip_->GetWebContentsAt(index));
++    const bool favorito =
++        fixo && navegador::fixos::EFavorito(tab_strip_->profile(), *fixo);
++    AddItem(TabStripModel::CommandTogglePinned,
++            will_pin && !favorito ? u"Adicionar aos favoritos"
++                                  : u"Tirar dos favoritos");
++  }
  
    if (features::IsMenuSimplificationEnabled()) {
      SetIconForCommandId(
-@@ -585,32 +558,16 @@ void TabMenuModel::Build(int index) {
+@@ -585,32 +566,16 @@ void TabMenuModel::Build(int index) {
      }
    }
  

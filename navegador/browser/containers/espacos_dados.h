@@ -150,6 +150,8 @@ struct Atalho {
 const std::vector<Atalho>& Atalhos();
 // Atalho em uso pra ação (o da pessoa ou o padrão).
 std::string AtalhoDe(Profile* profile, std::string_view acao);
+// A ação é de troca/criação de espaço (a janela anônima não tem espaços).
+bool AcaoDeEspaco(std::string_view acao);
 // "" tira o atalho; igual ao padrão volta a seguir o padrão.
 void DefinirAtalho(Profile* profile,
                    std::string_view acao,

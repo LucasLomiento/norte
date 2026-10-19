@@ -5,7 +5,7 @@ traduções.
 O grit identifica cada tradução (.xtb) por um hash do texto em inglês da
 mensagem (.grd). Trocar o texto muda o hash e a tradução some (cai pro
 inglês). Então, pra cada mensagem dos arquivos de INTEIROS
-(chrome/app/chromium_strings.grd e o dos componentes):
+(chrome/app/chromium_strings.grd e os dos componentes):
 
   1. calcula o id antigo (texto original) e o novo (texto com Norte);
   2. em cada chromium_strings_*.xtb, renomeia a tradução do id antigo pro
@@ -28,7 +28,7 @@ ANTIGO = "Chromium"
 NOVO = "Norte"
 # Nomes que não são o produto: ficam como estão.
 PRESERVAR = ("Chromium OS", "ChromiumOS", "Chromium Authors", "chromium.org",
-             "Chromium Embedded",
+             "Chromium Embedded", "Chromium Projects",
              # "feito graças ao projeto de código aberto Chromium" (Sobre).
              'Chromium<ph name="END_LINK_CHROMIUM"')
 
@@ -52,10 +52,12 @@ def ids_em_ordem(src, grd):
 
     # Toda variável dos <if expr> vira False: só queremos os ids, de todas
     # as mensagens (o percurso abaixo passa por todos os ramos).
-    texto = open(grd, encoding="utf-8").read()
+    # As do .grd e as das partes (.grdp) que ele inclui.
     nomes = set()
-    for expr in re.findall(r'expr="([^"]*)"', texto):
-        nomes.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", expr))
+    for arquivo in partes(grd):
+        texto = open(arquivo, encoding="utf-8").read()
+        for expr in re.findall(r'expr="([^"]*)"', texto):
+            nomes.update(re.findall(r"[A-Za-z_][A-Za-z0-9_]*", expr))
     nomes -= {"and", "or", "not", "True", "False", "in", "pp_if",
               "pp_ifdef", "is_linux", "is_win", "is_macosx", "is_android",
               "is_ios", "is_fuchsia", "is_bsd", "is_posix", "is_chromeos",
@@ -141,6 +143,10 @@ INTEIROS = (
     # "O Chromium não foi encerrado corretamente" e afins.
     ("components/components_chromium_strings.grd",
      "components/strings/components_chromium_strings_*.xtb"),
+    # "O Chromium não vai salvar" (nova aba anônima), "Reiniciar o Chromium"
+    # (aba que travou), avisos de certificado, senhas, preenchimento.
+    ("components/components_strings.grd",
+     "components/strings/components_strings_*.xtb"),
 )
 
 

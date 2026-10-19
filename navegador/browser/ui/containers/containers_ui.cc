@@ -178,8 +178,8 @@ class SubmenuFixar : public ui::SimpleMenuModel,
       : ui::SimpleMenuModel(this),
         tab_strip_(tab_strip),
         alvo_(tab_strip->GetWebContentsAt(index)->GetWeakPtr()) {
-    if (PonteFixar().is_null()) {
-      return;
+    if (PonteFixar().is_null() || tab_strip->profile()->IsOffTheRecord()) {
+      return;  // A janela anônima não tem fixados.
     }
     if (fixos::SiteDaAba(alvo_.get())) {
       AddItem(kDesafixar, u"Desafixar");
@@ -252,8 +252,9 @@ class SubmenuDeEspacos : public ui::SimpleMenuModel,
       : ui::SimpleMenuModel(this),
         tab_strip_(tab_strip),
         alvo_(tab_strip->GetWebContentsAt(index)->GetWeakPtr()) {
-    if (tab_strip->IsTabPinned(index) || PonteMoverAba().is_null()) {
-      return;
+    if (tab_strip->IsTabPinned(index) || PonteMoverAba().is_null() ||
+        tab_strip->profile()->IsOffTheRecord()) {
+      return;  // A janela anônima não tem espaços.
     }
     std::optional<std::string> atual;
     if (std::optional<tab_groups::TabGroupId> grupo =

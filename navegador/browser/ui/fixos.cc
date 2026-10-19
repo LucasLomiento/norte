@@ -1,5 +1,6 @@
 #include "navegador/browser/ui/fixos.h"
 
+#include <limits>
 #include <map>
 #include <memory>
 #include <optional>
@@ -42,6 +43,7 @@
 #include "navegador/browser/containers/titulos.h"
 #include "navegador/browser/ui/abas/abas.h"
 #include "ui/events/event_constants.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "components/prefs/pref_service.h"
 #include "components/sessions/content/session_tab_helper.h"
@@ -628,9 +630,10 @@ class AreaDeFixos : public views::View,
   METADATA_HEADER(AreaDeFixos, views::View)
 
  public:
-  explicit AreaDeFixos(BrowserWindowInterface* browser)
-      : browser_(browser), model_(browser->GetTabStripModel()) {
-    SetID(visual::kIdAreaDeFixos);
+  AreaDeFixos(BrowserWindowInterface* browser, views::View* lateral)
+      : browser_(browser),
+        model_(browser->GetTabStripModel()),
+        lateral_(lateral) {
     SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical, gfx::Insets(),
         visual::kEspacoEntreAbas));
@@ -1156,7 +1159,7 @@ class AreaDeFixos : public views::View,
   // A lista de abas (TabGroupView do espaço) esconde as abas ligadas: depois
   // de ligar ou desligar, refaz o layout dela.
   void InvalidarLista() {
-    views::View* raiz = parent() ? parent() : this;
+    views::View* raiz = lateral_;
     std::vector<views::View*> pilha = {raiz};
     while (!pilha.empty()) {
       views::View* view = pilha.back();
@@ -1538,6 +1541,9 @@ class AreaDeFixos : public views::View,
 
   raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<TabStripModel> model_;
+  // A lateral (TabStripView): a lista de abas que esconde as ligadas é
+  // filha dela, não da rolagem em que a área mora.
+  raw_ptr<views::View> lateral_;
   PrefChangeRegistrar prefs_;
   std::vector<raw_ptr<LinhaDoSite>> linhas_;
   std::vector<raw_ptr<Ladrilho>> ladrilhos_;
@@ -1688,12 +1694,30 @@ void AdicionarArea(views::View* tab_strip_view,
       return false;
     }));
   }
+  // A janela anônima não tem fixados nem favoritos do espaço: as abas
+  // fixadas são as do Chromium.
+  if (browser->GetProfile()->IsOffTheRecord()) {
+    return;
+  }
   for (views::View* filho : tab_strip_view->children()) {
     if (filho->GetID() == visual::kIdAreaDeFixos) {
       return;
     }
   }
-  tab_strip_view->AddChildView(std::make_unique<AreaDeFixos>(browser));
+  // Numa rolagem só dela: com muitos fixados ou favoritos, a área ocupava a
+  // lateral inteira e a lista de abas sumia (o layout dá a ela no máximo
+  // uma parte da altura: tab_strip_view_layout.cc).
+  auto rolagem = std::make_unique<views::ScrollView>();
+  rolagem->SetID(visual::kIdAreaDeFixos);
+  rolagem->SetBackgroundColor(std::nullopt);
+  rolagem->SetDrawOverflowIndicator(false);
+  rolagem->SetHorizontalScrollBarMode(
+      views::ScrollView::ScrollBarMode::kDisabled);
+  rolagem->SetVerticalScrollBarMode(
+      views::ScrollView::ScrollBarMode::kHiddenButEnabled);
+  rolagem->ClipHeightTo(0, std::numeric_limits<int>::max());
+  rolagem->SetContents(std::make_unique<AreaDeFixos>(browser, tab_strip_view));
+  tab_strip_view->AddChildView(std::move(rolagem));
 }
 
 }  // namespace navegador::fixos
