@@ -34,6 +34,7 @@ As medidas da primeira versão vieram do Dia rodando, comparado lado a lado com 
 - Grupo de abas num bloco de fundo próprio no escuro (`TabGroupView`, como o Dia), menos dentro de um espaço.
 - Nova aba: página simples (degradê e logo), sempre, com qualquer busca.
 - Sem IA: flags desligadas na criação da FeatureList (`navegador/browser/sem_ia`: Modo IA, Compose, Lens, Gemini/Glic, histórico com IA, organizar guias, preenchimento e permissões com IA, tarefas contextuais...) e sem a página "IA no..." das Configurações.
+- **Experimentos de teste do Chromium**: fora da "official build", o Chromium aplica sozinho a `testing/variations/fieldtrial_testing_config.json` (no 155, 578 estudos e ~680 recursos ligados no Linux, feitos pros robôs de teste). O Norte foi publicado assim até a -34. A lista continua valendo: os perfis já foram migrados por alguns desses recursos, e com `disable_fieldtrial_testing_config = true` o navegador cai na partida (`template_url_prepopulate_data_resolver.cc`: a lista de buscadores "voltando" da migração dá NOTREACHED, fatal fora da official build). Os que deram problema saem um por um em `kDesligadas` (`sem_ia.cc`, `--disable-features` na criação da FeatureList): a barra em WebUI (voltar/avançar/recarregar numa página `chrome://webui-toolbar.top-chrome/` dentro da barra, que sumiam com a barra escondida no Wayland), `WaylandExternalBeginFrameSource` e os balões de recurso/propagandas do Chrome. Conferir: a lista de alvos do CDP (`/json/list`) não deve ter o `webui-toolbar`.
 - Sem login na conta Google (`signin.allowed` falso) e sem convite no botão de perfil.
 - Sem barra de grupos salvos na nova aba; sem o botão "tudo" (grupos) no cabeçalho da lateral.
 - Texto da lateral em 13; logo vetorial do navegador (`kProductIcon`, apagado como o do Dia) no cabeçalho, e a seta de "abas recentes" (a busca de abas do Chromium) à direita.
@@ -150,6 +151,8 @@ Atalhos em `navegador.atalhos` (só os trocados; padrões em `espacos::Atalhos()
 - **Cabeçalho**: ícone do site (o `ContentFaviconDriver` criado já na prévia; o `AttachTabHelpers` da aba reaproveita), título e endereço da página, "Dividir com a aba", "Abrir como aba" e fechar. Abrir como aba passa o próprio `WebContents` pro `TabStripModel` ao lado da origem, no grupo (espaço) dela, sem recarregar; dividir faz o mesmo e chama `AddToNewSplit` com a origem, ativando a nova. Clicar fora do cartão fecha. Trocar de aba ou fechar a de origem fecha a prévia; o foco volta pra origem (menos quando virou aba).
 
 ## Tela congelada (NVIDIA + Wayland)
+
+**Causa provável (achada na -35)**: o `WaylandExternalBeginFrameSource`, ligado pela lista de experimentos de teste do Chromium (desligado no Chromium normal), faz a janela pedir quadros no ritmo das respostas de quadro do compositor. Sem resposta, para de pedir e congela. Desligado em `kDesligadas` (`sem_ia.cc`); o vigia abaixo fica de reserva.
 
 Desde o driver 615 da NVIDIA (18/10/2026), a janela às vezes para de receber do Hyprland os callbacks de quadro e as liberações de buffer: o processo da GPU fica esperando pra sempre, a tela congela e a interface continua viva (o clique dá play no vídeo, mas nada se redesenha). Reiniciar o processo da GPU destrava (`chrome://gpucrash`).
 

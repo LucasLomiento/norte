@@ -13,9 +13,9 @@ namespace navegador {
 
 void DesligarIA(base::CommandLine* command_line);
 
-// O contrário: flags do Chromium que o Norte liga por padrão (ver a lista no
-// .cc). Uma que a pessoa já tenha ligado ou desligado na linha de comando
-// fica como ela pediu.
+// Flags do Chromium que o Norte liga por padrão e experimentos da lista de
+// teste do Chromium que ele desliga (ver as listas no .cc). Uma que a pessoa
+// já tenha ligado ou desligado na linha de comando fica como ela pediu.
 void LigarRecursos(base::CommandLine* command_line);
 
 }  // namespace navegador
