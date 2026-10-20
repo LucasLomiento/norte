@@ -30,6 +30,8 @@
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/focus/focus_manager.h"
+#include "ui/views/view_class_properties.h"
+#include "ui/views/window/dialog_delegate.h"
 #include "ui/views/widget/widget_delegate.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_observer.h"
@@ -71,6 +73,25 @@ bool Ligada(const BrowserView* view) {
   return browser && browser->GetType() == BrowserWindowInterface::TYPE_NORMAL &&
          browser->GetProfile()->GetPrefs()->GetBoolean(
              espacos::kBarraEscondidaPref);
+}
+
+// Um balão aberto preso numa view de `view` ou de dentro dela (o pop-up de uma
+// extensão, informações do site, favorito). Pela âncora, que o
+// BubbleDialogDelegate marca com kAnchoredDialogKey: no Wayland o balão é uma
+// subsuperfície da janela (WaylandBubble), e procurar entre as janelas da
+// janela não bastava.
+bool BalaoPreso(const views::View* view) {
+  if (const views::DialogDelegate* dialogo =
+          view->GetProperty(views::kAnchoredDialogKey);
+      dialogo && dialogo->GetWidget() && dialogo->GetWidget()->IsVisible()) {
+    return true;
+  }
+  for (const views::View* filho : view->children()) {
+    if (BalaoPreso(filho)) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Faixa do alto da página que mostra a barra escondida (px).
@@ -264,6 +285,9 @@ class Espia : public views::FocusChangeListener,
     if (!topo) {
       return false;
     }
+    if (BalaoPreso(topo)) {
+      return true;
+    }
     for (views::Widget* outro :
          views::Widget::GetAllOwnedWidgets(widget_->GetNativeView())) {
       if (!outro->IsVisible() || !outro->widget_delegate()) {
@@ -281,6 +305,13 @@ class Espia : public views::FocusChangeListener,
 
   void FimDoFoco() {
     espiando_ = false;
+    // Com um balão da barra aberto, subir a barra levava o balão pro canto da
+    // janela (a âncora some): ela fica até ele fechar, como pelo ponteiro.
+    if (MenuOuBalaoAberto()) {
+      pelo_ponteiro_ = true;
+      ContarFolga(base::Milliseconds(200));
+      return;
+    }
     Animar();
   }
 
