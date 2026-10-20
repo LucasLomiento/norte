@@ -1,28 +1,31 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="{{idioma.lang}}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Norte · navegue sem se perder</title>
-<meta name="description" content="Navegador para Linux feito em cima do Chromium: abas numa lateral que some, um espaço para cada parte da vida, contas separadas em containers e bloqueador de anúncios de série. Sem IA e sem conta Google.">
+<title>{{head.titulo}}</title>
+<meta name="description" content="{{head.descricao}}">
 <meta name="theme-color" content="#09090b">
 <meta name="color-scheme" content="dark">
-<link rel="icon" href="assets/icone.svg" type="image/svg+xml">
-<link rel="canonical" href="https://lucaslomiento.github.io/norte/">
+<link rel="icon" href="{{RAIZ}}assets/icone.svg" type="image/svg+xml">
+<link rel="canonical" href="{{ENDERECO}}">
+{{ALTERNATIVOS}}
 <meta property="og:type" content="website">
-<meta property="og:locale" content="pt_BR">
-<meta property="og:url" content="https://lucaslomiento.github.io/norte/">
-<meta property="og:title" content="Norte · navegue sem se perder">
-<meta property="og:description" content="Chromium com abas numa lateral que some, espaços, containers e bloqueador de série. Sem IA, sem conta Google.">
-<meta property="og:image" content="https://lucaslomiento.github.io/norte/assets/og.png">
+<meta property="og:locale" content="{{idioma.og}}">
+{{OG_ALTERNATIVOS}}
+<meta property="og:url" content="{{ENDERECO}}">
+<meta property="og:title" content="{{head.titulo}}">
+<meta property="og:description" content="{{head.og_descricao}}">
+<meta property="og:image" content="{{SITE}}assets/{{idioma.og_imagem}}">
 <meta property="og:image:width" content="1200">
 <meta property="og:image:height" content="630">
 <meta name="twitter:card" content="summary_large_image">
-<link rel="preload" href="assets/fontes/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="preload" href="assets/fontes/bricolage-grotesque-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
-<link rel="stylesheet" href="style.css">
+<link rel="preload" href="{{RAIZ}}assets/fontes/geist-latin-wght-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="{{RAIZ}}assets/fontes/bricolage-grotesque-latin-opsz-normal.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="{{RAIZ}}style.css">
 <script>document.documentElement.classList.add('js')</script>
-<script src="main.js" defer></script>
+<script type="application/json" id="textos">{{TEXTOS_JS}}</script>
+<script src="{{RAIZ}}main.js" defer></script>
 </head>
 <body>
 {{ICONES}}
@@ -57,23 +60,24 @@
   </symbol>
 </svg>
 
-<a class="pular" href="#conteudo">Pular para o conteúdo</a>
+<a class="pular" href="#conteudo">{{topo.pular}}</a>
 
 <header class="topo">
   <div class="topo-dentro">
-    <a class="marca" href="#" aria-label="Norte, início">
+    <a class="marca" href="#" aria-label="{{topo.marca}}">
       <svg class="marca-logo" aria-hidden="true"><use href="#logo"/></svg>
       <span>Norte</span>
     </a>
-    <nav class="rotas" aria-label="Seções">
-      <a href="#navegar"><b>N</b>Navegar</a>
-      <a href="#leve"><b>L</b>Leve</a>
-      <a href="#sigilo"><b>S</b>Sigilo</a>
-      <a href="#origem"><b>O</b>Origem</a>
+    <nav class="rotas" aria-label="{{topo.secoes}}">
+      <a href="#navegar"><b>{{rumos.n}}</b>{{rumos.navegar}}</a>
+      <a href="#leve"><b>{{rumos.l}}</b>{{rumos.leve}}</a>
+      <a href="#sigilo"><b>{{rumos.s}}</b>{{rumos.sigilo}}</a>
+      <a href="#origem"><b>{{rumos.o}}</b>{{rumos.origem}}</a>
     </nav>
     <div class="topo-acoes">
-      <a class="icone-botao" href="https://github.com/LucasLomiento/norte" aria-label="Código no GitHub"><svg class="i"><use href="#i-github"/></svg></a>
-      <a class="botao primario pequeno" href="#instalar"><svg class="i"><use href="#i-download"/></svg>Baixar</a>
+{{IDIOMAS}}
+      <a class="icone-botao" href="https://github.com/LucasLomiento/norte" aria-label="{{topo.github}}"><svg class="i"><use href="#i-github"/></svg></a>
+      <a class="botao primario pequeno" href="#instalar"><svg class="i"><use href="#i-download"/></svg>{{topo.baixar}}</a>
     </div>
   </div>
 </header>
@@ -85,66 +89,66 @@
   <div class="abertura-texto">
     <a class="selo-versao" href="#novidades">
       <span class="ponto-vivo" aria-hidden="true"></span>
-      Versão {{PACOTE}} · {{DATA_CURTA}}
+      {{abertura.versao}}
       <svg class="i"><use href="#i-arrow-right"/></svg>
     </a>
-    <h1 id="titulo">Navegue sem<br>se perder.</h1>
-    <p class="lead">O Norte é um navegador para Linux feito em cima do Chromium. As abas moram numa lateral que some quando você não precisa dela, cada parte da sua vida ganha um espaço, e as contas de casa e do trabalho não se misturam.</p>
+    <h1 id="titulo">{{abertura.titulo}}</h1>
+    <p class="lead">{{abertura.lead}}</p>
     <div class="acoes">
-      <a class="botao primario" href="#instalar"><svg class="i"><use href="#i-download"/></svg>Baixar para Arch Linux</a>
-      <a class="botao fantasma" href="#demo"><svg class="i"><use href="#i-mouse-pointer-click"/></svg>Testar aqui mesmo</a>
+      <a class="botao primario" href="#instalar"><svg class="i"><use href="#i-download"/></svg>{{abertura.baixar}}</a>
+      <a class="botao fantasma" href="#demo"><svg class="i"><use href="#i-mouse-pointer-click"/></svg>{{abertura.testar}}</a>
     </div>
-    <p class="meta">Chromium {{CHROMIUM_MAIOR}} · {{TAMANHO}} · grátis e de código aberto</p>
+    <p class="meta">{{abertura.meta}}</p>
   </div>
 
   <div class="bussola-grande" aria-hidden="true">
     <svg class="bg-mostrador"><use href="#mostrador"/></svg>
-    <span class="bg-letra n">N</span><span class="bg-letra l">L</span>
-    <span class="bg-letra s">S</span><span class="bg-letra o">O</span>
+    <span class="bg-letra n">{{rumos.n}}</span><span class="bg-letra l">{{rumos.l}}</span>
+    <span class="bg-letra s">{{rumos.s}}</span><span class="bg-letra o">{{rumos.o}}</span>
     <svg class="bg-agulha" viewBox="0 0 256 256"><use href="#agulha"/></svg>
-    <p class="bg-rumo"><span class="bg-graus">000°</span> rumo</p>
+    <p class="bg-rumo"><span class="bg-graus">000°</span> {{rumos.rumo}}</p>
   </div>
 
-  <ul class="fatos-rapidos" aria-label="Em resumo">
-    <li><svg class="i"><use href="#i-package"/></svg>Extensões da Chrome Web Store</li>
-    <li><svg class="i"><use href="#i-tv-minimal-play"/></svg>Netflix e Spotify</li>
-    <li><svg class="i"><use href="#i-shield-check"/></svg>Bloqueador de anúncios de série</li>
-    <li><svg class="i"><use href="#i-ban"/></svg>Sem IA e sem conta Google</li>
-    <li><svg class="i"><use href="#i-map"/></svg>Feito no Brasil</li>
+  <ul class="fatos-rapidos" aria-label="{{abertura.resumo}}">
+    <li><svg class="i"><use href="#i-package"/></svg>{{abertura.fato_extensoes}}</li>
+    <li><svg class="i"><use href="#i-tv-minimal-play"/></svg>{{abertura.fato_streaming}}</li>
+    <li><svg class="i"><use href="#i-shield-check"/></svg>{{abertura.fato_bloqueador}}</li>
+    <li><svg class="i"><use href="#i-ban"/></svg>{{abertura.fato_sem_ia}}</li>
+    <li><svg class="i"><use href="#i-map"/></svg>{{abertura.fato_brasil}}</li>
   </ul>
 </section>
 
 <!-- ─────────────────────────── N · Navegar ─────────────────────────── -->
 <section class="secao" id="navegar" data-rumo="0" aria-labelledby="t-navegar">
   <div class="secao-cabeca">
-    <span class="cardeal" aria-hidden="true">N</span>
+    <span class="cardeal" aria-hidden="true">{{rumos.n}}</span>
     <div>
-      <p class="rotulo"><span>000°</span> Navegar</p>
-      <h2 id="t-navegar">A tela é da página.</h2>
-      <p class="lead">Tudo o que o Norte põe em volta do site foi pensado para sair do caminho: as abas, a barra de endereço e até a cor da janela.</p>
+      <p class="rotulo"><span>000°</span> {{rumos.navegar}}</p>
+      <h2 id="t-navegar">{{navegar.titulo}}</h2>
+      <p class="lead">{{navegar.lead}}</p>
     </div>
   </div>
 
   <!-- Uma janela do Norte de mentira, que funciona: espaços, abas, lateral escondida. -->
   <div class="demo" id="demo">
     <div class="janela" id="janela" tabindex="0" role="group"
-         aria-roledescription="demonstração"
-         aria-label="Janela do Norte de demonstração. Use as setas para trocar de espaço.">
+         aria-roledescription="{{navegar.demo}}"
+         aria-label="{{navegar.demo_rotulo}}">
       <div class="j-borda" aria-hidden="true"></div>
       <aside class="j-lateral">
         <div class="j-topo">
           <svg class="j-logo" aria-hidden="true"><use href="#logo"/></svg>
-          <span class="j-espaco">Pessoal</span>
+          <span class="j-espaco">{{navegar.demo_espaco}}</span>
           <svg class="i" aria-hidden="true"><use href="#i-chevron-down"/></svg>
         </div>
         <div class="j-conteudo">
           <div class="j-fixos"></div>
           <ul class="j-abas"></ul>
-          <p class="j-nova"><svg class="i"><use href="#i-plus"/></svg>Nova guia</p>
+          <p class="j-nova"><svg class="i"><use href="#i-plus"/></svg>{{navegar.demo_nova}}</p>
         </div>
         <div class="j-pe">
           <svg class="i" aria-hidden="true"><use href="#i-download"/></svg>
-          <div class="j-bolinhas" role="tablist" aria-label="Espaços"></div>
+          <div class="j-bolinhas" role="tablist" aria-label="{{navegar.demo_espacos}}"></div>
           <svg class="i" aria-hidden="true"><use href="#i-plus"/></svg>
         </div>
       </aside>
@@ -153,7 +157,7 @@
           <svg class="i"><use href="#i-arrow-left"/></svg>
           <svg class="i"><use href="#i-arrow-right"/></svg>
           <svg class="i"><use href="#i-rotate-cw"/></svg>
-          <p class="j-endereco"><b>receitas.exemplo.com</b> / Pão de fermentação natural</p>
+          <p class="j-endereco">{{navegar.demo_endereco}}</p>
         </div>
         <div class="j-pagina">
           <div class="j-site-topo"></div>
@@ -168,89 +172,89 @@
     <div class="demo-controles">
       <button class="chip" type="button" id="esconder" aria-pressed="false">
         <svg class="i"><use href="#i-panel-left"/></svg>
-        <span>Esconder a lateral</span>
+        <span>{{navegar.esconder}}</span>
         <span class="teclas"><kbd>Ctrl</kbd><kbd>S</kbd></span>
       </button>
-      <p class="demo-dica" id="dica">Clique nas bolinhas no pé da lateral, ou use <span class="teclas"><kbd>←</kbd> <kbd>→</kbd></span>, para trocar de espaço.</p>
+      <p class="demo-dica" id="dica">{{navegar.dica}}</p>
     </div>
   </div>
 
   <div class="grade-recursos">
     <article class="recurso">
       <svg class="i"><use href="#i-panel-left"/></svg>
-      <h3>A lateral que some</h3>
-      <p>As abas ficam na esquerda, em lista, com o título inteiro. <span class="teclas"><kbd>Ctrl</kbd> <kbd>S</kbd></span> esconde a lateral; encoste o ponteiro na borda e ela volta por cima da página, e some de novo quando você sai.</p>
+      <h3>{{navegar.lateral_t}}</h3>
+      <p>{{navegar.lateral}}</p>
     </article>
     <article class="recurso">
       <svg class="i"><use href="#i-layers"/></svg>
-      <h3>Um espaço pra cada coisa</h3>
-      <p>Pessoal, Trabalho, Faculdade: cada espaço tem suas abas, seus sites fixados e sua cor, e a janela muda de cor junto. Troque pelos botões laterais do mouse, deslizando no touchpad ou com <span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd></span>.</p>
+      <h3>{{navegar.espacos_t}}</h3>
+      <p>{{navegar.espacos}}</p>
     </article>
     <article class="recurso">
       <svg class="i"><use href="#i-pin"/></svg>
-      <h3>Fixados que não fecham</h3>
-      <p>Os sites de todo dia ficam no alto do espaço, como ícones ou numa lista com pastas. Clique e a aba abre no lugar deles; feche e o site continua lá, esperando.</p>
+      <h3>{{navegar.fixados_t}}</h3>
+      <p>{{navegar.fixados}}</p>
     </article>
     <article class="recurso">
       <svg class="i"><use href="#i-columns-2"/></svg>
-      <h3>Duas abas lado a lado</h3>
-      <p><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>V</kbd></span> divide a tela entre duas abas; <kbd>H</kbd> põe uma em cima da outra. Arrastar uma aba até a borda da página também divide.</p>
+      <h3>{{navegar.dividir_t}}</h3>
+      <p>{{navegar.dividir}}</p>
     </article>
     <article class="recurso">
       <svg class="i"><use href="#i-eye-off"/></svg>
-      <h3>Barra de endereço sob demanda</h3>
-      <p><span class="teclas"><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>S</kbd></span> esconde a barra de endereço. Ela desce por cima da página quando o ponteiro chega no alto, ou quando você aperta <span class="teclas"><kbd>Ctrl</kbd> <kbd>L</kbd></span>.</p>
+      <h3>{{navegar.barra_t}}</h3>
+      <p>{{navegar.barra}}</p>
     </article>
     <article class="recurso">
       <svg class="i"><use href="#i-paintbrush"/></svg>
-      <h3>A cor do site na barra</h3>
-      <p>A barra de endereço pega a cor do topo da página, e a janela parece parte do site. Parada, ela mostra só o domínio e o título; o endereço inteiro aparece quando você chega perto.</p>
+      <h3>{{navegar.cor_t}}</h3>
+      <p>{{navegar.cor}}</p>
     </article>
     <article class="recurso">
       <svg class="i"><use href="#i-pencil"/></svg>
-      <h3>Abas com o nome que você quiser</h3>
-      <p>Clique duas vezes no nome de uma aba, de um site fixado ou de uma pasta e escreva outro. O nome fica salvo e volta quando você abre o Norte.</p>
+      <h3>{{navegar.nomes_t}}</h3>
+      <p>{{navegar.nomes}}</p>
     </article>
     <article class="recurso">
       <svg class="i"><use href="#i-clock"/></svg>
-      <h3>Uma nova aba calma</h3>
-      <p>Hora, data e os seus atalhos. Sem notícias, sem sugestões, sem anúncio. O que aparece se escolhe no canto da própria página.</p>
+      <h3>{{navegar.nova_aba_t}}</h3>
+      <p>{{navegar.nova_aba}}</p>
     </article>
   </div>
 
   <div class="fotos" aria-labelledby="t-fotos">
     <div class="fotos-cabeca">
-      <h3 id="t-fotos">Sem maquete: fotos da versão de verdade.</h3>
-      <div class="fotos-abas" role="tablist" aria-label="Fotos">
-        <button role="tab" aria-selected="true" aria-controls="foto-1" id="aba-foto-1">Espaço Pessoal</button>
-        <button role="tab" aria-selected="false" aria-controls="foto-2" id="aba-foto-2" tabindex="-1">Espaço Trabalho</button>
-        <button role="tab" aria-selected="false" aria-controls="foto-3" id="aba-foto-3" tabindex="-1">Nova aba</button>
+      <h3 id="t-fotos">{{navegar.fotos_t}}</h3>
+      <div class="fotos-abas" role="tablist" aria-label="{{navegar.fotos}}">
+        <button role="tab" aria-selected="true" aria-controls="foto-1" id="aba-foto-1">{{navegar.foto_pessoal}}</button>
+        <button role="tab" aria-selected="false" aria-controls="foto-2" id="aba-foto-2" tabindex="-1">{{navegar.foto_trabalho}}</button>
+        <button role="tab" aria-selected="false" aria-controls="foto-3" id="aba-foto-3" tabindex="-1">{{navegar.foto_nova_aba}}</button>
       </div>
     </div>
     <div class="fotos-moldura">
       <figure role="tabpanel" id="foto-1" aria-labelledby="aba-foto-1">
-        <img src="assets/fotos/principal.webp" srcset="assets/fotos/principal.webp 1x, assets/fotos/principal@2x.webp 2x" width="1440" height="900" alt="Janela do Norte no espaço Pessoal, com a Wikipédia aberta e as abas na lateral" loading="lazy">
+        <img src="{{RAIZ}}assets/fotos/principal.webp" srcset="{{RAIZ}}assets/fotos/principal.webp 1x, {{RAIZ}}assets/fotos/principal@2x.webp 2x" width="1440" height="900" alt="{{navegar.foto_pessoal_alt}}" loading="lazy">
       </figure>
       <figure role="tabpanel" id="foto-2" aria-labelledby="aba-foto-2" hidden>
-        <img src="assets/fotos/espaco-trabalho.webp" srcset="assets/fotos/espaco-trabalho.webp 1x, assets/fotos/espaco-trabalho@2x.webp 2x" width="1440" height="900" alt="O espaço Trabalho, em laranja, com abas no container do trabalho" loading="lazy">
+        <img src="{{RAIZ}}assets/fotos/espaco-trabalho.webp" srcset="{{RAIZ}}assets/fotos/espaco-trabalho.webp 1x, {{RAIZ}}assets/fotos/espaco-trabalho@2x.webp 2x" width="1440" height="900" alt="{{navegar.foto_trabalho_alt}}" loading="lazy">
       </figure>
       <figure role="tabpanel" id="foto-3" aria-labelledby="aba-foto-3" hidden>
-        <img src="assets/fotos/novaaba.webp" srcset="assets/fotos/novaaba.webp 1x, assets/fotos/novaaba@2x.webp 2x" width="1440" height="900" alt="A nova aba do Norte, com a hora grande no meio" loading="lazy">
+        <img src="{{RAIZ}}assets/fotos/novaaba.webp" srcset="{{RAIZ}}assets/fotos/novaaba.webp 1x, {{RAIZ}}assets/fotos/novaaba@2x.webp 2x" width="1440" height="900" alt="{{navegar.foto_nova_aba_alt}}" loading="lazy">
       </figure>
     </div>
   </div>
 
   <div class="teclado" aria-labelledby="t-teclado">
-    <h3 id="t-teclado"><svg class="i"><use href="#i-keyboard"/></svg>Tudo também pelo teclado</h3>
+    <h3 id="t-teclado"><svg class="i"><use href="#i-keyboard"/></svg>{{navegar.teclado_t}}</h3>
     <dl class="atalhos">
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>S</kbd></span></dt><dd>Mostrar ou esconder a lateral</dd></div>
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>S</kbd></span></dt><dd>Mostrar ou esconder a barra de endereço</dd></div>
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd></span></dt><dd>Espaço anterior e próximo</dd></div>
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>1</kbd>…<kbd>5</kbd></span></dt><dd>Ir direto para um espaço</dd></div>
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd></span></dt><dd>Novo espaço</dd></div>
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>V</kbd> · <kbd>H</kbd></span></dt><dd>Dividir a tela lado a lado · em cima e embaixo</dd></div>
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>X</kbd></span></dt><dd>Trocar as abas da divisão de lado</dd></div>
-      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>,</kbd></span></dt><dd>Configurações do Norte (onde dá pra trocar todos estes)</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>S</kbd></span></dt><dd>{{navegar.atalho_lateral}}</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>S</kbd></span></dt><dd>{{navegar.atalho_barra}}</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>←</kbd> <kbd>→</kbd></span></dt><dd>{{navegar.atalho_trocar}}</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>1</kbd>…<kbd>5</kbd></span></dt><dd>{{navegar.atalho_ir}}</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>N</kbd></span></dt><dd>{{navegar.atalho_novo}}</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>V</kbd> · <kbd>H</kbd></span></dt><dd>{{navegar.atalho_dividir}}</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>Alt</kbd> <kbd>X</kbd></span></dt><dd>{{navegar.atalho_trocar_lados}}</dd></div>
+      <div><dt><span class="teclas"><kbd>Ctrl</kbd> <kbd>,</kbd></span></dt><dd>{{navegar.atalho_config}}</dd></div>
     </dl>
   </div>
 </section>
@@ -258,112 +262,112 @@
 <!-- ─────────────────────────── L · Leve ─────────────────────────── -->
 <section class="secao" id="leve" data-rumo="90" aria-labelledby="t-leve">
   <div class="secao-cabeca">
-    <span class="cardeal" aria-hidden="true">L</span>
+    <span class="cardeal" aria-hidden="true">{{rumos.l}}</span>
     <div>
-      <p class="rotulo"><span>090°</span> Leve</p>
-      <h2 id="t-leve">Leve, e com números.</h2>
-      <p class="lead">Comparamos o Norte com o Zen na mesma máquina, com perfis novos. É uma máquina só, não um laboratório: os seus números vão ser outros, mas a diferença costuma ficar.</p>
+      <p class="rotulo"><span>090°</span> {{rumos.leve}}</p>
+      <h2 id="t-leve">{{leve.titulo}}</h2>
+      <p class="lead">{{leve.lead}}</p>
     </div>
   </div>
 
   <div class="medidas">
     <article class="medida">
-      <p class="medida-rotulo"><svg class="i"><use href="#i-zap"/></svg>Para abrir a janela</p>
-      <p class="medida-valor"><span>0,17</span> s</p>
-      <div class="barras" role="img" aria-label="Norte 0,17 segundo; Zen 0,66 segundo">
-        <div class="barra norte" style="--v: .25"><span>Norte</span><b>0,17 s</b></div>
-        <div class="barra" style="--v: 1"><span>Zen</span><b>0,66 s</b></div>
+      <p class="medida-rotulo"><svg class="i"><use href="#i-zap"/></svg>{{leve.abrir}}</p>
+      <p class="medida-valor">{{leve.abrir_valor}}</p>
+      <div class="barras" role="img" aria-label="{{leve.abrir_aria}}">
+        <div class="barra norte" style="--v: .25"><span>Norte</span><b>{{leve.abrir_norte}}</b></div>
+        <div class="barra" style="--v: 1"><span>Zen</span><b>{{leve.abrir_zen}}</b></div>
       </div>
-      <p class="medida-nota">Quase quatro vezes mais rápido.</p>
+      <p class="medida-nota">{{leve.abrir_nota}}</p>
     </article>
     <article class="medida">
-      <p class="medida-rotulo"><svg class="i"><use href="#i-memory-stick"/></svg>Memória com 6 sites abertos</p>
-      <p class="medida-valor"><span>1,07</span> GB</p>
-      <div class="barras" role="img" aria-label="Norte 1,07 gigabyte; Zen 1,44 gigabyte">
-        <div class="barra norte" style="--v: .74"><span>Norte</span><b>1,07 GB</b></div>
-        <div class="barra" style="--v: 1"><span>Zen</span><b>1,44 GB</b></div>
+      <p class="medida-rotulo"><svg class="i"><use href="#i-memory-stick"/></svg>{{leve.memoria}}</p>
+      <p class="medida-valor">{{leve.memoria_valor}}</p>
+      <div class="barras" role="img" aria-label="{{leve.memoria_aria}}">
+        <div class="barra norte" style="--v: .74"><span>Norte</span><b>{{leve.memoria_norte}}</b></div>
+        <div class="barra" style="--v: 1"><span>Zen</span><b>{{leve.memoria_zen}}</b></div>
       </div>
-      <p class="medida-nota">Um quarto a menos.</p>
+      <p class="medida-nota">{{leve.memoria_nota}}</p>
     </article>
     <article class="medida">
-      <p class="medida-rotulo"><svg class="i"><use href="#i-gauge"/></svg>Velocidade das páginas (Speedometer 3.1)</p>
-      <p class="medida-valor"><span>31,0</span></p>
-      <div class="barras" role="img" aria-label="Norte 31,0; Zen 32,6; Chromium do Arch 29,5">
-        <div class="barra norte" style="--v: .95"><span>Norte</span><b>31,0</b></div>
-        <div class="barra" style="--v: 1"><span>Zen</span><b>32,6</b></div>
-        <div class="barra" style="--v: .9"><span>Chromium</span><b>29,5</b></div>
+      <p class="medida-rotulo"><svg class="i"><use href="#i-gauge"/></svg>{{leve.velocidade}}</p>
+      <p class="medida-valor">{{leve.velocidade_valor}}</p>
+      <div class="barras" role="img" aria-label="{{leve.velocidade_aria}}">
+        <div class="barra norte" style="--v: .95"><span>Norte</span><b>{{leve.velocidade_norte}}</b></div>
+        <div class="barra" style="--v: 1"><span>Zen</span><b>{{leve.velocidade_zen}}</b></div>
+        <div class="barra" style="--v: .9"><span>Chromium</span><b>{{leve.velocidade_chromium}}</b></div>
       </div>
-      <p class="medida-nota">Empate: os três rodam a internet no mesmo ritmo.</p>
+      <p class="medida-nota">{{leve.velocidade_nota}}</p>
     </article>
   </div>
 
   <div class="bloqueio">
     <div class="bloqueio-texto">
-      <h3><svg class="i"><use href="#i-shield-check"/></svg>O bloqueador também é desempenho</h3>
-      <p>Anúncio que não carrega não gasta processador. O Norte barra os anúncios e rastreadores antes da requisição sair, e os quadros de anúncio nem chegam a ser criados.</p>
+      <h3><svg class="i"><use href="#i-shield-check"/></svg>{{leve.bloqueio_t}}</h3>
+      <p>{{leve.bloqueio}}</p>
     </div>
     <dl class="bloqueio-numeros">
-      <div><dt>Seis portais de notícia abertos</dt><dd><b>≈18</b> processos <s>≈80</s></dd></div>
-      <div><dt>O g1 parado, uma aba</dt><dd><b>4%</b> de CPU <s>35%</s></dd></div>
-      <div><dt>O UOL parado, uma aba</dt><dd><b>810 MB</b> <s>1,26 GB</s></dd></div>
+      <div><dt>{{leve.portais}}</dt><dd>{{leve.portais_valor}}</dd></div>
+      <div><dt>{{leve.g1}}</dt><dd>{{leve.g1_valor}}</dd></div>
+      <div><dt>{{leve.uol}}</dt><dd>{{leve.uol_valor}}</dd></div>
     </dl>
   </div>
 
-  <p class="rodape-medida">Medido em 15 de outubro de 2026 com perfis novos, renderização por software (Xvfb) e o Zen 1.23. Riscado: o mesmo teste sem o bloqueador.</p>
+  <p class="rodape-medida">{{leve.rodape}}</p>
 </section>
 
 <!-- ─────────────────────────── S · Sigilo ─────────────────────────── -->
 <section class="secao" id="sigilo" data-rumo="180" aria-labelledby="t-sigilo">
   <div class="secao-cabeca">
-    <span class="cardeal" aria-hidden="true">S</span>
+    <span class="cardeal" aria-hidden="true">{{rumos.s}}</span>
     <div>
-      <p class="rotulo"><span>180°</span> Sigilo</p>
-      <h2 id="t-sigilo">O que é seu, separado.</h2>
-      <p class="lead">Contas que não se misturam, anúncios que não seguem você e uma janela anônima que esquece de verdade.</p>
+      <p class="rotulo"><span>180°</span> {{rumos.sigilo}}</p>
+      <h2 id="t-sigilo">{{sigilo.titulo}}</h2>
+      <p class="lead">{{sigilo.lead}}</p>
     </div>
   </div>
 
   <div class="sigilo">
     <article class="cartao-grande containers">
       <div class="cg-texto">
-        <h3><svg class="i"><use href="#i-cookie"/></svg>Containers: contas separadas na mesma janela</h3>
-        <p>Um container é uma caixa só dele de cookies, logins e cache. O e-mail pessoal e o do trabalho abertos ao mesmo tempo, cada um no seu, sem perfil novo e sem janela anônima.</p>
-        <p>Cada espaço pode ter um container: as abas que você abre nele já nascem lá dentro, e um link aberto a partir de uma aba fica no container dela.</p>
+        <h3><svg class="i"><use href="#i-cookie"/></svg>{{sigilo.containers_t}}</h3>
+        <p>{{sigilo.containers}}</p>
+        <p>{{sigilo.containers_espaco}}</p>
       </div>
       <div class="caixas" aria-hidden="true">
         <div class="caixa" style="--cor: #4f8cff">
-          <p class="caixa-nome">Pessoal</p>
-          <div class="caixa-aba"><i></i>mail.exemplo.com</div>
-          <p class="caixa-conta"><span>voce</span>@pessoal.com</p>
-          <ul><li>Cookies</li><li>Logins</li><li>Cache</li></ul>
+          <p class="caixa-nome">{{sigilo.caixa_pessoal}}</p>
+          <div class="caixa-aba"><i></i>{{sigilo.caixa_site}}</div>
+          <p class="caixa-conta">{{sigilo.conta_pessoal}}</p>
+          <ul><li>{{sigilo.cookies}}</li><li>{{sigilo.logins}}</li><li>{{sigilo.cache}}</li></ul>
         </div>
         <div class="caixa-muro"><svg class="i"><use href="#i-lock"/></svg></div>
         <div class="caixa" style="--cor: #f59e0b">
-          <p class="caixa-nome">Trabalho</p>
-          <div class="caixa-aba"><i></i>mail.exemplo.com</div>
-          <p class="caixa-conta"><span>voce</span>@empresa.com</p>
-          <ul><li>Cookies</li><li>Logins</li><li>Cache</li></ul>
+          <p class="caixa-nome">{{sigilo.caixa_trabalho}}</p>
+          <div class="caixa-aba"><i></i>{{sigilo.caixa_site}}</div>
+          <p class="caixa-conta">{{sigilo.conta_trabalho}}</p>
+          <ul><li>{{sigilo.cookies}}</li><li>{{sigilo.logins}}</li><li>{{sigilo.cache}}</li></ul>
         </div>
       </div>
     </article>
 
     <article class="cartao-grande anonima">
       <div class="cg-texto">
-        <h3><svg class="i"><use href="#i-eye-off"/></svg>Uma janela anônima que esquece</h3>
-        <p><span class="teclas"><kbd>Ctrl</kbd> <kbd>Shift</kbd> <kbd>N</kbd></span> abre uma janela limpa, sem espaços nem containers, que não enxerga os cookies e logins das suas outras janelas. Quando você fecha, o Norte apaga o histórico, os cookies e os logins dela.</p>
+        <h3><svg class="i"><use href="#i-eye-off"/></svg>{{sigilo.anonima_t}}</h3>
+        <p>{{sigilo.anonima}}</p>
       </div>
-      <img src="assets/fotos/anonima.webp" srcset="assets/fotos/anonima.webp 1x, assets/fotos/anonima@2x.webp 2x" width="1440" height="900" alt="Janela anônima do Norte, com uma bússola de contorno e o título Janela anônima" loading="lazy">
+      <img src="{{RAIZ}}assets/fotos/anonima.webp" srcset="{{RAIZ}}assets/fotos/anonima.webp 1x, {{RAIZ}}assets/fotos/anonima@2x.webp 2x" width="1440" height="900" alt="{{sigilo.anonima_alt}}" loading="lazy">
     </article>
 
     <article class="recurso largo">
       <svg class="i"><use href="#i-shield-check"/></svg>
-      <h3>Bloqueador de série</h3>
-      <p>EasyList, EasyPrivacy e a lista brasileira já vêm ligadas e atualizam a cada versão. O Norte barra anúncios e rastreadores na rede e ainda esconde o espaço que eles deixariam vazio. Se um site quebrar, dá pra desligar só para ele, no cadeado da barra.</p>
+      <h3>{{sigilo.bloqueador_t}}</h3>
+      <p>{{sigilo.bloqueador}}</p>
     </article>
     <article class="recurso largo">
       <svg class="i"><use href="#i-ban"/></svg>
-      <h3>Sem IA, sem conta, sem estatísticas</h3>
-      <p>Os recursos de IA do Chromium ficam desligados e fora dos menus. Não tem login do Google nem envio de dados de uso. A única conversa do Norte com a internet por conta própria é procurar versão nova no GitHub, e dá pra desligar.</p>
+      <h3>{{sigilo.sem_ia_t}}</h3>
+      <p>{{sigilo.sem_ia}}</p>
     </article>
   </div>
 </section>
@@ -371,34 +375,34 @@
 <!-- ─────────────────────────── O · Origem ─────────────────────────── -->
 <section class="secao" id="origem" data-rumo="270" aria-labelledby="t-origem">
   <div class="secao-cabeca">
-    <span class="cardeal" aria-hidden="true">O</span>
+    <span class="cardeal" aria-hidden="true">{{rumos.o}}</span>
     <div>
-      <p class="rotulo"><span>270°</span> Origem</p>
-      <h2 id="t-origem">Feito no Brasil, com o código à vista.</h2>
-      <p class="lead">O Norte é um projeto pessoal, de código aberto. Por baixo está o Chromium de verdade, não um Electron: os sites funcionam como no Chrome, e as mudanças do Norte ficam em patches pequenos, para acompanhar as versões novas do Chromium.</p>
+      <p class="rotulo"><span>270°</span> {{rumos.origem}}</p>
+      <h2 id="t-origem">{{origem.titulo}}</h2>
+      <p class="lead">{{origem.lead}}</p>
     </div>
   </div>
 
   <div class="origem">
-    <div class="pilha" aria-label="Como o Norte é feito">
-      <div class="camada nossa"><p><b>Norte</b>lateral, espaços, containers, fixados, bloqueador, atualizador</p></div>
-      <div class="camada"><p><b>Patches</b>ganchos pequenos no código do Chromium, um por área</p></div>
-      <div class="camada base"><p><b>Chromium {{CHROMIUM}}</b>o motor do Chrome, com Widevine para Netflix e Spotify</p></div>
+    <div class="pilha" aria-label="{{origem.pilha}}">
+      <div class="camada nossa"><p><b>Norte</b>{{origem.camada_norte}}</p></div>
+      <div class="camada"><p><b>{{origem.patches_t}}</b>{{origem.camada_patches}}</p></div>
+      <div class="camada base"><p><b>Chromium {{CHROMIUM}}</b>{{origem.camada_chromium}}</p></div>
     </div>
     <div class="origem-links">
       <a class="link-cartao" href="https://github.com/LucasLomiento/norte">
         <svg class="i"><use href="#i-code"/></svg>
-        <span><b>Código</b>Patches, código novo e scripts de compilação (BSD-3-Clause)</span>
+        <span><b>{{origem.codigo_t}}</b>{{origem.codigo}}</span>
         <svg class="i seta"><use href="#i-arrow-up-right"/></svg>
       </a>
       <a class="link-cartao" href="https://github.com/LucasLomiento/norte-releases/releases">
         <svg class="i"><use href="#i-package"/></svg>
-        <span><b>Todas as versões</b>{{NUM_VERSOES}} versões publicadas, com pacote e notas</span>
+        <span><b>{{origem.versoes_t}}</b>{{origem.versoes}}</span>
         <svg class="i seta"><use href="#i-arrow-up-right"/></svg>
       </a>
       <a class="link-cartao" href="https://github.com/LucasLomiento/norte/issues">
         <svg class="i"><use href="#i-git-pull-request"/></svg>
-        <span><b>Problemas e ideias</b>Abra uma issue no GitHub</span>
+        <span><b>{{origem.issues_t}}</b>{{origem.issues}}</span>
         <svg class="i seta"><use href="#i-arrow-up-right"/></svg>
       </a>
     </div>
@@ -407,46 +411,46 @@
   <!-- Instalar -->
   <div class="instalar" id="instalar" aria-labelledby="t-instalar">
     <div class="instalar-cabeca">
-      <h3 id="t-instalar">Instalar</h3>
-      <p>Versão {{VERSAO}}, de {{DATA}}. Para Arch Linux e derivados (CachyOS, EndeavourOS, Manjaro), x86_64.</p>
+      <h3 id="t-instalar">{{instalar.titulo}}</h3>
+      <p>{{instalar.sub}}</p>
     </div>
     <ol class="passos">
       <li>
-        <p class="passo-titulo">Acrescente o repositório do Norte no fim do <code>/etc/pacman.conf</code></p>
+        <p class="passo-titulo">{{instalar.repo}}</p>
         <div class="comando">
           <pre id="cmd-repo">[norte]
 SigLevel = Optional TrustAll
 Server = https://github.com/LucasLomiento/norte-releases/releases/latest/download</pre>
-          <button class="copiar" type="button" data-copiar="cmd-repo" aria-label="Copiar"><svg class="i"><use href="#i-copy"/></svg></button>
+          <button class="copiar" type="button" data-copiar="cmd-repo" aria-label="{{instalar.copiar}}"><svg class="i"><use href="#i-copy"/></svg></button>
         </div>
       </li>
       <li>
-        <p class="passo-titulo">Instale</p>
+        <p class="passo-titulo">{{instalar.instale}}</p>
         <div class="comando">
           <pre id="cmd-instalar"><span class="prompt">$</span> sudo pacman -Sy norte</pre>
-          <button class="copiar" type="button" data-copiar="cmd-instalar" aria-label="Copiar"><svg class="i"><use href="#i-copy"/></svg></button>
+          <button class="copiar" type="button" data-copiar="cmd-instalar" aria-label="{{instalar.copiar}}"><svg class="i"><use href="#i-copy"/></svg></button>
         </div>
       </li>
       <li>
-        <p class="passo-titulo">Pronto. As atualizações vêm junto com as do sistema</p>
+        <p class="passo-titulo">{{instalar.pronto}}</p>
         <div class="comando">
           <pre id="cmd-atualizar"><span class="prompt">$</span> sudo pacman -Syu</pre>
-          <button class="copiar" type="button" data-copiar="cmd-atualizar" aria-label="Copiar"><svg class="i"><use href="#i-copy"/></svg></button>
+          <button class="copiar" type="button" data-copiar="cmd-atualizar" aria-label="{{instalar.copiar}}"><svg class="i"><use href="#i-copy"/></svg></button>
         </div>
-        <p class="passo-nota">O próprio Norte também avisa no pé da lateral quando sai versão nova, com um botão "Atualizar".</p>
+        <p class="passo-nota">{{instalar.pronto_nota}}</p>
       </li>
     </ol>
     <div class="instalar-alt">
-      <a class="botao fantasma" href="{{LINK_PACOTE}}"><svg class="i"><use href="#i-download"/></svg>Só o arquivo ({{TAMANHO}})</a>
-      <p>Depois: <code>sudo pacman -U {{ARQUIVO}}</code>. Os pacotes não são assinados (<code>SigLevel = Optional TrustAll</code>): o pacman confia no que vem das versões do GitHub. Windows e macOS ainda não.</p>
+      <a class="botao fantasma" href="{{LINK_PACOTE}}"><svg class="i"><use href="#i-download"/></svg>{{instalar.arquivo}}</a>
+      <p>{{instalar.arquivo_nota}}</p>
     </div>
   </div>
 
   <!-- Novidades -->
   <div class="novidades" id="novidades" aria-labelledby="t-novidades">
     <div class="novidades-cabeca">
-      <h3 id="t-novidades">Novidades</h3>
-      <p>O que mudou em cada versão, do jeito que saiu. Também <a href="{{LINK_VERSAO}}">no GitHub</a>.</p>
+      <h3 id="t-novidades">{{novidades.titulo}}</h3>
+      <p>{{novidades.sub}}</p>
     </div>
     <div class="versoes">
 {{NOVIDADES}}
@@ -455,39 +459,8 @@ Server = https://github.com/LucasLomiento/norte-releases/releases/latest/downloa
 
   <!-- Perguntas -->
   <div class="perguntas" id="perguntas" aria-labelledby="t-perguntas">
-    <h3 id="t-perguntas">Perguntas</h3>
-    <details>
-      <summary>É mesmo o Chromium por baixo?</summary>
-      <p>É. O Norte é o Chromium {{CHROMIUM}} com as mudanças dele por cima, e os patches estão todos no repositório. Os sites funcionam como no Chrome, e as extensões da Chrome Web Store instalam e funcionam normalmente.</p>
-    </details>
-    <details>
-      <summary>Netflix e Spotify funcionam?</summary>
-      <p>Funcionam. O Widevine, o componente que esses sites pedem, é baixado sozinho na primeira vez que você abre um deles. No Linux, os próprios serviços limitam a resolução em qualquer navegador.</p>
-    </details>
-    <details>
-      <summary>Dá pra trazer tudo do Zen?</summary>
-      <p>Dá. Em Configurações do Norte → Geral → Importar do Zen, ele traz containers, espaços, sites fixados e pastas, os cookies de cada container (os logins), senhas, favoritos e histórico. Pode deixar o Zen aberto.</p>
-    </details>
-    <details>
-      <summary>E o 1Password?</summary>
-      <p>Funciona: o pacote já instala a ligação entre a extensão e o aplicativo do 1Password e põe o Norte na lista de navegadores em que o app confia. É só instalar a extensão.</p>
-    </details>
-    <details>
-      <summary>Por que não tem IA?</summary>
-      <p>Porque a ideia é um navegador que só navega. Os recursos de IA do Chromium (Gemini, "Ajude a escrever", busca com IA, organizar guias) ficam desligados e fora dos menus, e nada da sua navegação vai para um assistente.</p>
-    </details>
-    <details>
-      <summary>O que o Norte manda pra internet?</summary>
-      <p>Por conta própria, só uma consulta ao GitHub para saber se tem versão nova (desliga em Configurações do Norte → Geral → Atualizações). Não tem conta do Google, sincronização nem estatísticas de uso.</p>
-    </details>
-    <details>
-      <summary>Ele se chamava Navegador?</summary>
-      <p>Até a versão 20, sim. Quem já tinha instalado recebeu o Norte na atualização de sempre, com o perfil inteiro junto: logins, espaços, containers e extensões.</p>
-    </details>
-    <details>
-      <summary>Quem faz?</summary>
-      <p>É um projeto pessoal do <a href="https://github.com/LucasLomiento">@LucasLomiento</a>, de código aberto (BSD-3-Clause). Encontrou um problema ou teve uma ideia? <a href="https://github.com/LucasLomiento/norte/issues">Abra uma issue</a>.</p>
-    </details>
+    <h3 id="t-perguntas">{{perguntas.titulo}}</h3>
+{{PERGUNTAS}}
   </div>
 </section>
 
@@ -497,26 +470,26 @@ Server = https://github.com/LucasLomiento/norte-releases/releases/latest/downloa
   <div class="rodape-dentro">
     <div class="rodape-marca">
       <svg class="marca-logo" aria-hidden="true"><use href="#logo"/></svg>
-      <p><b>Norte</b>Navegue sem se perder.</p>
+      <p><b>Norte</b>{{rodape.slogan}}</p>
     </div>
-    <nav class="rodape-links" aria-label="Links">
-      <a href="https://github.com/LucasLomiento/norte">Código</a>
-      <a href="https://github.com/LucasLomiento/norte-releases/releases">Versões</a>
-      <a href="https://github.com/LucasLomiento/norte/issues">Problemas</a>
-      <a href="#instalar">Instalar</a>
+    <nav class="rodape-links" aria-label="{{rodape.links}}">
+      <a href="https://github.com/LucasLomiento/norte">{{rodape.codigo}}</a>
+      <a href="https://github.com/LucasLomiento/norte-releases/releases">{{rodape.versoes}}</a>
+      <a href="https://github.com/LucasLomiento/norte/issues">{{rodape.problemas}}</a>
+      <a href="#instalar">{{rodape.instalar}}</a>
     </nav>
-    <p class="rodape-legal">O Norte não é um produto do Google. Chromium é marca do Google LLC; Netflix, Spotify, Zen e 1Password são marcas dos seus donos. Ícones do Lucide (ISC); fontes Geist e Bricolage Grotesque (OFL). © {{ANO}}, feito no Brasil.</p>
+    <p class="rodape-legal">{{rodape.legal}}</p>
   </div>
 </footer>
 
 <!-- A bússola que acompanha a página: a agulha aponta pra seção em que você está. -->
-<nav class="bussola-guia" aria-label="Seções da página">
+<nav class="bussola-guia" aria-label="{{rumos.guia}}">
   <svg class="bgu-mostrador" aria-hidden="true"><use href="#mostrador"/></svg>
   <svg class="bgu-agulha" viewBox="0 0 256 256" aria-hidden="true"><use href="#agulha"/></svg>
-  <a class="bgu-n" href="#navegar" aria-label="Navegar">N</a>
-  <a class="bgu-l" href="#leve" aria-label="Leve">L</a>
-  <a class="bgu-s" href="#sigilo" aria-label="Sigilo">S</a>
-  <a class="bgu-o" href="#origem" aria-label="Origem">O</a>
+  <a class="bgu-n" href="#navegar" aria-label="{{rumos.navegar}}">{{rumos.n}}</a>
+  <a class="bgu-l" href="#leve" aria-label="{{rumos.leve}}">{{rumos.l}}</a>
+  <a class="bgu-s" href="#sigilo" aria-label="{{rumos.sigilo}}">{{rumos.s}}</a>
+  <a class="bgu-o" href="#origem" aria-label="{{rumos.origem}}">{{rumos.o}}</a>
 </nav>
 </body>
 </html>

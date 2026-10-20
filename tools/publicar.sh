@@ -7,6 +7,10 @@
 #
 #   tools/publicar.sh "notas da versão (markdown)"
 #
+# As notas são em português. Antes de publicar, pôr a tradução delas em
+# site/notas/en/<tag>.md e site/notas/es/<tag>.md, com commit e push, pra o
+# site já sair com elas.
+#
 # Cada release leva o pacote e o banco do pacman, com dois nomes: norte.db
 # (seção [norte] do pacman.conf, a de agora) e navegador.db (a [navegador] de
 # quem instalou antes do Norte). O Server ".../releases/latest/download"
@@ -26,6 +30,14 @@ if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
   echo "A release $TAG já existe." >&2
   exit 1
 fi
+
+# As páginas em inglês e espanhol do site mostram a nota traduzida
+# (site/notas/<idioma>/<tag>.md, já enviada pro GitHub antes de publicar);
+# sem ela, a nota aparece em português, com um aviso.
+for idioma in en es; do
+  [[ -f "$RAIZ/site/notas/$idioma/$TAG.md" ]] ||
+    echo "Aviso: falta site/notas/$idioma/$TAG.md (a nota vai aparecer em português no site em $idioma)." >&2
+done
 
 # O repositório (público) e o README dele.
 TRAB=$(mktemp -d)

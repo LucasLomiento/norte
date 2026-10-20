@@ -357,6 +357,143 @@ code {
   gap: 6px;
 }
 
+/* Seletor de idioma: um <details> (funciona sem JavaScript). */
+.idiomas {
+  position: relative;
+}
+
+.idiomas summary {
+  align-items: center;
+  border-radius: 999px;
+  color: var(--texto-2);
+  cursor: pointer;
+  display: flex;
+  font-family: var(--fonte-mono);
+  font-size: 12px;
+  font-weight: 500;
+  gap: 6px;
+  height: 36px;
+  list-style: none;
+  padding: 0 11px 0 10px;
+  transition: background-color .15s, color .15s;
+}
+
+.idiomas summary::-webkit-details-marker {
+  display: none;
+}
+
+.idiomas summary .i {
+  height: 16px;
+  width: 16px;
+}
+
+.idiomas summary:hover,
+.idiomas[open] summary {
+  background: var(--hover);
+  color: var(--texto);
+}
+
+.idiomas ul {
+  background: var(--elevado-2);
+  border: 1px solid var(--linha-forte);
+  border-radius: 12px;
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .7);
+  list-style: none;
+  margin: 0;
+  min-width: 168px;
+  padding: 5px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+}
+
+.idiomas a {
+  align-items: center;
+  border-radius: 8px;
+  color: var(--texto-2);
+  display: flex;
+  font-size: 14px;
+  gap: 12px;
+  padding: 8px 10px;
+  text-decoration: none;
+  transition: background-color .15s, color .15s;
+}
+
+.idiomas a span {
+  color: var(--texto-3);
+  font-family: var(--fonte-mono);
+  font-size: 11px;
+  width: 18px;
+}
+
+.idiomas a:hover {
+  background: var(--hover);
+  color: var(--texto);
+}
+
+.idiomas a[aria-current] {
+  color: var(--texto);
+}
+
+.idiomas a[aria-current] span {
+  color: var(--acento-claro);
+}
+
+/* Aviso de que a página existe no idioma do navegador da pessoa. */
+.sugestao-idioma {
+  align-items: center;
+  animation: entrar-baixo .4s var(--curva) both;
+  background: var(--elevado-2);
+  border: 1px solid var(--linha-forte);
+  border-radius: 22px;
+  bottom: 24px;
+  box-shadow: 0 18px 40px -12px rgba(0, 0, 0, .7);
+  display: flex;
+  font-size: 14px;
+  gap: 4px 14px;
+  left: 50%;
+  max-width: calc(100vw - 32px);
+  padding: 6px 6px 6px 18px;
+  position: fixed;
+  transform: translateX(-50%);
+  width: max-content;
+  z-index: 60;
+}
+
+.sugestao-idioma p {
+  color: var(--texto-2);
+  margin: 0;
+}
+
+.sugestao-idioma a {
+  color: var(--acento-claro);
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sugestao-idioma a:hover {
+  text-decoration: underline;
+}
+
+.sugestao-idioma .icone-botao {
+  background: none;
+  border: 0;
+  cursor: pointer;
+  flex: none;
+  height: 32px;
+  width: 32px;
+}
+
+.sugestao-idioma .icone-botao .i {
+  height: 16px;
+  width: 16px;
+}
+
+@keyframes entrar-baixo {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+}
+
 /* ───────────── Começo ───────────── */
 
 .abertura {
@@ -1862,6 +1999,16 @@ h3 {
 
 .versao-notas a {
   color: var(--acento-claro);
+}
+
+/* Nota que ainda não foi traduzida (aparece no original, em português). */
+.versao-notas .versao-original {
+  color: var(--texto-3);
+  font-family: var(--fonte-mono);
+  font-size: 11px;
+  letter-spacing: .04em;
+  margin-bottom: 8px;
+  text-transform: uppercase;
 }
 
 .anteriores {

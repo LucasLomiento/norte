@@ -1,10 +1,12 @@
 // Site do Norte: a bússola do começo (a agulha segue o ponteiro), a bússola
 // do canto (aponta pra seção em que você está), a janela de demonstração, as
-// fotos, os botões de copiar e o aparecer ao rolar.
+// fotos, os botões de copiar, o aparecer ao rolar e o idioma.
 
 const $ = (seletor, raiz = document) => raiz.querySelector(seletor)
 const $$ = (seletor, raiz = document) => [...raiz.querySelectorAll(seletor)]
 const semMovimento = matchMedia('(prefers-reduced-motion: reduce)').matches
+/** Textos no idioma da página (site/src/textos, postos pelo build.mjs). */
+const TEXTOS = JSON.parse($('#textos').textContent)
 
 /** Menor diferença entre dois ângulos, em graus (-180 a 180). */
 const diferenca = (de, para) => ((((para - de) % 360) + 540) % 360) - 180
@@ -107,42 +109,17 @@ aoRolar()
 // ───────────── A janela de demonstração ─────────────
 
 {
-  const ESPACOS = [
-    {
-      nome: 'Pessoal',
-      cor: '#4f8cff',
-      fixos: ['#ef4444', '#22c55e', '#e4e4e7'],
-      abas: [
-        ['Pão de fermentação natural', 'receitas.exemplo.com', '#f59e0b'],
-        ['Previsão: sábado de sol', 'tempo.exemplo.com', '#38bdf8'],
-        ['Playlist de domingo', 'musica.exemplo.com', '#22c55e'],
-        ['Ingressos para novembro', 'ingressos.exemplo.com', '#f472b6'],
-      ],
-    },
-    {
-      nome: 'Trabalho',
-      cor: '#f59e0b',
-      container: true,
-      fixos: ['#ef4444', '#4f8cff', '#22c55e'],
-      abas: [
-        ['Caixa de entrada (12)', 'mail.exemplo.com', '#ef4444'],
-        ['Custos de outubro', 'planilhas.exemplo.com', '#22c55e'],
-        ['Notas da reunião semanal', 'docs.exemplo.com', '#4f8cff'],
-        ['Revisão #482: tela de login', 'git.exemplo.com', '#a1a1aa'],
-      ],
-    },
-    {
-      nome: 'Estudos',
-      cor: '#a78bfa',
-      fixos: ['#a78bfa', '#f59e0b', '#38bdf8'],
-      abas: [
-        ['Hiragana em 15 minutos', 'japones.exemplo.com', '#f43f5e'],
-        ['Cálculo II: lista 3', 'aulas.exemplo.com', '#a78bfa'],
-        ['Resumo: Período Regencial', 'historia.exemplo.com', '#f59e0b'],
-        ['Python: listas por compreensão', 'docs.exemplo.org', '#38bdf8'],
-      ],
-    },
+  // As cores ficam aqui; os nomes, títulos e domínios vêm no idioma da página.
+  const CORES = [
+    { cor: '#4f8cff', fixos: ['#ef4444', '#22c55e', '#e4e4e7'], abas: ['#f59e0b', '#38bdf8', '#22c55e', '#f472b6'] },
+    { cor: '#f59e0b', container: true, fixos: ['#ef4444', '#4f8cff', '#22c55e'], abas: ['#ef4444', '#22c55e', '#4f8cff', '#a1a1aa'] },
+    { cor: '#a78bfa', fixos: ['#a78bfa', '#f59e0b', '#38bdf8'], abas: ['#f43f5e', '#a78bfa', '#f59e0b', '#38bdf8'] },
   ]
+  const ESPACOS = TEXTOS.espacos.map((espaco, i) => ({
+    ...CORES[i],
+    nome: espaco.nome,
+    abas: espaco.abas.map(([titulo, dominio], j) => [titulo, dominio, CORES[i].abas[j]]),
+  }))
   const ativas = ESPACOS.map(() => 0)
 
   const janela = $('#janela')
@@ -333,10 +310,8 @@ aoRolar()
     janela.classList.toggle('escondida', escondida)
     janela.classList.remove('revelada')
     botaoEsconder.setAttribute('aria-pressed', String(escondida))
-    $('span', botaoEsconder).textContent = escondida ? 'Mostrar a lateral' : 'Esconder a lateral'
-    dica.innerHTML = escondida
-      ? 'Agora passe o ponteiro na <b>borda esquerda</b> da janela: a lateral volta por cima da página.'
-      : DICA_NORMAL
+    $('span', botaoEsconder).textContent = escondida ? TEXTOS.mostrar : TEXTOS.esconder
+    dica.innerHTML = escondida ? TEXTOS.dica_escondida : DICA_NORMAL
   }
   botaoEsconder.addEventListener('click', alternarLateral)
 
@@ -376,11 +351,11 @@ $$('.copiar').forEach((botao) => {
       await navigator.clipboard.writeText(texto)
       botao.classList.add('copiado')
       icone.setAttribute('href', '#i-check')
-      botao.setAttribute('aria-label', 'Copiado')
+      botao.setAttribute('aria-label', TEXTOS.copiado)
       setTimeout(() => {
         botao.classList.remove('copiado')
         icone.setAttribute('href', '#i-copy')
-        botao.setAttribute('aria-label', 'Copiar')
+        botao.setAttribute('aria-label', TEXTOS.copiar)
       }, 1600)
     } catch {
       // Sem permissão pra área de transferência: o texto continua selecionável.
@@ -422,5 +397,74 @@ $$('.copiar').forEach((botao) => {
       },
       { threshold: 0.3 },
     ).observe(medidas)
+  }
+}
+
+// ───────────── Idioma ─────────────
+
+{
+  const CHAVE = 'norte-idioma'
+  const lembrar = (id) => {
+    try {
+      localStorage.setItem(CHAVE, id)
+    } catch {
+      // Sem armazenamento (janela anônima, bloqueado): o aviso volta na próxima visita.
+    }
+  }
+  const escolhido = () => {
+    try {
+      return localStorage.getItem(CHAVE)
+    } catch {
+      return null
+    }
+  }
+
+  // O seletor do topo: fecha clicando fora ou com Esc; escolher um idioma
+  // fica lembrado (e o aviso abaixo não aparece mais).
+  const seletor = $('.idiomas')
+  if (seletor) {
+    addEventListener('click', (e) => {
+      if (seletor.open && !seletor.contains(e.target)) seletor.open = false
+    })
+    seletor.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !seletor.open) return
+      seletor.open = false
+      $('summary', seletor).focus()
+    })
+    $$('a[data-idioma]', seletor).forEach((a) => a.addEventListener('click', () => lembrar(a.dataset.idioma)))
+  }
+
+  // Navegador noutro idioma que o site também tem: um aviso discreto, no
+  // idioma da pessoa, com o link pra versão dela. Nada de redirecionar sozinho.
+  if (!escolhido()) {
+    const preferido = (navigator.languages || [navigator.language || ''])
+      .map((l) => l.slice(0, 2).toLowerCase())
+      .find((l) => l === TEXTOS.idioma || l in TEXTOS.sugestoes)
+    const s = preferido && TEXTOS.sugestoes[preferido]
+    if (s) {
+      const aviso = document.createElement('div')
+      aviso.className = 'sugestao-idioma'
+      aviso.lang = s.lang
+      aviso.setAttribute('role', 'region')
+      aviso.setAttribute('aria-label', s.texto)
+      const texto = document.createElement('p')
+      texto.textContent = s.texto
+      const link = document.createElement('a')
+      link.href = s.url
+      link.hreflang = s.lang
+      link.textContent = s.link
+      link.addEventListener('click', () => lembrar(preferido))
+      const fechar = document.createElement('button')
+      fechar.type = 'button'
+      fechar.className = 'icone-botao'
+      fechar.setAttribute('aria-label', s.fechar)
+      fechar.innerHTML = '<svg class="i"><use href="#i-x"/></svg>'
+      fechar.addEventListener('click', () => {
+        lembrar(TEXTOS.idioma)
+        aviso.remove()
+      })
+      aviso.append(texto, link, fechar)
+      document.body.append(aviso)
+    }
   }
 }
