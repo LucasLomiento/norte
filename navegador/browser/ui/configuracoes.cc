@@ -523,7 +523,10 @@ class LinhaDeImportar : public views::View {
 BEGIN_METADATA(LinhaDeImportar)
 END_METADATA
 
-// Versão instalada e "Procurar agora" (a resposta fica no lugar da versão).
+// Versão instalada e a atualização inteira, sem sair daqui: procurar,
+// atualizar (a senha vai na janela do sistema) e reiniciar. Segue o mesmo
+// andamento do aviso no pé da lateral, que fica fora de alcance com as
+// Configurações abertas (elas travam a janela).
 class LinhaDeVersao : public views::View {
   METADATA_HEADER(LinhaDeVersao, views::View)
 
@@ -543,33 +546,103 @@ class LinhaDeVersao : public views::View {
     situacao_ = textos->AddChildView(Descricao(u"…"));
     layout->SetFlexForView(textos, 1);
     botao_ = AddChildView(Botao(
-        u"Procurar agora", base::BindRepeating(&LinhaDeVersao::Procurar,
+        u"Procurar agora", base::BindRepeating(&LinhaDeVersao::Apertou,
                                                base::Unretained(this))));
+    inscricao_ = atualizador::AoMudar(base::BindRepeating(
+        &LinhaDeVersao::Mostrar, base::Unretained(this)));
     atualizador::LerVersaoInstalada(base::BindOnce(
         &LinhaDeVersao::Versao, weak_factory_.GetWeakPtr()));
   }
 
  private:
   void Versao(const std::string& versao) {
-    Escrever(versao.empty() ? u"Cópia de desenvolvimento (sem atualização "
+    versao_ = base::UTF8ToUTF16(versao);
+    frase_ = versao.empty() ? u"Cópia de desenvolvimento (sem atualização "
                               u"automática)."
-                            : base::UTF8ToUTF16(versao));
+                            : versao_;
+    Mostrar();
   }
 
-  void Procurar() {
-    botao_->SetEnabled(false);
-    Escrever(u"Procurando…");
-    atualizador::ProcurarAgora(
-        perfil_, base::BindOnce(&LinhaDeVersao::Resposta,
-                                weak_factory_.GetWeakPtr()));
+  void Apertou() {
+    switch (atualizador::Agora().etapa) {
+      case atualizador::Etapa::kNada:
+        procurando_ = true;
+        Mostrar();
+        atualizador::ProcurarAgora(
+            perfil_, base::BindOnce(&LinhaDeVersao::Resposta,
+                                    weak_factory_.GetWeakPtr()));
+        break;
+      case atualizador::Etapa::kDisponivel:
+      case atualizador::Etapa::kErro:
+        atualizador::Atualizar();
+        break;
+      case atualizador::Etapa::kInstalada:
+        atualizador::Reiniciar();
+        break;
+      case atualizador::Etapa::kBaixando:
+      case atualizador::Etapa::kInstalando:
+        break;
+    }
   }
 
   void Resposta(const std::u16string& frase) {
-    botao_->SetEnabled(true);
-    Escrever(frase);
+    procurando_ = false;
+    frase_ = frase;
+    Mostrar();
   }
 
-  void Escrever(const std::u16string& texto) {
+  // O texto e o botão da etapa em que a atualização está.
+  void Mostrar() {
+    const atualizador::Andamento andamento = atualizador::Agora();
+    const std::u16string nova = base::UTF8ToUTF16(andamento.nova);
+    std::u16string texto;
+    std::u16string botao;
+    bool ligado = true;
+    bool destaque = false;
+    switch (andamento.etapa) {
+      case atualizador::Etapa::kNada:
+        texto = procurando_ ? u"Procurando…" : frase_;
+        botao = u"Procurar agora";
+        ligado = !procurando_;
+        break;
+      case atualizador::Etapa::kDisponivel:
+        texto = u"Versão nova: " + nova +
+                (versao_.empty() ? u"." : u" (esta é a " + versao_ + u").");
+        botao = u"Atualizar agora";
+        destaque = true;
+        break;
+      case atualizador::Etapa::kBaixando:
+        texto = u"Baixando a versão " + nova + u"…" +
+                (andamento.porcento >= 0
+                     ? u" " + base::NumberToString16(andamento.porcento) +
+                           u"%"
+                     : u"");
+        botao = u"Atualizando…";
+        ligado = false;
+        break;
+      case atualizador::Etapa::kInstalando:
+        texto = u"Digite a senha na janela do sistema pra instalar a "
+                u"versão " +
+                nova + u".";
+        botao = u"Atualizando…";
+        ligado = false;
+        break;
+      case atualizador::Etapa::kInstalada:
+        texto = u"Versão " + nova +
+                u" instalada. Reinicie pra usar: todas as janelas fecham e "
+                u"abrem de novo, com as abas.";
+        botao = u"Reiniciar agora";
+        destaque = true;
+        break;
+      case atualizador::Etapa::kErro:
+        texto = andamento.erro;
+        botao = u"Tentar de novo";
+        break;
+    }
+    botao_->SetText(botao);
+    botao_->SetEnabled(ligado);
+    botao_->SetStyle(destaque ? ui::ButtonStyle::kProminent
+                              : ui::ButtonStyle::kTonal);
     situacao_->SetText(texto);
     situacao_->SizeToFit(kLarguraDescricao);
     PreferredSizeChanged();
@@ -577,7 +650,12 @@ class LinhaDeVersao : public views::View {
 
   raw_ptr<Profile> perfil_;
   raw_ptr<views::Label> situacao_ = nullptr;
-  raw_ptr<views::View> botao_ = nullptr;
+  raw_ptr<views::MdTextButton> botao_ = nullptr;
+  std::u16string versao_;
+  // A resposta do último "Procurar agora" (ou a versão instalada).
+  std::u16string frase_ = u"…";
+  bool procurando_ = false;
+  base::CallbackListSubscription inscricao_;
   base::WeakPtrFactory<LinhaDeVersao> weak_factory_{this};
 };
 
@@ -624,7 +702,7 @@ std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
   atualizacoes->Adicionar(Linha(
       u"Procurar ao abrir",
       u"Ao abrir o navegador, procura uma versão nova no GitHub e mostra um "
-      u"aviso no pé da lateral.",
+      u"aviso no pé da lateral. Dá pra atualizar por ali ou por aqui.",
       Interruptor(perfil->GetPrefs()->GetBoolean(
                       espacos::kProcurarAtualizacoesPref),
                   u"Procurar ao abrir",

@@ -1,9 +1,9 @@
 #include "navegador/browser/ui/atualizador.h"
 
+#include <algorithm>
 #include <array>
 #include <memory>
 #include <optional>
-#include <set>
 #include <string>
 #include <string_view>
 #include <utility>
@@ -18,10 +18,13 @@
 #include "base/command_line.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
+#include "base/files/file_path_watcher.h"
 #include "base/files/file_util.h"
 #include "base/functional/bind.h"
+#include "base/functional/callback_helpers.h"
 #include "base/json/json_reader.h"
 #include "base/memory/raw_ptr.h"
+#include "base/memory/scoped_refptr.h"
 #include "base/no_destructor.h"
 #include "base/path_service.h"
 #include "base/process/launch.h"
@@ -30,9 +33,11 @@
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task/sequenced_task_runner.h"
 #include "base/task/single_thread_task_runner.h"
 #include "base/task/thread_pool.h"
 #include "base/time/time.h"
+#include "base/timer/timer.h"
 #include "base/values.h"
 #include "base/version.h"
 #include "cc/paint/paint_flags.h"
@@ -64,7 +69,6 @@
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
-#include "build/build_config.h"
 #include "url/gurl.h"
 
 namespace navegador::atualizador {
@@ -87,8 +91,6 @@ constexpr net::NetworkTrafficAnnotationTag kAnotacao =
           policy_exception_justification: "Navegador próprio (Norte)."
         })");
 
-enum class Situacao { kNada, kDisponivel, kInstalando, kInstalada, kErro };
-
 // O arquivo da release pra este sistema: o pacote do pacman (Arch e
 // derivados) ou o instalador do Windows (por usuário, sem pedir senha).
 #if BUILDFLAG(IS_WIN)
@@ -96,6 +98,11 @@ constexpr std::string_view kFimDoPacote = "-windows-x64.exe";
 #else
 constexpr std::string_view kFimDoPacote = ".pkg.tar.zst";
 #endif
+
+// Sem mudança na pasta do Norte por este tempo, o pacman terminou: no
+// pacote, o VERSAO vem antes do executável, e reiniciar no meio pegava o
+// executável pela metade.
+constexpr base::TimeDelta kFolgaDoPacman = base::Seconds(3);
 
 struct Versao {
   base::Version chromium;
@@ -126,24 +133,33 @@ bool MaisNova(const Versao& a, const Versao& b) {
   return ordem > 0 || (ordem == 0 && a.revisao > b.revisao);
 }
 
-class Aviso;
-
-// Estado do processo inteiro (uma procura, avisos em todas as janelas).
+// Estado do processo inteiro (uma procura, avisos em todas as janelas e nas
+// Configurações).
 struct Estado {
+  // A versão do processo aberto (o VERSAO lido na partida).
   std::string instalada;
   bool instalada_lida = false;
+  // Quem espera a primeira leitura do VERSAO.
+  std::vector<base::OnceClosure> lendo;
+  // O VERSAO agora: muda quando o pacman instala outra versão.
+  std::string no_disco;
   bool procurou = false;
-  Situacao situacao = Situacao::kNada;
-  std::string nova;
+  Andamento andamento;
   std::string url_pacote;
   // SHA-256 do pacote que o GitHub informa ("digest" do arquivo), em
   // hexadecimal; vazio se a release não traz.
   std::string sha256_pacote;
+  // Tamanho do pacote em bytes (0 sem a informação), pra porcentagem.
+  int64_t tamanho_pacote = 0;
   std::string url_pagina;
-  std::u16string erro;
   std::unique_ptr<network::SimpleURLLoader> pedido;
   std::vector<base::OnceCallback<void(const std::u16string&)>> esperando;
-  std::set<Aviso*> avisos;
+  base::RepeatingClosureList mudou;
+  // Vigia da pasta do Norte, numa sequência de fundo (o FilePathWatcher
+  // precisa de uma que vigie descritores), e a folga até o pacman terminar.
+  scoped_refptr<base::SequencedTaskRunner> sequencia_da_vigia;
+  std::unique_ptr<base::FilePathWatcher> vigia;
+  base::OneShotTimer folga_da_vigia;
 };
 
 Estado& Atual() {
@@ -151,7 +167,19 @@ Estado& Atual() {
   return *estado;
 }
 
-void AvisarTodos();
+void Avisar() {
+  Atual().mudou.Notify();
+}
+
+void MudarPara(Etapa etapa) {
+  Atual().andamento.etapa = etapa;
+  Avisar();
+}
+
+void Falhou(std::u16string erro) {
+  Atual().andamento.erro = std::move(erro);
+  MudarPara(Etapa::kErro);
+}
 
 std::string LerArquivoDeVersao() {
   base::FilePath pasta;
@@ -163,11 +191,113 @@ std::string LerArquivoDeVersao() {
   return std::string(base::TrimWhitespaceASCII(texto, base::TRIM_ALL));
 }
 
+// --- Versão instalada por fora ----------------------------------------------
+
+// Relê o VERSAO depois da folga: mais novo que o do processo aberto, a
+// versão nova está instalada e falta reiniciar.
+void ConferirDisco() {
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
+      base::BindOnce(&LerArquivoDeVersao),
+      base::BindOnce([](std::string versao) {
+        Estado& estado = Atual();
+        if (versao.empty() || versao == estado.no_disco) {
+          return;
+        }
+        estado.no_disco = versao;
+        // Instalando pelo nosso "Atualizar": quem decide é o fim do pkexec.
+        if (estado.andamento.etapa == Etapa::kBaixando ||
+            estado.andamento.etapa == Etapa::kInstalando) {
+          return;
+        }
+        const std::optional<Versao> disco = LerVersao(versao);
+        const std::optional<Versao> aberta = LerVersao(estado.instalada);
+        if (!disco || !aberta || !MaisNova(*disco, *aberta)) {
+          return;
+        }
+        estado.andamento.nova = versao;
+        estado.andamento.erro.clear();
+        MudarPara(Etapa::kInstalada);
+      }));
+}
+
+void PastaMudou() {
+  // Cada arquivo que o pacman escreve avisa: espera ele parar.
+  Atual().folga_da_vigia.Start(FROM_HERE, kFolgaDoPacman,
+                               base::BindOnce(&ConferirDisco));
+}
+
+// Vigia a pasta do executável (o /usr/lib/norte do pacote). Sem a vigia
+// (não deu pra ligar), só fica sem o aviso de reiniciar.
+void Vigiar() {
+  Estado& estado = Atual();
+  base::FilePath pasta;
+  if (estado.vigia || !base::PathService::Get(base::DIR_MODULE, &pasta)) {
+    return;
+  }
+  estado.sequencia_da_vigia = base::ThreadPool::CreateSequencedTaskRunner(
+      {base::TaskPriority::BEST_EFFORT,
+       base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN, base::MayBlock()});
+  estado.vigia = std::make_unique<base::FilePathWatcher>();
+  // A vigia mora no Estado (que nunca é destruído): o Unretained vale.
+  estado.sequencia_da_vigia->PostTask(
+      FROM_HERE,
+      base::BindOnce(
+          [](base::FilePathWatcher* vigia, base::FilePath pasta,
+             scoped_refptr<base::SequencedTaskRunner> aqui) {
+            vigia->Watch(
+                pasta, base::FilePathWatcher::Type::kNonRecursive,
+                base::BindRepeating(
+                    [](scoped_refptr<base::SequencedTaskRunner> aqui,
+                       const base::FilePath&, bool erro) {
+                      if (!erro) {
+                        aqui->PostTask(FROM_HERE, base::BindOnce(&PastaMudou));
+                      }
+                    },
+                    aqui));
+          },
+          base::Unretained(estado.vigia.get()), std::move(pasta),
+          base::SequencedTaskRunner::GetCurrentDefault()));
+}
+
+// Lê o VERSAO uma vez (a versão do processo aberto) e roda `depois`. Na
+// primeira leitura, com o pacote, liga a vigia da pasta.
+void Ler(base::OnceClosure depois) {
+  Estado& estado = Atual();
+  if (estado.instalada_lida) {
+    std::move(depois).Run();
+    return;
+  }
+  estado.lendo.push_back(std::move(depois));
+  if (estado.lendo.size() > 1) {
+    return;
+  }
+  base::ThreadPool::PostTaskAndReplyWithResult(
+      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
+      base::BindOnce(&LerArquivoDeVersao),
+      base::BindOnce([](std::string versao) {
+        Estado& estado = Atual();
+        estado.instalada = versao;
+        estado.no_disco = versao;
+        estado.instalada_lida = true;
+        if (!versao.empty()) {
+          Vigiar();
+        }
+        std::vector<base::OnceClosure> lendo = std::move(estado.lendo);
+        for (base::OnceClosure& depois : lendo) {
+          std::move(depois).Run();
+        }
+      }));
+}
+
+// --- Procurar ----------------------------------------------------------------
+
 void Responder(const std::u16string& frase) {
-  for (auto& resposta : Atual().esperando) {
+  std::vector<base::OnceCallback<void(const std::u16string&)>> esperando =
+      std::move(Atual().esperando);
+  for (auto& resposta : esperando) {
     std::move(resposta).Run(frase);
   }
-  Atual().esperando.clear();
 }
 
 void Chegou(std::optional<std::string> corpo) {
@@ -193,8 +323,19 @@ void Chegou(std::optional<std::string> corpo) {
               base::UTF8ToUTF16(estado.instalada) + u").");
     return;
   }
+  // Já instalada por fora com o navegador aberto: só falta reiniciar.
+  if (std::optional<Versao> disco = LerVersao(estado.no_disco);
+      disco && !MaisNova(*nova, *disco)) {
+    estado.andamento.nova = estado.no_disco;
+    estado.andamento.erro.clear();
+    Responder(u"A versão " + base::UTF8ToUTF16(estado.no_disco) +
+              u" já está instalada: falta reiniciar.");
+    MudarPara(Etapa::kInstalada);
+    return;
+  }
   std::string url;
   std::string sha256;
+  int64_t tamanho = 0;
   if (const base::ListValue* arquivos = release.FindList("assets")) {
     for (const base::Value& arquivo : *arquivos) {
       const base::DictValue* d = arquivo.GetIfDict();
@@ -207,6 +348,7 @@ void Chegou(std::optional<std::string> corpo) {
         sha256 = digest && digest->starts_with("sha256:")
                      ? base::ToLowerASCII(digest->substr(7))
                      : std::string();
+        tamanho = static_cast<int64_t>(d->FindDouble("size").value_or(0));
       }
     }
   }
@@ -214,24 +356,41 @@ void Chegou(std::optional<std::string> corpo) {
     Responder(u"A versão nova ainda não tem o pacote.");
     return;
   }
-  estado.situacao = Situacao::kDisponivel;
-  estado.nova = tag->starts_with("v") ? tag->substr(1) : *tag;
+  estado.andamento.nova = tag->starts_with("v") ? tag->substr(1) : *tag;
+  estado.andamento.erro.clear();
   estado.url_pacote = url;
   estado.sha256_pacote = sha256;
+  estado.tamanho_pacote = tamanho;
   if (const std::string* pagina = release.FindString("html_url")) {
     estado.url_pagina = *pagina;
   }
-  Responder(u"Versão nova: " + base::UTF8ToUTF16(estado.nova) +
-            u". O aviso está no pé da lateral.");
-  AvisarTodos();
+  Responder(u"Versão nova: " + base::UTF8ToUTF16(estado.andamento.nova) +
+            u".");
+  MudarPara(Etapa::kDisponivel);
 }
 
 void Procurar() {
   Estado& estado = Atual();
-  if (estado.pedido || estado.instalada.empty()) {
-    if (estado.instalada.empty()) {
-      Responder(u"Esta cópia não veio do pacote: sem atualização automática.");
-    }
+  switch (estado.andamento.etapa) {
+    case Etapa::kBaixando:
+    case Etapa::kInstalando:
+      Responder(u"A atualização já está em andamento.");
+      return;
+    case Etapa::kInstalada:
+      Responder(u"A versão " + base::UTF8ToUTF16(estado.andamento.nova) +
+                u" já está instalada: falta reiniciar.");
+      return;
+    case Etapa::kNada:
+    case Etapa::kDisponivel:
+    case Etapa::kErro:
+      break;
+  }
+  if (estado.instalada.empty()) {
+    Responder(u"Esta cópia não veio do pacote: sem atualização automática.");
+    return;
+  }
+  // Uma procura já em andamento responde a todos.
+  if (estado.pedido) {
     return;
   }
   auto pedido = std::make_unique<network::ResourceRequest>();
@@ -246,48 +405,45 @@ void Procurar() {
       base::BindOnce(&Chegou), 1024 * 1024);
 }
 
-// Lê a versão instalada (arquivo) e, se pedido, procura.
-void Comecar(bool procurar) {
+// --- Baixar e instalar -------------------------------------------------------
+
+void Progresso(uint64_t veio) {
   Estado& estado = Atual();
-  if (estado.instalada_lida) {
-    if (procurar) {
-      Procurar();
-    }
+  if (estado.tamanho_pacote <= 0 ||
+      estado.andamento.etapa != Etapa::kBaixando) {
     return;
   }
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::BEST_EFFORT},
-      base::BindOnce(&LerArquivoDeVersao),
-      base::BindOnce(
-          [](bool procurar, std::string versao) {
-            Atual().instalada = versao;
-            Atual().instalada_lida = true;
-            if (procurar) {
-              Procurar();
-            }
-          },
-          procurar));
+  const int porcento = static_cast<int>(std::clamp<int64_t>(
+      static_cast<int64_t>(veio) * 100 / estado.tamanho_pacote, 0, 100));
+  if (porcento == estado.andamento.porcento) {
+    return;
+  }
+  estado.andamento.porcento = porcento;
+  Avisar();
 }
 
 #if !BUILDFLAG(IS_WIN)
 void InstalarArquivo(base::FilePath pacote);
 #endif
 
-void Instalar() {
+void Baixar() {
   Estado& estado = Atual();
-  if (estado.situacao != Situacao::kDisponivel &&
-      estado.situacao != Situacao::kErro) {
+  if (estado.andamento.etapa != Etapa::kDisponivel &&
+      estado.andamento.etapa != Etapa::kErro) {
     return;
   }
-  estado.situacao = Situacao::kInstalando;
-  AvisarTodos();
-#if BUILDFLAG(IS_WIN)
-  // Baixa o instalador e roda: ele põe a versão nova ao lado da atual (a
-  // troca vale ao reiniciar), sem pedir senha.
+  estado.andamento.erro.clear();
+  estado.andamento.porcento = estado.tamanho_pacote > 0 ? 0 : -1;
+  MudarPara(Etapa::kBaixando);
   auto pedido = std::make_unique<network::ResourceRequest>();
   pedido->url = GURL(estado.url_pacote);
   pedido->credentials_mode = network::mojom::CredentialsMode::kOmit;
-  estado.pedido = network::SimpleURLLoader::Create(std::move(pedido), kAnotacao);
+  estado.pedido =
+      network::SimpleURLLoader::Create(std::move(pedido), kAnotacao);
+  estado.pedido->SetOnDownloadProgressCallback(base::BindRepeating(&Progresso));
+#if BUILDFLAG(IS_WIN)
+  // Baixa o instalador e roda: ele põe a versão nova ao lado da atual (a
+  // troca vale ao reiniciar), sem pedir senha.
   base::FilePath destino;
   base::GetTempDir(&destino);
   destino = destino.AppendASCII("navegador-instalador.exe");
@@ -296,11 +452,10 @@ void Instalar() {
       base::BindOnce([](base::FilePath instalador) {
         Atual().pedido.reset();
         if (instalador.empty()) {
-          Atual().situacao = Situacao::kErro;
-          Atual().erro = u"Não deu pra baixar o instalador.";
-          AvisarTodos();
+          Falhou(u"Não deu pra baixar o instalador.");
           return;
         }
+        MudarPara(Etapa::kInstalando);
         base::ThreadPool::PostTaskAndReplyWithResult(
             FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
             base::BindOnce(
@@ -320,18 +475,15 @@ void Instalar() {
                 },
                 instalador),
             base::BindOnce([](int codigo) {
-              Estado& estado = Atual();
               // Códigos do instalador do Chromium (installer::InstallStatus):
               // 0 primeira instalação, 1 reparo, 2 versão nova, 4 já tinha
               // uma mais nova.
               if (codigo == 0 || codigo == 1 || codigo == 2 || codigo == 4) {
-                estado.situacao = Situacao::kInstalada;
+                MudarPara(Etapa::kInstalada);
               } else {
-                estado.situacao = Situacao::kErro;
-                estado.erro = u"O instalador não conseguiu atualizar (código " +
-                              base::NumberToString16(codigo) + u").";
+                Falhou(u"O instalador não conseguiu atualizar (código " +
+                       base::NumberToString16(codigo) + u").");
               }
-              AvisarTodos();
             }));
       }),
       destino, 512 * 1024 * 1024);
@@ -342,11 +494,6 @@ void Instalar() {
   // dava 404 pro .sig e o pacman saía com 255. Arquivo local vale pelo
   // LocalFileSigLevel (Optional). O pkexec pede a senha numa janela do
   // sistema (o agente do polkit).
-  auto pedido = std::make_unique<network::ResourceRequest>();
-  pedido->url = GURL(estado.url_pacote);
-  pedido->credentials_mode = network::mojom::CredentialsMode::kOmit;
-  estado.pedido =
-      network::SimpleURLLoader::Create(std::move(pedido), kAnotacao);
   std::string nome = GURL(estado.url_pacote).ExtractFileName();
   if (!base::EndsWith(nome, ".pkg.tar.zst")) {
     nome = "navegador.pkg.tar.zst";
@@ -368,9 +515,7 @@ void Instalar() {
             Estado& estado = Atual();
             if (pasta.empty() || !estado.pedido) {
               estado.pedido.reset();
-              estado.situacao = Situacao::kErro;
-              estado.erro = u"Não deu pra baixar a versão nova.";
-              AvisarTodos();
+              Falhou(u"Não deu pra baixar a versão nova.");
               return;
             }
             estado.pedido->DownloadToFile(
@@ -415,11 +560,11 @@ std::string Sha256DoArquivo(const base::FilePath& caminho) {
 void InstalarArquivo(base::FilePath pacote) {
   Atual().pedido.reset();
   if (pacote.empty()) {
-    Atual().situacao = Situacao::kErro;
-    Atual().erro = u"Não deu pra baixar a versão nova.";
-    AvisarTodos();
+    Falhou(u"Não deu pra baixar a versão nova.");
     return;
   }
+  // Agora é a janela de senha do sistema.
+  MudarPara(Etapa::kInstalando);
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
       base::BindOnce(
@@ -469,23 +614,19 @@ void InstalarArquivo(base::FilePath pacote) {
           },
           pacote, Atual().sha256_pacote),
       base::BindOnce([](int codigo) {
-        Estado& estado = Atual();
         if (codigo == 0) {
-          estado.situacao = Situacao::kInstalada;
+          MudarPara(Etapa::kInstalada);
         } else if (codigo == kPacoteDiferente) {
-          estado.situacao = Situacao::kErro;
-          estado.erro = u"O pacote baixado não confere com o da release. "
-                        u"Tente de novo.";
+          Falhou(u"O pacote baixado não confere com o da release. "
+                 u"Tente de novo.");
         } else {
-          estado.situacao = Situacao::kErro;
           // 126/127: senha cancelada ou sem a janela de senha do sistema.
-          estado.erro = codigo == 126 || codigo == 127
-                            ? u"Cancelado (ou o sistema não pediu a senha). "
-                              u"No terminal: sudo pacman -Syu"
-                            : u"O pacman não conseguiu instalar (código " +
-                                  base::NumberToString16(codigo) + u").";
+          Falhou(codigo == 126 || codigo == 127
+                     ? u"Cancelado (ou o sistema não pediu a senha). "
+                       u"No terminal: sudo pacman -Syu"
+                     : u"O pacman não conseguiu instalar (código " +
+                           base::NumberToString16(codigo) + u").");
         }
-        AvisarTodos();
       }));
 }
 #endif  // !BUILDFLAG(IS_WIN)
@@ -516,46 +657,41 @@ class Aviso : public views::View {
     botao_->SetStyle(ui::ButtonStyle::kProminent);
     botao_->SetProperty(views::kCrossAxisAlignmentKey,
                         views::LayoutAlignment::kStart);
-    Atual().avisos.insert(this);
+    inscricao_ = Atual().mudou.Add(
+        base::BindRepeating(&Aviso::Mostrar, base::Unretained(this)));
     Mostrar();
   }
 
-  ~Aviso() override { Atual().avisos.erase(this); }
-
   void Mostrar() {
-    const Estado& estado = Atual();
-    SetVisible(estado.situacao != Situacao::kNada);
-    switch (estado.situacao) {
-      case Situacao::kNada:
+    const Andamento& andamento = Atual().andamento;
+    const std::u16string nova = base::UTF8ToUTF16(andamento.nova);
+    SetVisible(andamento.etapa != Etapa::kNada);
+    switch (andamento.etapa) {
+      case Etapa::kNada:
         break;
-      case Situacao::kDisponivel:
-        titulo_->SetText(u"Nova versão");
-        detalhe_->SetText(u"Versão " + base::UTF8ToUTF16(estado.nova));
-        botao_->SetText(u"Atualizar");
-        botao_->SetEnabled(true);
+      case Etapa::kDisponivel:
+        Escrever(u"Nova versão", u"Versão " + nova, u"Atualizar", true);
         break;
-      case Situacao::kInstalando:
-        titulo_->SetText(u"Atualizando…");
-        detalhe_->SetText(u"Digite a senha na janela do sistema.");
-        botao_->SetText(u"Atualizar");
-        botao_->SetEnabled(false);
+      case Etapa::kBaixando:
+        Escrever(u"Baixando…",
+                 andamento.porcento >= 0
+                     ? base::NumberToString16(andamento.porcento) +
+                           u"% da versão " + nova
+                     : u"Versão " + nova,
+                 u"Atualizando…", false);
         break;
-      case Situacao::kInstalada:
-        titulo_->SetText(u"Atualizado");
-        detalhe_->SetText(u"Reinicie pra usar a versão " +
-                          base::UTF8ToUTF16(estado.nova) + u".");
-        botao_->SetText(u"Reiniciar");
-        botao_->SetEnabled(true);
+      case Etapa::kInstalando:
+        Escrever(u"Instalando…", u"Digite a senha na janela do sistema.",
+                 u"Atualizando…", false);
         break;
-      case Situacao::kErro:
-        titulo_->SetText(u"Não atualizou");
-        detalhe_->SetText(estado.erro);
-        botao_->SetText(u"Tentar de novo");
-        botao_->SetEnabled(true);
+      case Etapa::kInstalada:
+        Escrever(u"Atualizado", u"Reinicie pra usar a versão " + nova + u".",
+                 u"Reiniciar", true);
+        break;
+      case Etapa::kErro:
+        Escrever(u"Não atualizou", andamento.erro, u"Tentar de novo", true);
         break;
     }
-    detalhe_->SizeToFit(150);
-    PreferredSizeChanged();
   }
 
   void OnPaint(gfx::Canvas* canvas) override {
@@ -567,27 +703,34 @@ class Aviso : public views::View {
   }
 
  private:
+  void Escrever(std::u16string titulo,
+                std::u16string detalhe,
+                std::u16string botao,
+                bool ligado) {
+    titulo_->SetText(titulo);
+    detalhe_->SetText(detalhe);
+    detalhe_->SizeToFit(150);
+    botao_->SetText(botao);
+    botao_->SetEnabled(ligado);
+    PreferredSizeChanged();
+  }
+
   void Apertou() {
-    if (Atual().situacao == Situacao::kInstalada) {
-      chrome::AttemptRestart();
+    if (Atual().andamento.etapa == Etapa::kInstalada) {
+      Reiniciar();
       return;
     }
-    Instalar();
+    Atualizar();
   }
 
   raw_ptr<views::Label> titulo_ = nullptr;
   raw_ptr<views::Label> detalhe_ = nullptr;
   raw_ptr<views::MdTextButton> botao_ = nullptr;
+  base::CallbackListSubscription inscricao_;
 };
 
 BEGIN_METADATA(Aviso)
 END_METADATA
-
-void AvisarTodos() {
-  for (Aviso* aviso : Atual().avisos) {
-    aviso->Mostrar();
-  }
-}
 
 }  // namespace
 
@@ -595,11 +738,16 @@ std::unique_ptr<views::View> CriarAviso(BrowserWindowInterface* browser) {
   Estado& estado = Atual();
   if (!estado.procurou) {
     estado.procurou = true;
-    const bool procurar = browser->GetProfile()->GetPrefs()->GetBoolean(
-        espacos::kProcurarAtualizacoesPref);
-    // Depois de a janela abrir (não atrasa a abertura).
-    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-        FROM_HERE, base::BindOnce(&Comecar, procurar), base::Seconds(5));
+    // A versão do processo aberto já na partida (antes de o pacman poder
+    // trocar o VERSAO), com a vigia da pasta.
+    Ler(base::DoNothing());
+    if (browser->GetProfile()->GetPrefs()->GetBoolean(
+            espacos::kProcurarAtualizacoesPref)) {
+      // Depois de a janela abrir (não atrasa a abertura).
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE, base::BindOnce(&Ler, base::BindOnce(&Procurar)),
+          base::Seconds(5));
+    }
   }
   return std::make_unique<Aviso>();
 }
@@ -607,26 +755,32 @@ std::unique_ptr<views::View> CriarAviso(BrowserWindowInterface* browser) {
 void ProcurarAgora(Profile* perfil,
                    base::OnceCallback<void(const std::u16string&)> resposta) {
   Atual().esperando.push_back(std::move(resposta));
-  Comecar(/*procurar=*/true);
+  Ler(base::BindOnce(&Procurar));
 }
 
 void LerVersaoInstalada(
     base::OnceCallback<void(const std::string&)> resposta) {
-  if (Atual().instalada_lida) {
-    std::move(resposta).Run(Atual().instalada);
-    return;
-  }
-  base::ThreadPool::PostTaskAndReplyWithResult(
-      FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
-      base::BindOnce(&LerArquivoDeVersao),
-      base::BindOnce(
-          [](base::OnceCallback<void(const std::string&)> resposta,
-             std::string versao) {
-            Atual().instalada = versao;
-            Atual().instalada_lida = true;
-            std::move(resposta).Run(versao);
-          },
-          std::move(resposta)));
+  Ler(base::BindOnce(
+      [](base::OnceCallback<void(const std::string&)> resposta) {
+        std::move(resposta).Run(Atual().instalada);
+      },
+      std::move(resposta)));
+}
+
+Andamento Agora() {
+  return Atual().andamento;
+}
+
+base::CallbackListSubscription AoMudar(base::RepeatingClosure mudou) {
+  return Atual().mudou.Add(std::move(mudou));
+}
+
+void Atualizar() {
+  Baixar();
+}
+
+void Reiniciar() {
+  chrome::AttemptRestart();
 }
 
 }  // namespace navegador::atualizador
