@@ -16,6 +16,7 @@
 #endif
 
 #include "base/command_line.h"
+#include "base/environment.h"
 #include "base/files/file.h"
 #include "base/files/file_path.h"
 #include "base/files/file_path_watcher.h"
@@ -369,6 +370,25 @@ void Chegou(std::optional<std::string> corpo) {
   MudarPara(Etapa::kDisponivel);
 }
 
+// Onde procurar a última versão: a API do GitHub ou, pra testar o
+// atualizador sem publicar versão, o endereço em NORTE_ATUALIZACAO_TESTE
+// (um JSON como o da API, servido nesta máquina: endereço de fora é
+// ignorado). Ver "Testar com a senha de verdade" no docs/ARQUITETURA.md.
+GURL EnderecoDaProcura() {
+  const GURL github(std::string("https://api.github.com/repos/") +
+                    kRepositorio + "/releases/latest");
+  const std::optional<std::string> teste =
+      base::Environment::Create()->GetVar("NORTE_ATUALIZACAO_TESTE");
+  if (!teste) {
+    return github;
+  }
+  const GURL endereco(*teste);
+  const bool desta_maquina =
+      endereco.is_valid() && endereco.SchemeIs("http") &&
+      (endereco.host() == "127.0.0.1" || endereco.host() == "localhost");
+  return desta_maquina ? endereco : github;
+}
+
 void Procurar() {
   Estado& estado = Atual();
   switch (estado.andamento.etapa) {
@@ -394,8 +414,7 @@ void Procurar() {
     return;
   }
   auto pedido = std::make_unique<network::ResourceRequest>();
-  pedido->url = GURL(std::string("https://api.github.com/repos/") +
-                     kRepositorio + "/releases/latest");
+  pedido->url = EnderecoDaProcura();
   pedido->credentials_mode = network::mojom::CredentialsMode::kOmit;
   pedido->headers.SetHeader("Accept", "application/vnd.github+json");
   estado.pedido =
