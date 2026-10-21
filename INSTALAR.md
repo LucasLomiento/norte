@@ -73,6 +73,19 @@ reinicia.
 - **Levar pra outra máquina**: Configurações do Norte → Geral → Trazer de
   outro navegador → Exportar/Importar (espaços, fixados, containers, atalhos
   e opções num arquivo).
+- **Links de outros apps no espaço certo**: Editar espaço → Sites
+  (`github.com, figma.com`): um link desses sites vindo do Discord, do Slack
+  ou do terminal abre nesse espaço. `norte --space=<nome> <endereço>` abre
+  no espaço escolhido.
+- **Comandos na barra**: `>` e o nome da ação (`> foco`, `> trabalho`,
+  `> container banco`); Enter roda o primeiro. Uma conta (`2+3*4`) mostra o
+  resultado na lista; escolher copia.
+- **Estilo por site**: clique direito na página → "Estilo deste site…":
+  modo escuro só nele e um CSS próprio, por cima do CSS do site.
+- **Container temporário**: "Novo container temporário" nos menus de
+  container; some (com os cookies) quando a última aba dele fecha.
+- **Aba seguidora**: com a tela dividida, menu da aba → Organizar a
+  visualização dividida → "Links desta aba abrem na outra metade".
 
 ## Atalhos próprios (padrão; mudam nas Configurações)
 

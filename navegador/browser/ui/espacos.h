@@ -21,6 +21,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 
 #include "third_party/skia/include/core/SkColor.h"
 
@@ -60,6 +61,11 @@ void NovoEspaco(BrowserWindowInterface* browser);
 // Zen. Ficam as ligadas a sites fixados; sem abas, o espaço fica com uma
 // nova. Ctrl+Shift+T traz de volta.
 void FecharAbasDoEspaco(BrowserWindowInterface* browser);
+
+// Roda uma ação na janela: as dos atalhos (Atalhos() em espacos_dados.h,
+// ex. "modo_foco") e as dos comandos da barra (comandos.h). Falso se a
+// janela não conhece a ação.
+bool ExecutarAcao(BrowserWindowInterface* browser, std::string_view acao);
 
 // Move a aba `index` da janela pro espaço (no fim das abas dele).
 void MoverAbaPara(BrowserWindowInterface* browser,

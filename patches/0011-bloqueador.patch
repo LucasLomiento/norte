@@ -24,6 +24,49 @@ index cbf3b6c563..88aba9ff55 100644
  
    // `profile` may be nullptr if the profile picker is shown.
    Profile* profile = profile_info.profile;
+diff --git i/chrome/browser/chrome_content_browser_client.cc w/chrome/browser/chrome_content_browser_client.cc
+index 19045777b3..adaed354e5 100644
+--- i/chrome/browser/chrome_content_browser_client.cc
++++ w/chrome/browser/chrome_content_browser_client.cc
+@@ -402,6 +402,7 @@
+ #include "media/mojo/buildflags.h"
+ #include "media/mojo/mojom/speech_recognizer.mojom.h"
+ #include "mojo/public/cpp/bindings/remote.h"
++#include "navegador/browser/ui/estilos.h"
+ #include "net/base/data_url.h"
+ #include "net/base/features.h"
+ #include "net/base/url_util.h"
+@@ -4639,7 +4640,10 @@ void ChromeContentBrowserClient::OverrideWebPreferences(
+       prefs::kAccessibilityTouchpadOverscrollHistoryNavigation);
+ #endif
+   web_prefs->force_dark_mode_enabled =
+-      prefs->GetBoolean(prefs::kWebKitForceDarkModeEnabled);
++      prefs->GetBoolean(prefs::kWebKitForceDarkModeEnabled) ||
++      // navegador: o modo escuro por site (estilos.h).
++      navegador::estilos::EscuroNoSite(profile,
++                                       web_contents->GetLastCommittedURL());
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+   web_prefs->always_show_focus =
+@@ -4967,6 +4971,18 @@ bool ChromeContentBrowserClient::OverrideWebPreferencesAfterNavigation(
+         web_contents, main_frame_site, web_prefs);
+   }
+ 
++  // navegador: o modo escuro por site (estilos.h), ao entrar e ao sair dele.
++  {
++    Profile* profile =
++        Profile::FromBrowserContext(web_contents->GetBrowserContext());
++    const bool escuro =
++        profile->GetPrefs()->GetBoolean(prefs::kWebKitForceDarkModeEnabled) ||
++        navegador::estilos::EscuroNoSite(profile,
++                                         web_contents->GetLastCommittedURL());
++    prefs_changed |= web_prefs->force_dark_mode_enabled != escuro;
++    web_prefs->force_dark_mode_enabled = escuro;
++  }
++
+   const auto old_in_forced_colors = web_prefs->in_forced_colors;
+   const auto old_is_forced_colors_disabled =
+       web_prefs->is_forced_colors_disabled;
 diff --git i/chrome/browser/component_updater/registration.cc w/chrome/browser/component_updater/registration.cc
 index b11907b0f4..7e91d09242 100644
 --- i/chrome/browser/component_updater/registration.cc
@@ -60,43 +103,47 @@ index b11907b0f4..7e91d09242 100644
    RegisterCaptchaProviderComponent(cus);
  
 diff --git i/chrome/browser/ui/tab_helpers.cc w/chrome/browser/ui/tab_helpers.cc
-index 3b1e2e30ef..4aea50799f 100644
+index 3b1e2e30ef..1dca8f650e 100644
 --- i/chrome/browser/ui/tab_helpers.cc
 +++ w/chrome/browser/ui/tab_helpers.cc
-@@ -75,6 +75,7 @@
+@@ -75,6 +75,8 @@
  #include "chrome/browser/storage_access_api/storage_access_api_service_impl.h"
  #include "chrome/browser/storage_access_api/storage_access_api_tab_helper.h"
  #include "chrome/browser/subresource_filter/chrome_content_subresource_filter_web_contents_helper_factory.h"
 +#include "navegador/browser/ui/bloqueador.h"
++#include "navegador/browser/ui/temporarios.h"
  #include "chrome/browser/supervised_user/supervised_user_navigation_observer.h"
  #include "chrome/browser/sync/sessions/sync_sessions_router_tab_helper.h"
  #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
-@@ -400,6 +401,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+@@ -400,6 +402,8 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
  #endif
    }
    CreateSubresourceFilterWebContentsHelper(web_contents);
 +  navegador::bloqueador::AcompanharAba(web_contents);  // navegador
++  navegador::temporarios::AcompanharAba(web_contents);  // navegador
  #if BUILDFLAG(ENABLE_RLZ)
    ChromeRLZTrackerWebContentsObserver::CreateForWebContentsIfNeeded(
        web_contents);
 diff --git i/chrome/common/chrome_render_frame.mojom w/chrome/common/chrome_render_frame.mojom
-index c5b742e2fe..124929d83e 100644
+index c5b742e2fe..6e69231d97 100644
 --- i/chrome/common/chrome_render_frame.mojom
 +++ w/chrome/common/chrome_render_frame.mojom
-@@ -31,6 +31,11 @@ interface ChromeRenderFrame {
+@@ -31,6 +31,13 @@ interface ChromeRenderFrame {
    // Updates the window features of the main frame's render view.
    SetWindowFeatures(blink.mojom.WindowFeatures window_features);
  
 +  // navegador: regras do bloqueador pro documento que vai começar em `url`:
 +  // CSS (esconder os elementos de anúncio) e JS (constantes do "set" do
-+  // uBlock). O quadro aplica no começo desse documento.
-+  NavegadorEsconderAnuncios(string css, string js, url.mojom.Url url);
++  // uBlock), e o estilo que a pessoa escreveu pro site (estilos.h, folha do
++  // autor). O quadro aplica no começo desse documento.
++  NavegadorEsconderAnuncios(string css, string js, string estilo,
++                            url.mojom.Url url);
 +
    // Reloads the image selected by the most recently opened context menu
    // (if there indeed is an image at that location).
    RequestReloadImageForContextNode();
 diff --git i/chrome/renderer/chrome_render_frame_observer.cc w/chrome/renderer/chrome_render_frame_observer.cc
-index 6f3034c426..7979218088 100644
+index 6f3034c426..e33de8fa1a 100644
 --- i/chrome/renderer/chrome_render_frame_observer.cc
 +++ w/chrome/renderer/chrome_render_frame_observer.cc
 @@ -77,6 +77,8 @@
@@ -116,7 +163,7 @@ index 6f3034c426..7979218088 100644
    // Update crash keys on any frame transition, not just the main frame.
    UpdateLoadedOriginCrashKeys();
  
-@@ -674,6 +677,57 @@ void ChromeRenderFrameObserver::LoadBlockedPlugins(
+@@ -674,6 +677,68 @@ void ChromeRenderFrameObserver::LoadBlockedPlugins(
  #endif  // BUILDFLAG(ENABLE_PLUGINS)
  }
  
@@ -124,10 +171,12 @@ index 6f3034c426..7979218088 100644
 +// navegador manda quando a navegação está pronta pra começar) e ficam
 +// guardadas até o começo dele (DidCreateDocumentElement). Se chegarem depois
 +// que ele começou (a ordem entre os canais não é garantida), aplicam na hora.
-+void ChromeRenderFrameObserver::NavegadorEsconderAnuncios(const std::string& css,
-+                                                          const std::string& js,
-+                                                          const GURL& url) {
-+  NavegadorRegras regras{url, css, js};
++void ChromeRenderFrameObserver::NavegadorEsconderAnuncios(
++    const std::string& css,
++    const std::string& js,
++    const std::string& estilo,
++    const GURL& url) {
++  NavegadorRegras regras{url, css, js, estilo};
 +  blink::WebLocalFrame* quadro = render_frame()->GetWebFrame();
 +  if (!navegador_aplicado_ && !quadro->IsProvisional() &&
 +      !quadro->GetDocument().IsNull() &&
@@ -166,16 +215,25 @@ index 6f3034c426..7979218088 100644
 +    quadro->ExecuteScript(
 +        blink::WebScriptSource(blink::WebString::FromUtf8(regras.js)));
 +  }
-+  quadro->GetDocument().InsertStyleSheet(
-+      blink::WebString::FromUtf8(regras.css), nullptr,
-+      blink::WebCssOrigin::kUser);
++  if (!regras.css.empty()) {
++    quadro->GetDocument().InsertStyleSheet(
++        blink::WebString::FromUtf8(regras.css), nullptr,
++        blink::WebCssOrigin::kUser);
++  }
++  // O estilo da pessoa: folha do autor, por cima das do site (sem precisar
++  // de !important, como num CSS da própria página).
++  if (!regras.estilo.empty()) {
++    quadro->GetDocument().InsertStyleSheet(
++        blink::WebString::FromUtf8(regras.estilo), nullptr,
++        blink::WebCssOrigin::kAuthor);
++  }
 +}
 +
  void ChromeRenderFrameObserver::SetShouldDeferMediaLoad(bool should_defer) {
    prerender::SetShouldDeferMediaLoad(render_frame(), should_defer);
  }
 diff --git i/chrome/renderer/chrome_render_frame_observer.h w/chrome/renderer/chrome_render_frame_observer.h
-index 80e224f9bc..180475772c 100644
+index 80e224f9bc..2288cb12e0 100644
 --- i/chrome/renderer/chrome_render_frame_observer.h
 +++ w/chrome/renderer/chrome_render_frame_observer.h
 @@ -6,6 +6,7 @@
@@ -194,17 +252,18 @@ index 80e224f9bc..180475772c 100644
    void DidCreateScriptContext(v8::Local<v8::Context> context,
                                int32_t world_id) override;
    void DidMeaningfulLayout(blink::WebMeaningfulLayout layout_type) override;
-@@ -109,6 +111,9 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+@@ -109,6 +111,10 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
    void WillDetach(blink::DetachReason detach_reason) override;
  
    // chrome::mojom::ChromeRenderFrame:
 +  void NavegadorEsconderAnuncios(const std::string& css,
 +                                 const std::string& js,
++                                 const std::string& estilo,
 +                                 const GURL& url) override;
    void SetWindowFeatures(
        blink::mojom::WindowFeaturesPtr window_features) override;
    void ExecuteWebUIJavaScript(const std::u16string& javascript) override;
-@@ -230,6 +235,17 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+@@ -230,6 +236,18 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
  
    mojo::AssociatedReceiverSet<chrome::mojom::ChromeRenderFrame> receivers_;
  
@@ -214,6 +273,7 @@ index 80e224f9bc..180475772c 100644
 +    GURL url;
 +    std::string css;
 +    std::string js;
++    std::string estilo;
 +  };
 +  void NavegadorAplicar(const NavegadorRegras& regras);
 +  std::optional<NavegadorRegras> navegador_pendente_;

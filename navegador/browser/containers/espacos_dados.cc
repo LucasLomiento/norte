@@ -10,11 +10,14 @@
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_split.h"
+#include "base/strings/string_util.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/prefs/scoped_user_pref_update.h"
+#include "url/gurl.h"
 #include "build/build_config.h"
 
 namespace navegador::espacos {
@@ -35,6 +38,7 @@ constexpr char kIcone[] = "icone";
 constexpr char kCor[] = "cor";
 constexpr char kContainer[] = "container";
 constexpr char kTemporario[] = "temporario";
+constexpr char kSites[] = "sites";
 
 // Rodízio das cores dos espaços novos (nomes da paleta dos containers).
 constexpr const char* kCores[] = {"azul",    "roxo",    "verde", "laranja",
@@ -49,6 +53,9 @@ base::DictValue ParaDict(const Espaco& espaco) {
   dict.Set(kContainer, espaco.container);
   if (espaco.temporario) {
     dict.Set(kTemporario, true);
+  }
+  if (!espaco.sites.empty()) {
+    dict.Set(kSites, espaco.sites);
   }
   return dict;
 }
@@ -66,12 +73,30 @@ std::optional<Espaco> DeValor(const base::Value& valor) {
   const std::string* icone = dict->FindString(kIcone);
   const std::string* cor = dict->FindString(kCor);
   const std::string* container = dict->FindString(kContainer);
+  const std::string* sites = dict->FindString(kSites);
   return Espaco{*id,
                 *nome,
                 icone ? *icone : "",
                 cor ? *cor : "azul",
                 container ? *container : "",
-                dict->FindBool(kTemporario).value_or(false)};
+                dict->FindBool(kTemporario).value_or(false),
+                sites ? *sites : ""};
+}
+
+// "https://www.GitHub.com/x" -> "github.com".
+std::string SoODominio(std::string_view site) {
+  std::string limpo = base::ToLowerASCII(
+      base::TrimWhitespaceASCII(site, base::TRIM_ALL));
+  if (const size_t esquema = limpo.find("://"); esquema != std::string::npos) {
+    limpo.erase(0, esquema + 3);
+  }
+  if (const size_t barra = limpo.find('/'); barra != std::string::npos) {
+    limpo.erase(barra);
+  }
+  if (limpo.starts_with("www.")) {
+    limpo.erase(0, 4);
+  }
+  return limpo;
 }
 
 // Id fixo: a lista padrão é igual em todo perfil novo e só é gravada quando
@@ -122,6 +147,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterIntegerPref(kMolduraPref, kMolduraPadrao);
   registry->RegisterBooleanPref(kBarraNaCorDoSitePref, true);
   registry->RegisterBooleanPref(kAvisosDeCookiesPref, true);
+  registry->RegisterDictionaryPref(kEstilosCssPref);
+  registry->RegisterDictionaryPref(kEstilosEscuroPref);
   registry->RegisterBooleanPref(kBarraEscondidaPref, false);
   registry->RegisterBooleanPref(kBarraNaTelaCheiaPref, true);
   registry->RegisterIntegerPref(kFlutuanteOpacidadePref,
@@ -231,6 +258,28 @@ void Mover(Profile* profile, std::string_view id, size_t posicao) {
     lista.Append(ParaDict(existente));
   }
   Prefs(profile)->SetList(kListaPref, std::move(lista));
+}
+
+std::optional<std::string> EspacoDoSite(Profile* profile, const GURL& url) {
+  if (!url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
+    return std::nullopt;
+  }
+  std::string host = base::ToLowerASCII(url.host());
+  if (host.starts_with("www.")) {
+    host.erase(0, 4);
+  }
+  for (const Espaco& espaco : Todos(profile)) {
+    for (std::string_view site :
+         base::SplitStringPiece(espaco.sites, ", \n", base::TRIM_WHITESPACE,
+                                base::SPLIT_WANT_NONEMPTY)) {
+      const std::string dominio = SoODominio(site);
+      if (!dominio.empty() &&
+          (host == dominio || host.ends_with("." + dominio))) {
+        return espaco.id;
+      }
+    }
+  }
+  return std::nullopt;
 }
 
 std::string ProximaCor(Profile* profile) {

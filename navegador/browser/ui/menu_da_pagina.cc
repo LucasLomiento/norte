@@ -20,6 +20,7 @@
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
 #include "navegador/browser/ui/bloqueador.h"
+#include "navegador/browser/ui/configuracoes.h"
 #include "navegador/browser/ui/links.h"
 #include "navegador/icones/menu/vector_icons.h"
 #include "third_party/blink/public/mojom/context_menu/context_menu.mojom.h"
@@ -57,10 +58,11 @@ class ItensDoNorte : public RenderViewContextMenuObserver {
     // campo), com o bloqueador ligado no perfil.
     site_ = params.page_url;
     Profile* perfil = Perfil();
-    if (params.link_url.is_empty() && params.selection_text.empty() &&
+    const bool na_pagina =
+        params.link_url.is_empty() && params.selection_text.empty() &&
         params.media_type == blink::mojom::ContextMenuDataMediaType::kNone &&
-        !params.is_editable && site_.SchemeIsHTTPOrHTTPS() && perfil &&
-        bloqueador::Ligado(perfil)) {
+        !params.is_editable && site_.SchemeIsHTTPOrHTTPS() && perfil;
+    if (na_pagina && bloqueador::Ligado(perfil)) {
       const bool desligado = DesligadoNoSite();
       menu_->AddMenuItemWithIcon(
           kBloqueadorNoSite,
@@ -69,12 +71,16 @@ class ItensDoNorte : public RenderViewContextMenuObserver {
           Icone(desligado ? icones_menu::kShieldCheckIcon
                           : icones_menu::kShieldOffIcon));
     }
+    if (na_pagina) {
+      menu_->AddMenuItemWithIcon(kEstiloDoSite, u"Estilo deste site…",
+                                 Icone(icones_menu::kPaintbrushIcon));
+    }
   }
 
   bool IsCommandIdSupported(int command_id) override {
     return command_id == kCopiarLinkLimpo ||
            command_id == kCopiarLinkComoMarkdown ||
-           command_id == kBloqueadorNoSite;
+           command_id == kBloqueadorNoSite || command_id == kEstiloDoSite;
   }
 
   bool IsCommandIdEnabled(int command_id) override { return !!pagina_; }
@@ -93,6 +99,9 @@ class ItensDoNorte : public RenderViewContextMenuObserver {
         break;
       case kBloqueadorNoSite:
         TrocarBloqueadorNoSite();
+        break;
+      case kEstiloDoSite:
+        configuracoes::EditarEstilo(Janela(), pagina_.get());
         break;
     }
   }
@@ -187,6 +196,7 @@ void Arrumar(ui::SimpleMenuModel& menu) {
   Mover(menu, kCopiarLinkLimpo, IDC_CONTENT_CONTEXT_COPYLINKLOCATION,
         std::nullopt);
   Mover(menu, kBloqueadorNoSite, std::nullopt, IDC_VIEW_SOURCE);
+  Mover(menu, kEstiloDoSite, std::nullopt, IDC_VIEW_SOURCE);
   // Sem o "Ver código-fonte" (páginas sem ele), fica no fim, onde entrou.
 }
 

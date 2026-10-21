@@ -29,6 +29,11 @@ namespace navegador::menu_da_pagina {
 inline constexpr int kCopiarLinkLimpo = 52700;
 inline constexpr int kCopiarLinkComoMarkdown = 52701;
 inline constexpr int kBloqueadorNoSite = 52702;
+inline constexpr int kEstiloDoSite = 52703;
+// A faixa inteira (fora da tabela de métricas do menu, ver
+// RenderViewContextMenu::RecordUsedItem).
+inline constexpr int kPrimeiroComando = kCopiarLinkLimpo;
+inline constexpr int kUltimoComando = kEstiloDoSite;
 
 // O observador do menu de `pagina`: põe os itens no InitMenu e atende os
 // comandos.

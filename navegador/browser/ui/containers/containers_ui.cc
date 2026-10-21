@@ -27,7 +27,9 @@
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/containers/fixos.h"
 #include "navegador/browser/ui/containers/gerenciador.h"
+#include "navegador/icones/menu/vector_icons.h"
 #include "ui/base/page_transition_types.h"
+#include "ui/color/color_id.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -43,6 +45,14 @@ namespace {
 // "Gerenciar containers…" dos submenus (definida mais abaixo, junto da ponte
 // das Configurações).
 void GerenciarContainers(content::WebContents* aba);
+
+// "Novo container temporário": um relógio (o temporário some ao fechar a
+// última aba dele, temporarios.h).
+ui::ImageModel IconeDoTemporario() {
+  return ui::ImageModel::FromVectorIcon(icones_menu::kTimerIcon,
+                                        ui::kColorMenuIcon,
+                                        ui::SimpleMenuModel::kDefaultIconSize);
+}
 
 // Os ids dos itens dos submenus são únicos no menu inteiro: o Views acha o
 // comando pelo id, no primeiro item com ele (MenuModel::
@@ -117,8 +127,10 @@ class SubmenuDaAba : public ui::SimpleMenuModel,
       AddItemWithIcon(kPrimeiro + i, base::UTF8ToUTF16(containers_[i].name),
                       Bolinha(containers_[i].color));
     }
+    AddSeparator(ui::NORMAL_SEPARATOR);
+    AddItemWithIcon(kTemporario, u"Novo container temporário",
+                    IconeDoTemporario());
     if (atual) {
-      AddSeparator(ui::NORMAL_SEPARATOR);
       AddItem(kSemContainer, u"Sem container");
     }
     AddSeparator(ui::NORMAL_SEPARATOR);
@@ -139,7 +151,9 @@ class SubmenuDaAba : public ui::SimpleMenuModel,
       return;
     }
     std::string id;
-    if (command_id != kSemContainer) {
+    if (command_id == kTemporario) {
+      id = AddTemporario(tab_strip_->profile()).id;
+    } else if (command_id != kSemContainer) {
       const size_t i = command_id - kPrimeiro;
       if (i >= containers_.size()) {
         return;
@@ -157,6 +171,7 @@ class SubmenuDaAba : public ui::SimpleMenuModel,
   static constexpr int kPrimeiro = 23100;
   static constexpr int kSemContainer = 23001;
   static constexpr int kGerenciar = 23002;
+  static constexpr int kTemporario = 23003;
 
   raw_ptr<TabStripModel> tab_strip_;
   // A aba pode fechar com o menu aberto (o menu da aba não fecha junto).
@@ -326,6 +341,9 @@ class SubmenuDoLink : public ui::SimpleMenuModel,
                       Bolinha(containers_[i].color));
     }
     AddSeparator(ui::NORMAL_SEPARATOR);
+    AddItemWithIcon(kTemporario, u"Novo container temporário",
+                    IconeDoTemporario());
+    AddSeparator(ui::NORMAL_SEPARATOR);
     AddItem(kGerenciar, u"Gerenciar containers…");
   }
 
@@ -337,21 +355,27 @@ class SubmenuDoLink : public ui::SimpleMenuModel,
       }
       return;
     }
-    const size_t i = command_id - kPrimeiro;
-    if (i >= containers_.size()) {
-      return;
+    std::string id;
+    if (command_id == kTemporario) {
+      id = AddTemporario(tab_strip_->profile()).id;
+    } else {
+      const size_t i = command_id - kPrimeiro;
+      if (i >= containers_.size()) {
+        return;
+      }
+      id = containers_[i].id;
     }
     int index = tab_strip_->GetIndexOfWebContents(origem_.get());
     if (index == TabStripModel::kNoTab) {
       index = tab_strip_->count() - 1;
     }
-    AbrirEmContainer(tab_strip_, link_, containers_[i].id, index,
-                     /*ativar=*/false);
+    AbrirEmContainer(tab_strip_, link_, id, index, /*ativar=*/false);
   }
 
  private:
   static constexpr int kPrimeiro = 24100;
   static constexpr int kGerenciar = 24002;
+  static constexpr int kTemporario = 24003;
 
   raw_ptr<TabStripModel> tab_strip_;
   base::WeakPtr<content::WebContents> origem_;
@@ -375,6 +399,9 @@ class SubmenuNovaAba : public ui::SimpleMenuModel,
                       Bolinha(containers_[i].color));
     }
     AddSeparator(ui::NORMAL_SEPARATOR);
+    AddItemWithIcon(kTemporario, u"Novo container temporário",
+                    IconeDoTemporario());
+    AddSeparator(ui::NORMAL_SEPARATOR);
     AddItem(kGerenciar, u"Gerenciar containers…");
   }
 
@@ -384,9 +411,15 @@ class SubmenuNovaAba : public ui::SimpleMenuModel,
       GerenciarContainers(tab_strip_->GetActiveWebContents());
       return;
     }
-    const size_t i = command_id - kPrimeiro;
-    if (i >= containers_.size()) {
-      return;
+    std::string id;
+    if (command_id == kTemporario) {
+      id = AddTemporario(tab_strip_->profile()).id;
+    } else {
+      const size_t i = command_id - kPrimeiro;
+      if (i >= containers_.size()) {
+        return;
+      }
+      id = containers_[i].id;
     }
     // No fim do espaço da janela (sem grupo, a aba nasceria fora dele).
     int index = tab_strip_->count() - 1;
@@ -396,13 +429,14 @@ class SubmenuNovaAba : public ui::SimpleMenuModel,
       index = tab_strip_->group_model()->GetTabGroup(*grupo)->ListTabs().end() -
               1;
     }
-    AbrirEmContainer(tab_strip_, GURL("chrome://newtab/"), containers_[i].id,
-                     index, /*ativar=*/true);
+    AbrirEmContainer(tab_strip_, GURL("chrome://newtab/"), id, index,
+                     /*ativar=*/true);
   }
 
  private:
   static constexpr int kPrimeiro = 25100;
   static constexpr int kGerenciar = 25002;
+  static constexpr int kTemporario = 25003;
 
   raw_ptr<TabStripModel> tab_strip_;
   std::vector<Container> containers_;

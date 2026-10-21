@@ -1,0 +1,246 @@
+diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
+index a9bb896ea1..7011631cc1 100644
+--- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
++++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
+@@ -102,6 +102,7 @@
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_user_data.h"
+ #include "extensions/buildflags/buildflags.h"
++#include "navegador/browser/ui/comandos.h"
+ #include "net/base/url_util.h"
+ #include "net/traffic_annotation/network_traffic_annotation.h"
+ #include "services/network/public/cpp/shared_url_loader_factory.h"
+@@ -774,6 +775,22 @@ void ChromeAutocompleteProviderClient::NewIncognitoWindow() {
+ #endif  // !BUILDFLAG(IS_ANDROID)
+ }
+ 
++std::vector<NavegadorComando>
++ChromeAutocompleteProviderClient::NavegadorComandos() {
++#if !BUILDFLAG(IS_ANDROID)
++  return navegador::comandos::Lista(profile_);
++#else
++  return {};
++#endif  // !BUILDFLAG(IS_ANDROID)
++}
++
++void ChromeAutocompleteProviderClient::NavegadorExecutar(
++    const std::string& id) {
++#if !BUILDFLAG(IS_ANDROID)
++  navegador::comandos::Executar(profile_, id);
++#endif  // !BUILDFLAG(IS_ANDROID)
++}
++
+ void ChromeAutocompleteProviderClient::OpenIncognitoClearBrowsingDataDialog() {
+ #if !BUILDFLAG(IS_ANDROID)
+   if (BrowserWindowInterface* const bwi =
+diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
+index 8ba87a1f7e..a5e3c53285 100644
+--- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
++++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
+@@ -146,9 +146,12 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
+       LensOverlaySuggestInputsCallback callback) const override;
+   base::WeakPtr<AutocompleteProviderClient> GetWeakPtr() override;
+   bool IsWebUiNtpEnabledForDesktopAndroid() const override;
++  // navegador: comandos do Norte na barra (navegador/browser/ui/comandos.h).
++  std::vector<NavegadorComando> NavegadorComandos() override;
+ 
+   // OmniboxAction::Client:
+   void OpenSharingHub() override;
++  void NavegadorExecutar(const std::string& id) override;
+   void NewIncognitoWindow() override;
+   void OpenIncognitoClearBrowsingDataDialog() override;
+   void CloseIncognitoWindows() override;
+diff --git i/components/omnibox/browser/BUILD.gn w/components/omnibox/browser/BUILD.gn
+index d193e3c7c0..61c7e5c8fa 100644
+--- i/components/omnibox/browser/BUILD.gn
++++ w/components/omnibox/browser/BUILD.gn
+@@ -282,6 +282,10 @@ static_library("browser") {
+     "most_visited_sites_provider.h",
+     "omnibox_client.cc",
+     "omnibox_client.h",
++
++    # navegador: comandos do Norte (">") e calculadora local.
++    "//navegador/browser/omnibox/navegador_provider.cc",
++    "//navegador/browser/omnibox/navegador_provider.h",
+     "omnibox_event_global_tracker.cc",
+     "omnibox_event_global_tracker.h",
+     "omnibox_field_trial.cc",
+diff --git i/components/omnibox/browser/actions/omnibox_action.h w/components/omnibox/browser/actions/omnibox_action.h
+index 023a51c596..d34afe75fa 100644
+--- i/components/omnibox/browser/actions/omnibox_action.h
++++ w/components/omnibox/browser/actions/omnibox_action.h
+@@ -107,6 +107,10 @@ class OmniboxAction : public base::RefCountedThreadSafe<OmniboxAction> {
+     // early exit. If this returns false, the caller should open the WebUI.
+     virtual bool OpenJourneys(const std::string& query);
+ 
++    // navegador: roda um comando do Norte escolhido na barra (">", ver
++    // NavegadorProvider) na janela da barra.
++    virtual void NavegadorExecutar(const std::string& id) {}
++
+     // Opens the lens overlay. If `show` is true, the overlay UI is presented
+     // and if it's false then lens is used to contextualize without showing UI.
+     virtual void OpenLensOverlay(
+diff --git i/components/omnibox/browser/actions/omnibox_action_client_delegator.cc w/components/omnibox/browser/actions/omnibox_action_client_delegator.cc
+index c9e2b1ba20..9ee06e7c68 100644
+--- i/components/omnibox/browser/actions/omnibox_action_client_delegator.cc
++++ w/components/omnibox/browser/actions/omnibox_action_client_delegator.cc
+@@ -34,6 +34,10 @@ bool OmniboxActionClientDelegator::OpenJourneys(const std::string& query) {
+   return delegate_->OpenJourneys(query);
+ }
+ 
++void OmniboxActionClientDelegator::NavegadorExecutar(const std::string& id) {
++  delegate_->NavegadorExecutar(id);
++}
++
+ void OmniboxActionClientDelegator::OpenLensOverlay(
+     bool show,
+     lens::LensOverlayInvocationSource invocation_source) {
+diff --git i/components/omnibox/browser/actions/omnibox_action_client_delegator.h w/components/omnibox/browser/actions/omnibox_action_client_delegator.h
+index 4d2e7d8655..a441e3c5ed 100644
+--- i/components/omnibox/browser/actions/omnibox_action_client_delegator.h
++++ w/components/omnibox/browser/actions/omnibox_action_client_delegator.h
+@@ -39,6 +39,7 @@ class OmniboxActionClientDelegator : public OmniboxAction::Client {
+                                     bool is_zero_prefix_suggestion) override;
+   bool ShouldOpenComposeboxForAskG() const override;
+   void OpenComposeboxForAskG() override;
++  void NavegadorExecutar(const std::string& id) override;
+ 
+  protected:
+   const raw_ptr<OmniboxAction::Client> delegate_;
+diff --git i/components/omnibox/browser/autocomplete_classifier.cc w/components/omnibox/browser/autocomplete_classifier.cc
+index 445caaae17..64b2652c80 100644
+--- i/components/omnibox/browser/autocomplete_classifier.cc
++++ w/components/omnibox/browser/autocomplete_classifier.cc
+@@ -59,6 +59,8 @@ int AutocompleteClassifier::DefaultOmniboxProviders(bool is_low_memory_device) {
+       // Custom search engines cannot be used on mobile.
+       AutocompleteProvider::TYPE_KEYWORD | AutocompleteProvider::TYPE_OPEN_TAB |
+       AutocompleteProvider::TYPE_FEATURED_SEARCH |
++      // navegador: comandos do Norte e calculadora local.
++      AutocompleteProvider::TYPE_NAVEGADOR |
+       // Most visited sites for desktop.
+       (omnibox_feature_configs::OmniboxUrlSuggestionsOnFocus::Get().enabled
+            ? AutocompleteProvider::TYPE_MOST_VISITED_SITES
+diff --git i/components/omnibox/browser/autocomplete_controller.cc w/components/omnibox/browser/autocomplete_controller.cc
+index ddc551bbcc..b37e405570 100644
+--- i/components/omnibox/browser/autocomplete_controller.cc
++++ w/components/omnibox/browser/autocomplete_controller.cc
+@@ -98,6 +98,7 @@
+ #include "components/search_engines/template_url_starter_pack_data.h"
+ #include "components/strings/grit/components_strings.h"
+ #include "components/url_formatter/elide_url.h"
++#include "navegador/browser/omnibox/navegador_provider.h"
+ #include "net/base/url_util.h"
+ #include "net/http/http_util.h"
+ #include "third_party/metrics_proto/omnibox_focus_type.pb.h"
+@@ -1488,6 +1489,11 @@ void AutocompleteController::InitializeSyncProviders(int provider_types) {
+     providers_.push_back(
+         base::MakeRefCounted<CrossDeviceTabProvider>(provider_client_.get()));
+   }
++  // navegador: comandos do Norte (">") e calculadora local.
++  if (provider_types & AutocompleteProvider::TYPE_NAVEGADOR) {
++    providers_.push_back(
++        base::MakeRefCounted<NavegadorProvider>(provider_client_.get()));
++  }
+ #if BUILDFLAG(IS_ANDROID)
+   if (provider_types & AutocompleteProvider::TYPE_TAB_GROUP) {
+     providers_.push_back(
+diff --git i/components/omnibox/browser/autocomplete_provider.cc w/components/omnibox/browser/autocomplete_provider.cc
+index 592c8a4a7e..d33d90d067 100644
+--- i/components/omnibox/browser/autocomplete_provider.cc
++++ w/components/omnibox/browser/autocomplete_provider.cc
+@@ -95,6 +95,8 @@ const char* AutocompleteProvider::TypeToString(Type type) {
+       return "TabGroup";
+     case TYPE_CROSS_DEVICE_TAB:
+       return "CrossDeviceTab";
++    case TYPE_NAVEGADOR:
++      return "Navegador";
+     default:
+       DUMP_WILL_BE_NOTREACHED()
+           << "Unhandled AutocompleteProvider::Type " << type;
+@@ -213,6 +215,8 @@ AutocompleteProvider::AsOmniboxEventProviderType() const {
+       return metrics::OmniboxEventProto::TAB_GROUP_PROVIDER;
+     case TYPE_CROSS_DEVICE_TAB:
+       return metrics::OmniboxEventProto::CROSS_DEVICE_TAB;
++    case TYPE_NAVEGADOR:
++      return metrics::OmniboxEventProto::UNKNOWN_PROVIDER;
+     default:
+       // TODO(crbug.com/40940012) This was a NOTREACHED that we converted to
+       //   help debug crbug.com/1499235 since NOTREACHED's don't log their
+diff --git i/components/omnibox/browser/autocomplete_provider.h w/components/omnibox/browser/autocomplete_provider.h
+index 36ab6a1fbb..08dae9f72c 100644
+--- i/components/omnibox/browser/autocomplete_provider.h
++++ w/components/omnibox/browser/autocomplete_provider.h
+@@ -184,6 +184,8 @@ class AutocompleteProvider
+     TYPE_CONTEXTUAL_SEARCH = 1 << 25,
+     TYPE_TAB_GROUP = 1 << 26,
+     TYPE_CROSS_DEVICE_TAB = 1 << 27,
++    // navegador: os comandos do Norte (">") e a calculadora local.
++    TYPE_NAVEGADOR = 1 << 28,
+ 
+     // When adding a value here, also update:
+     // - omnibox_event.proto
+diff --git i/components/omnibox/browser/autocomplete_provider_client.h w/components/omnibox/browser/autocomplete_provider_client.h
+index 1c215d2214..365a620137 100644
+--- i/components/omnibox/browser/autocomplete_provider_client.h
++++ w/components/omnibox/browser/autocomplete_provider_client.h
+@@ -82,10 +82,23 @@ class TabGroupSyncService;
+ 
+ class TemplateURLService;
+ 
++// navegador: um comando do Norte pra barra (navegador_provider.h).
++struct NavegadorComando {
++  // O que vai pro NavegadorExecutar.
++  std::string id;
++  // "Mostrar ou ocultar a lateral", "Ir pro espaço Trabalho"...
++  std::u16string titulo;
++  // Outras palavras que acham o comando ("workspace", "aba"...).
++  std::u16string palavras;
++};
++
+ class AutocompleteProviderClient : public OmniboxAction::Client {
+  public:
+   ~AutocompleteProviderClient() override = default;
+ 
++  // navegador: os comandos do Norte pra barra (">").
++  virtual std::vector<NavegadorComando> NavegadorComandos() { return {}; }
++
+   virtual scoped_refptr<network::SharedURLLoaderFactory>
+   GetURLLoaderFactory() = 0;
+   virtual PrefService* GetPrefs() const = 0;
+diff --git i/components/omnibox/browser/search_provider.cc w/components/omnibox/browser/search_provider.cc
+index e439024df9..1241f6f951 100644
+--- i/components/omnibox/browser/search_provider.cc
++++ w/components/omnibox/browser/search_provider.cc
+@@ -829,6 +829,13 @@ bool SearchProvider::IsQueryPotentiallyPrivate() const {
+   if (input_.text().empty())
+     return false;
+ 
++  // navegador: ">" abre os comandos do Norte (navegador_provider.h): o que
++  // se digita ali fica nesta máquina, sem ir pras sugestões do buscador.
++  if (base::TrimWhitespace(input_.text(), base::TRIM_LEADING)
++          .starts_with(u">")) {
++    return true;
++  }
++
+   // Check the scheme.  If this is UNKNOWN/URL with a scheme that isn't
+   // http/https/ftp, we shouldn't send it.  Sending things like file: and data:
+   // is both a waste of time and a disclosure of potentially private, local
+diff --git i/components/omnibox/browser/shortcuts_backend.cc w/components/omnibox/browser/shortcuts_backend.cc
+index 06653b4be2..9a3b3f2862 100644
+--- i/components/omnibox/browser/shortcuts_backend.cc
++++ w/components/omnibox/browser/shortcuts_backend.cc
+@@ -347,6 +347,14 @@ void ShortcutsBackend::AddOrUpdateShortcut(const std::u16string& text,
+   if (match.type == AutocompleteMatchType::HISTORY_EMBEDDINGS_ANSWER)
+     return;
+ 
++  // navegador: os comandos e a conta da NavegadorProvider rodam uma ação; o
++  // endereço deles (chrome://norte/...) não é de abrir, e como atalho
++  // voltariam como link.
++  if (match.provider &&
++      match.provider->type() == AutocompleteProvider::TYPE_NAVEGADOR) {
++    return;
++  }
++
+   // The shortcut DB doesn't store enough info to distinguish between search
+   // suggestion types. Resurfacing a AI mode usage with a traditional search
+   // shortcut match would be surprising. Repeated AI mode matches are probably

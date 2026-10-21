@@ -1,3 +1,25 @@
+diff --git i/chrome/browser/chrome_content_browser_client_navigation_throttles.cc w/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+index cba0d32176..de916ee83e 100644
+--- i/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
++++ w/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
+@@ -78,6 +78,7 @@
+ #include "content/public/common/content_switches.h"
+ #include "extensions/buildflags/buildflags.h"
+ #include "extensions/common/extension_features.h"
++#include "navegador/browser/ui/seguidora.h"
+ #include "pdf/buildflags.h"
+ #include "services/network/public/mojom/referrer_policy.mojom.h"
+ #include "third_party/blink/public/common/features.h"
+@@ -297,6 +298,9 @@ void CreateAndAddChromeThrottlesForNavigation(
+     // NavigationThrottleRegistry::AddThrottle().
+     page_load_metrics::MetricsNavigationThrottle::CreateAndAdd(registry);
+ 
++    // navegador: aba seguidora (os links de uma metade da divisão na outra).
++    navegador::seguidora::TalvezAdicionar(registry);
++
+     // Appends the X-Geo header to the navigation request if needed.
+     if (auto throttle =
+             GeolocationNavigationThrottle::MaybeCreateThrottleFor(registry)) {
 diff --git i/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts w/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 index b6cf0bffe2..80b403864e 100644
 --- i/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
@@ -55,6 +77,77 @@ index b6cf0bffe2..80b403864e 100644
      </settings-toggle-button>
  
      ${this.showCtrlTabMru_ ? html`
+diff --git i/chrome/browser/ui/tabs/split_tab_menu_model.cc w/chrome/browser/ui/tabs/split_tab_menu_model.cc
+index f994e8162e..68a695b38d 100644
+--- i/chrome/browser/ui/tabs/split_tab_menu_model.cc
++++ w/chrome/browser/ui/tabs/split_tab_menu_model.cc
+@@ -34,6 +34,7 @@
+ #include "components/tabs/public/tab_interface.h"
+ #include "components/vector_icons/vector_icons.h"
+ #include "content/public/browser/web_contents.h"
++#include "navegador/browser/ui/seguidora.h"
+ #include "ui/base/interaction/element_identifier.h"
+ #include "ui/base/l10n/l10n_util.h"
+ #include "ui/base/models/image_model.h"
+@@ -66,6 +67,10 @@ SplitTabMenuModel::CommandId GetCommandIdEnum(int command_id) {
+       command_id - ExistingBaseSubMenuModel::kMinSplitTabMenuModelCommandId);
+ }
+ 
++// navegador: fora do CommandId (que vai pras métricas): o "Links desta aba
++// abrem na outra metade" (navegador/browser/ui/seguidora.h).
++constexpr int kNavegadorSeguidora = 1000;
++
+ std::string_view GetMetricsSuffixForCommand(
+     SplitTabMenuModel::CommandId command_id) {
+   // These strings are persisted to logs. Entries should not be changed.
+@@ -173,6 +178,14 @@ SplitTabMenuModel::SplitTabMenuModel(TabStripModel* tab_strip_model,
+       GetIndexOfCommandId(GetCommandIdInt(CommandId::kExitSplit)).value(),
+       kExitSplitMenuItem);
+ 
++  // navegador: a aba seguidora, quando se sabe qual metade (o menu da aba ou
++  // o da própria metade).
++  if (split_tab_index_.has_value()) {
++    AddSeparator(ui::MenuSeparatorType::NORMAL_SEPARATOR);
++    AddCheckItem(kNavegadorSeguidora,
++                 u"Links desta aba abrem na outra metade");
++  }
++
+   // Only render feedback in the toolbar button menu.
+   if (menu_source == MenuSource::kToolbarButton &&
+       chrome::CanShowFeedback(tab_strip_model->profile())) {
+@@ -253,7 +266,20 @@ ui::ImageModel SplitTabMenuModel::GetIconForCommandId(int command_id) const {
+                                         ui::SimpleMenuModel::kDefaultIconSize);
+ }
+ 
++bool SplitTabMenuModel::IsCommandIdChecked(int command_id) const {
++  return command_id == kNavegadorSeguidora && split_tab_index_.has_value() &&
++         navegador::seguidora::Ligada(
++             tab_strip_model_->GetTabAtIndex(*split_tab_index_));
++}
++
+ void SplitTabMenuModel::ExecuteCommand(int command_id, int event_flags) {
++  if (command_id == kNavegadorSeguidora) {
++    if (split_tab_index_.has_value()) {
++      navegador::seguidora::Alternar(
++          tab_strip_model_->GetTabAtIndex(*split_tab_index_));
++    }
++    return;
++  }
+   const split_tabs::SplitTabId split_id = GetSplitTabId();
+   split_tabs::SplitTabData* const split_tab_data =
+       tab_strip_model_->GetSplitData(split_id);
+diff --git i/chrome/browser/ui/tabs/split_tab_menu_model.h w/chrome/browser/ui/tabs/split_tab_menu_model.h
+index 6d8db4344e..fe12f27f8e 100644
+--- i/chrome/browser/ui/tabs/split_tab_menu_model.h
++++ w/chrome/browser/ui/tabs/split_tab_menu_model.h
+@@ -75,6 +75,7 @@ class SplitTabMenuModel : public ui::SimpleMenuModel,
+   bool IsItemForCommandIdDynamic(int command_id) const override;
+   std::u16string GetLabelForCommandId(int command_id) const override;
+   ui::ImageModel GetIconForCommandId(int command_id) const override;
++  bool IsCommandIdChecked(int command_id) const override;
+   void ExecuteCommand(int command_id, int event_flags) override;
+ 
+  private:
 diff --git i/chrome/browser/ui/tabs/tab_menu_model.cc w/chrome/browser/ui/tabs/tab_menu_model.cc
 index 97c6ded1ac..aaa2162b90 100644
 --- i/chrome/browser/ui/tabs/tab_menu_model.cc
@@ -573,3 +666,29 @@ index 20c579d108..8727689000 100644
  
      const bool show_expand_on_hover =
          tabs::IsVerticalTabsExpandOnHoverFeatureEnabled() &&
+diff --git i/chrome/browser/ui/views/tabs/common/tab_strip_view.cc w/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+index 8335082023..4bc3fd17d0 100644
+--- i/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
++++ w/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
+@@ -35,6 +35,7 @@
+ #include "components/tabs/public/tab_collection_types.h"
+ #include "components/tabs/public/tab_group.h"
+ #include "content/public/browser/navigation_controller.h"
++#include "navegador/browser/ui/ativa_fora.h"
+ #include "ui/base/metadata/metadata_impl_macros.h"
+ #include "ui/compositor/layer.h"
+ #include "ui/views/background.h"
+@@ -198,6 +199,13 @@ TabStripView::TabStripView(TabCollectionNode* collection_node)
+       views::ScrollView::ScrollWithLayers::kEnabled));
+   SetScrollViewProperties(unpinned_tabs_scroll_view_);
+ 
++  // navegador: a aba ativa fora de vista, na lateral (ativa_fora.h).
++  if (IsVerticalOrientation(collection_node_)) {
++    navegador::ativa_fora::Acompanhar(
++        this, unpinned_tabs_scroll_view_,
++        collection_node_->GetController()->GetBrowserView()->browser());
++  }
++
+   if (!IsVerticalOrientation(collection_node_)) {
+     unpinned_tab_scroll_type_recorder_ =
+         std::make_unique<tabs::UnpinnedTabScrollTypeRecorder>(

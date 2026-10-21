@@ -14,6 +14,10 @@
 
 class BrowserWindowInterface;
 
+namespace content {
+class WebContents;
+}  // namespace content
+
 namespace navegador::configuracoes {
 
 // Na ordem do menu da janela.
@@ -35,6 +39,10 @@ void Mostrar(BrowserWindowInterface* browser, Aba aba = Aba::kGeral);
 void EditarEspaco(BrowserWindowInterface* browser,
                   const std::string& espaco,
                   base::OnceCallback<void(const std::string&)> pronto);
+
+// "Estilo deste site…" (menu da página): o CSS próprio e o modo escuro do
+// site da `aba` (estilos.h). Salvar recarrega a aba.
+void EditarEstilo(BrowserWindowInterface* browser, content::WebContents* aba);
 
 }  // namespace navegador::configuracoes
 

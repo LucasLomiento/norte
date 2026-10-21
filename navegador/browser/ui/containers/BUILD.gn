@@ -23,6 +23,8 @@ source_set("containers_ui") {
     "//components/vector_icons",
     "//content/public/browser",
     "//navegador/browser/containers",
+    "//navegador/icones/menu",
+    "//ui/color",
     "//ui/gfx",
     "//ui/menus",
     "//ui/views",

@@ -4,6 +4,7 @@
 #include "navegador/browser/containers/fixos.h"
 #include "navegador/browser/containers/titulos.h"
 
+#include <set>
 #include <utility>
 
 #include "base/functional/callback.h"
@@ -41,6 +42,7 @@ constexpr char kId[] = "id";
 constexpr char kName[] = "name";
 constexpr char kColor[] = "color";
 constexpr char kIcon[] = "icon";
+constexpr char kTemporario[] = "temporary";
 
 base::DictValue ToDict(const Container& container) {
   base::DictValue dict;
@@ -48,6 +50,9 @@ base::DictValue ToDict(const Container& container) {
   dict.Set(kName, container.name);
   dict.Set(kColor, container.color);
   dict.Set(kIcon, container.icon);
+  if (container.temporario) {
+    dict.Set(kTemporario, true);
+  }
   return dict;
 }
 
@@ -63,7 +68,8 @@ std::optional<Container> FromValue(const base::Value& value) {
   }
   const std::string* color = dict->FindString(kColor);
   const std::string* icon = dict->FindString(kIcon);
-  return Container{*id, *name, color ? *color : "azul", icon ? *icon : ""};
+  return Container{*id, *name, color ? *color : "azul", icon ? *icon : "",
+                   dict->FindBool(kTemporario).value_or(false)};
 }
 
 // Os quatro do Firefox, com ids fixos: assim a lista padrão é igual em
@@ -140,6 +146,23 @@ Container Add(Profile* profile,
               std::string_view icon) {
   Container container{NewId(), std::string(name), std::string(color),
                       std::string(icon)};
+  ScopedListPrefUpdate update(Prefs(profile), kContainersPref);
+  update->Append(ToDict(container));
+  return container;
+}
+
+Container AddTemporario(Profile* profile) {
+  // O menor número livre, pra não crescer sem fim.
+  std::set<std::string> nomes;
+  for (const Container& container : GetAll(profile)) {
+    nomes.insert(container.name);
+  }
+  int numero = 1;
+  while (nomes.contains("Temporário " + base::NumberToString(numero))) {
+    ++numero;
+  }
+  Container container{NewId(), "Temporário " + base::NumberToString(numero),
+                      "cinza", "", /*temporario=*/true};
   ScopedListPrefUpdate update(Prefs(profile), kContainersPref);
   update->Append(ToDict(container));
   return container;

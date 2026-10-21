@@ -21,6 +21,7 @@
 #include "base/functional/callback_forward.h"
 #include "components/tab_groups/tab_group_id.h"
 
+class GURL;
 class Profile;
 class TabStripModel;
 
@@ -58,6 +59,11 @@ inline constexpr char kBarraNaCorDoSitePref[] = "navegador.barra.cor_do_site";
 // Bloqueador: esconder os avisos de cookies (a EasyList Cookie).
 inline constexpr char kAvisosDeCookiesPref[] =
     "navegador.bloqueador.avisos_de_cookies";
+// Estilo por site (navegador/browser/ui/estilos.h), pela chave do site (o
+// host sem "www."): { "github.com": "<css>" } e { "github.com": true } (modo
+// escuro do Blink).
+inline constexpr char kEstilosCssPref[] = "navegador.estilos.css";
+inline constexpr char kEstilosEscuroPref[] = "navegador.estilos.escuro";
 // Barra de navegação escondida (Ctrl+Shift+S): o Ctrl+L mostra enquanto se
 // digita o endereço (navegador/browser/ui/barra.h).
 inline constexpr char kBarraEscondidaPref[] = "navegador.barra.escondida";
@@ -103,6 +109,9 @@ struct Espaco {
   // Espaço de um grupo criado por extensão (o do Claude): some quando o
   // grupo fecha, não vira o espaço ativo e a última aba não fica.
   bool temporario = false;
+  // Sites cujos links vindos de outros apps abrem neste espaço, como o
+  // escreveram ("github.com, figma.com"; ver rotas.h).
+  std::string sites;
 };
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
@@ -121,6 +130,10 @@ void Atualizar(Profile* profile, const Espaco& espaco);
 void Remover(Profile* profile, std::string_view id);
 // Muda de posição na faixa (índice na lista nova).
 void Mover(Profile* profile, std::string_view id, size_t posicao);
+
+// O espaço com o site de `url` na lista dele (o host ou um subdomínio), ou
+// nada. O primeiro na ordem da faixa.
+std::optional<std::string> EspacoDoSite(Profile* profile, const GURL& url);
 
 // Cor da próxima criação, em rodízio.
 std::string ProximaCor(Profile* profile);

@@ -35,6 +35,7 @@
 #include "content/public/browser/web_contents_user_data.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "navegador/browser/containers/espacos_dados.h"
+#include "navegador/browser/ui/estilos.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "url/gurl.h"
 
@@ -420,28 +421,34 @@ class Escondedor : public content::WebContentsObserver,
   }
 
   void Mandar(content::RenderFrameHost* destino, const GURL& url) {
-    if (!Regras() || !url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
+    if (!url.SchemeIsHTTPOrHTTPS() || !url.has_host()) {
       return;
     }
+    Profile* perfil =
+        Profile::FromBrowserContext(web_contents()->GetBrowserContext());
+    std::string css;
+    std::string js;
     // Liberado no site (ou desligado no perfil): "Anúncios" permitidos.
-    HostContentSettingsMap* configuracoes =
-        HostContentSettingsMapFactory::GetForProfile(
-            web_contents()->GetBrowserContext());
-    if (configuracoes->GetContentSetting(url, url, ContentSettingsType::ADS) ==
-        CONTENT_SETTING_ALLOW) {
-      return;
+    if (Regras() &&
+        HostContentSettingsMapFactory::GetForProfile(perfil)->GetContentSetting(
+            url, url, ContentSettingsType::ADS) != CONTENT_SETTING_ALLOW) {
+      css = CssDoSite(*Regras(), url.host());
+      if (Avisos() &&
+          perfil->GetPrefs()->GetBoolean(espacos::kAvisosDeCookiesPref)) {
+        css += CssDoSite(*Avisos(), url.host());
+      }
+      js = JsDoSite(*Regras(), url.host());
     }
-    std::string css = CssDoSite(*Regras(), url.host());
-    if (Avisos() &&
-        Profile::FromBrowserContext(web_contents()->GetBrowserContext())
-            ->GetPrefs()
-            ->GetBoolean(espacos::kAvisosDeCookiesPref)) {
-      css += CssDoSite(*Avisos(), url.host());
+    // O estilo da pessoa pro site (estilos.h): vale com o bloqueador
+    // desligado também.
+    std::string estilo = estilos::CssDoSite(perfil, url);
+    if (css.empty() && js.empty() && estilo.empty()) {
+      return;
     }
     mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> quadro;
     destino->GetRemoteAssociatedInterfaces()->GetInterface(&quadro);
-    quadro->NavegadorEsconderAnuncios(std::move(css),
-                                      JsDoSite(*Regras(), url.host()), url);
+    quadro->NavegadorEsconderAnuncios(std::move(css), std::move(js),
+                                      std::move(estilo), url);
   }
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();

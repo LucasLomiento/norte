@@ -41,6 +41,9 @@
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
+#include "content/public/browser/navigation_controller.h"
+#include "content/public/browser/reload_type.h"
+#include "content/public/browser/web_contents.h"
 #include "navegador/browser/containers/containers.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/ui/atalhos.h"
@@ -50,6 +53,7 @@
 #include "navegador/browser/ui/containers/containers_ui.h"
 #include "navegador/browser/ui/containers/gerenciador.h"
 #include "navegador/browser/ui/espacos.h"
+#include "navegador/browser/ui/estilos.h"
 #include "navegador/browser/ui/exportar.h"
 #include "navegador/browser/ui/importar_chromium.h"
 #include "navegador/browser/ui/importar_zen.h"
@@ -77,6 +81,7 @@
 #include "ui/views/background.h"
 #include "ui/views/border.h"
 #include "ui/views/controls/button/button.h"
+#include "ui/views/controls/button/checkbox.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
 #include "ui/views/controls/button/label_button.h"
@@ -91,6 +96,7 @@
 #include "ui/views/controls/separator.h"
 #include "ui/views/controls/slider.h"
 #include "ui/views/controls/textfield/textfield.h"
+#include "ui/views/controls/textarea/textarea.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
@@ -100,6 +106,7 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
 #include "ui/views/window/non_client_view.h"
+#include "url/gurl.h"
 
 namespace navegador::configuracoes {
 
@@ -2309,11 +2316,29 @@ class EditorDeEspaco : public views::DialogDelegate {
         u"só nele.",
         380));
 
+    // Rotas: links desses sites vindos de fora abrem aqui (rotas.h).
+    auto* linha_sites = conteudo->AddChildView(std::make_unique<views::View>());
+    auto* layout_sites =
+        linha_sites->SetLayoutManager(std::make_unique<views::BoxLayout>(
+            views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), 8));
+    layout_sites->set_cross_axis_alignment(
+        views::BoxLayout::CrossAxisAlignment::kCenter);
+    linha_sites->AddChildView(std::make_unique<views::Label>(u"Sites"));
+    sites_ = linha_sites->AddChildView(std::make_unique<views::Textfield>());
+    sites_->SetPlaceholderText(u"github.com, figma.com");
+    sites_->SetAccessibleName(u"Sites deste espaço");
+    layout_sites->SetFlexForView(sites_, 1);
+    conteudo->AddChildView(Descricao(
+        u"Links desses sites vindos de outros apps (Discord, Slack, o "
+        u"terminal) abrem neste espaço.",
+        380));
+
     if (atual) {
       icone_->SetText(base::UTF8ToUTF16(atual->icone));
       nome_->SetText(base::UTF8ToUTF16(atual->nome));
       container_->SetSelectedIndex(
           IndiceDoContainer(containers_, atual->container));
+      sites_->SetText(base::UTF8ToUTF16(atual->sites));
     } else {
       container_->SetSelectedIndex(0);
     }
@@ -2332,17 +2357,20 @@ class EditorDeEspaco : public views::DialogDelegate {
                                       ? containers_[*escolhido - 1].id
                                       : std::string();
     const std::string icone = base::UTF16ToUTF8(icone_->GetText());
+    const std::string sites = base::UTF16ToUTF8(sites_->GetText());
     std::string id = id_;
-    if (std::optional<espacos::Espaco> atual =
-            id.empty() ? std::nullopt : espacos::Get(perfil_, id)) {
-      atual->nome = nome;
-      atual->icone = icone;
-      atual->cor = cor_;
-      atual->container = container;
-      espacos::Atualizar(perfil_, *atual);
-    } else {
-      id = espacos::Criar(perfil_, nome, icone, cor_, container).id;
+    std::optional<espacos::Espaco> atual =
+        id.empty() ? std::nullopt : espacos::Get(perfil_, id);
+    if (!atual) {
+      atual = espacos::Criar(perfil_, nome, icone, cor_, container);
+      id = atual->id;
     }
+    atual->nome = nome;
+    atual->icone = icone;
+    atual->cor = cor_;
+    atual->container = container;
+    atual->sites = sites;
+    espacos::Atualizar(perfil_, *atual);
     if (pronto_) {
       std::move(pronto_).Run(id);
     }
@@ -2356,6 +2384,70 @@ class EditorDeEspaco : public views::DialogDelegate {
   raw_ptr<views::Textfield> icone_ = nullptr;
   raw_ptr<views::Textfield> nome_ = nullptr;
   raw_ptr<views::Combobox> container_ = nullptr;
+  raw_ptr<views::Textfield> sites_ = nullptr;
+};
+
+// "Estilo deste site…": o modo escuro automático e um CSS próprio, só no
+// site da aba (estilos.h).
+class EditorDeEstilo : public views::DialogDelegate {
+ public:
+  explicit EditorDeEstilo(content::WebContents* aba)
+      : aba_(aba->GetWeakPtr()),
+        perfil_(Profile::FromBrowserContext(aba->GetBrowserContext())),
+        chave_(estilos::Chave(aba->GetLastCommittedURL())) {
+    const GURL url = aba->GetLastCommittedURL();
+    SetTitle(u"Estilo de " + base::UTF8ToUTF16(chave_));
+    SetModalType(ui::mojom::ModalType::kWindow);
+    SetShowCloseButton(true);
+    SetButtonLabel(ui::mojom::DialogButton::kOk, u"Salvar");
+    SetButtonLabel(ui::mojom::DialogButton::kCancel, u"Cancelar");
+    SetAcceptCallback(
+        base::BindOnce(&EditorDeEstilo::Salvar, base::Unretained(this)));
+    set_fixed_width(480);
+
+    auto conteudo = std::make_unique<views::View>();
+    conteudo->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical,
+        gfx::Insets::TLBR(4, 20, 8, 20), 8));
+    escuro_ = conteudo->AddChildView(
+        std::make_unique<views::Checkbox>(u"Modo escuro neste site"));
+    escuro_->SetChecked(estilos::EscuroNoSite(perfil_, url));
+    conteudo->AddChildView(Descricao(
+        u"O escuro automático do navegador, pra quem não tem tema escuro.",
+        440));
+    auto* rotulo = conteudo->AddChildView(
+        Titulo(u"CSS deste site", 13, gfx::Font::Weight::MEDIUM));
+    rotulo->SetBorder(views::CreateEmptyBorder(gfx::Insets::TLBR(8, 0, 0, 0)));
+    css_ = conteudo->AddChildView(std::make_unique<views::Textarea>());
+    css_->SetText(base::UTF8ToUTF16(estilos::CssDoSite(perfil_, url)));
+    css_->SetPlaceholderText(u"body { font-size: 18px; }");
+    css_->SetFontList(gfx::FontList({"monospace"}, gfx::Font::NORMAL, 12,
+                                    gfx::Font::Weight::NORMAL));
+    css_->SetPreferredSize(gfx::Size(440, 160));
+    css_->GetViewAccessibility().SetName(u"CSS deste site");
+    conteudo->AddChildView(Descricao(
+        u"Vale em todas as páginas do site, por cima do CSS dele.", 440));
+    SetInitiallyFocusedView(css_);
+    SetContentsView(std::move(conteudo));
+  }
+
+ private:
+  void Salvar() {
+    estilos::Definir(perfil_, chave_, base::UTF16ToUTF8(css_->GetText()),
+                     escuro_->GetChecked());
+    if (aba_) {
+      // O modo escuro muda já; o CSS entra no começo da página.
+      aba_->OnWebPreferencesChanged();
+      aba_->GetController().Reload(content::ReloadType::NORMAL,
+                                   /*check_for_repost=*/true);
+    }
+  }
+
+  base::WeakPtr<content::WebContents> aba_;
+  raw_ptr<Profile> perfil_;
+  const std::string chave_;
+  raw_ptr<views::Checkbox> escuro_ = nullptr;
+  raw_ptr<views::Textarea> css_ = nullptr;
 };
 
 }  // namespace
@@ -2392,6 +2484,15 @@ void Mostrar(BrowserWindowInterface* browser, Aba aba) {
   views::Widget* widget = constrained_window::CreateBrowserModalDialogViews(
       std::move(dialogo), JanelaDe(browser));
   abertas[browser] = widget->GetWeakPtr();
+  MostrarSobre(widget, browser);
+}
+
+void EditarEstilo(BrowserWindowInterface* browser, content::WebContents* aba) {
+  if (!browser || !aba || estilos::Chave(aba->GetLastCommittedURL()).empty()) {
+    return;
+  }
+  views::Widget* widget = constrained_window::CreateBrowserModalDialogViews(
+      std::make_unique<EditorDeEstilo>(aba), JanelaDe(browser));
   MostrarSobre(widget, browser);
 }
 

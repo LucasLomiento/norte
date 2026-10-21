@@ -97,6 +97,9 @@ Ganchos (uma linha cada no Chromium, o resto em `navegador/containers/`):
 - **sessionStorage**: na restauração, o namespace criado é o da partição padrão; o container ganha um novo vazio (perde o sessionStorage ao reiniciar, como no Firefox).
 - **Página de nova aba**: WebUI (`chrome://`) numa partição de container é arriscado; a aba nova de container abre a nossa página simples (ou `about:blank` com a barra focada).
 
+- **Notificações**: o Chromium negava toda notificação numa partição que não é a "de casa" do site (`PermissionUtil::IsPermissionBlockedInPartition`, contra webviews); a de um container (domínio `navegador`) conta como casa. As persistentes (do service worker) levam o nome da partição no fim do id (`NotificationIdGenerator`, `#@navegador/<nome>`), e o `NotificationEventDispatcherImpl` manda o clique e o fechar pra partição do id (antes ia pra padrão do site, que não tinha o service worker). Conferido no Xvfb: permissão `granted` e o clique chegando ao service worker do container.
+- **Container temporário** (`containers::AddTemporario`, `temporario` na pref): um vigia em cada aba (`temporarios.cc`, pelo `tab_helpers.cc`) confere, quando uma aba some, se o container dela ficou sem aba em alguma janela; se sim, `ApagarDados` + `Remove`. Fechando o Norte nada é apagado (a sessão volta nele); 1 min depois de abrir, os temporários sem aba saem.
+
 Os containers aparecem como cor e ícone na aba, com "Abrir em container" no menu de contexto e uma tela pra gerenciar.
 
 ## Espaços (como o Zen, com a cara do Dia)
@@ -198,6 +201,17 @@ Clique duplo no nome de uma aba da lateral, de um site fixado ou de uma pasta ab
 - Barrinha de 3 px na esquerda da aba, na cor do container (gancho em `TabView::OnPaint`).
 - "Abrir em container" no menu da aba (reabre a aba ao lado e fecha a original), "Abrir link em container" no menu da página, "Nova aba em container" no menu do botão "Nova aba". Os submenus têm delegate próprio; o item que abre cada submenu usa um id que o Chromium já aceita (id desconhecido derruba o navegador no `IsContextMenuCommandEnabled`).
 - Janela "Containers" (gerenciar): criar, renomear, trocar a cor, excluir. Excluir apaga os dados da partição pelo `BrowsingDataRemover` filtrado nela (cookies, armazenamento, cache HTTP e de código, mesmo sem aba do container aberta na sessão; o `ClearData` antigo só via partições já abertas) e tira da lista; abas abertas nele ficam sem login. "Abrir em container" põe a aba nova no grupo (espaço) da original: sem grupo, no meio de um grupo, dava CHECK no `TabCollection::ToDirectIndex`.
+
+## Barra: comandos e calculadora
+
+Um provedor de sugestões nosso (`navegador/browser/omnibox/navegador_provider.cc`, `TYPE_NAVEGADOR`, compilado dentro do `//components/omnibox/browser`). Com `>`, lista os comandos que o cliente do Chrome dá (`AutocompleteProviderClient::NavegadorComandos` → `navegador/browser/ui/comandos.cc`: as ações dos atalhos, os espaços pelo nome, os containers e algumas do pé da lateral) como sugestões `PEDAL` com `takeover_action` (`OmniboxActionId::UNKNOWN`: o `OmniboxPedal::FromAction` faria cast com `PEDAL`). O endereço delas (`chrome://norte/<id>`) nunca abre, mas precisa ser válido (sem ele o Enter vira busca do texto, `OmniboxEditModel::AcceptInput`); o `ShortcutsBackend` não guarda nada desse provedor. O que começa com `>` não vai pras sugestões do buscador (`SearchProvider::IsQueryPotentiallyPrivate`). A calculadora é local (+ - * / ^ %, parênteses, "15% de 80", vírgula decimal em português) e tem o endereço de busca da conta com o `keyword` do buscador: com a resposta do Google na lista, as duas se juntam (`AutocompleteResult::DeduplicateMatches`, tipo `kCalculator`). O ícone dos comandos é o `kChromeProductIcon`, que na barra (WebUI) vira o `chrome_product_cr23.svg`: trocado pela agulha do Norte (antes o pedal "Abrir janela anônima" mostrava o logo do Chromium).
+
+## Rotas, estilos e divisão
+
+- **Rotas** (`rotas.cc`): no `StartupBrowserCreatorImpl::OpenTabsInBrowser`, antes de abrir os endereços que chegaram (linha de comando ou repassados pelo processo único), a janela vai pro espaço de `--space=<nome ou id>` ou do primeiro endereço cujo site está nos `sites` de um espaço (`espacos::EspacoDoSite`: host ou subdomínio, sem `www.`). A "Nova aba" que a troca cria num espaço vazio fecha depois.
+- **Estilo por site** (`estilos.cc`, prefs `navegador.estilos.css` e `navegador.estilos.escuro` por host sem `www.`): o CSS vai junto da mensagem do bloqueador (`NavegadorEsconderAnuncios`, parâmetro `estilo`) e entra como folha do autor (a do bloqueador é do usuário); o modo escuro é o `force_dark_mode_enabled` do Blink nas duas pontas do `ChromeContentBrowserClient` (`OverrideWebPreferences` e `...AfterNavigation`, que roda no `DidFinishNavigation`: ao entrar no site pode piscar claro na primeira pintura).
+- **Aba seguidora** (`seguidora.cc`): um `NavigationThrottle` nosso; num clique comum de link http(s) na aba marcada (`IsRendererInitiated`, `HasUserGesture`, transição `LINK`, sem POST), cancela e abre o endereço na outra metade da divisão. O item fica no `SplitTabMenuModel` com id próprio (1000), fora do `CommandId` que vai pras métricas.
+- **Aba ativa fora de vista** (`ativa_fora.cc`): um botão no `TabStripView` vertical, fora do layout, que acompanha a rolagem das abas soltas e aparece no alto ou embaixo quando a ativa sai de vista.
 
 ## Atualizador e publicação
 

@@ -1,3 +1,39 @@
+diff --git i/chrome/browser/ui/startup/startup_browser_creator_impl.cc w/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+index 7eab8f7d29..6c7cac7276 100644
+--- i/chrome/browser/ui/startup/startup_browser_creator_impl.cc
++++ w/chrome/browser/ui/startup/startup_browser_creator_impl.cc
+@@ -71,6 +71,7 @@
+ #include "content/public/browser/dom_storage_context.h"
+ #include "content/public/browser/storage_partition.h"
+ #include "content/public/common/content_switches.h"
++#include "navegador/browser/ui/rotas.h"
+ #include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+ #include "url/origin.h"
+@@ -364,6 +365,15 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
+   }
+   CHECK(profile_);
+ 
++  // navegador: os links de fora abrem no espaço deles (rotas.h).
++  std::vector<GURL> navegador_enderecos;
++  for (const auto& tab : tabs) {
++    navegador_enderecos.push_back(tab.url);
++  }
++  base::WeakPtr<content::WebContents> navegador_vazia =
++      navegador::rotas::LevarProEspaco(browser, *command_line_,
++                                       navegador_enderecos);
++
+   bool first_tab = true;
+   bool process_headless_commands = headless::ShouldProcessHeadlessCommands();
+   custom_handlers::ProtocolHandlerRegistry* registry =
+@@ -459,6 +469,7 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
+     Navigate(&params);
+     first_tab = false;
+   }
++  navegador::rotas::FecharVazia(browser, navegador_vazia);
+   if (!browser->GetTabStripModel()->GetActiveWebContents() &&
+       !process_headless_commands) {
+     // TODO(sky): this is a work around for 110909. Figure out why it's needed.
 diff --git i/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc w/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
 index 9190f16df0..a1e73f1094 100644
 --- i/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc

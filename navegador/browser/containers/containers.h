@@ -52,6 +52,9 @@ struct Container {
   std::string color;
   // Nome do ícone (pessoa, maleta, cifrao, carrinho, ...).
   std::string icon;
+  // Temporário: some (com os dados) quando a última aba dele fecha
+  // (containers_ui.h).
+  bool temporario = false;
 };
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
@@ -63,6 +66,9 @@ Container Add(Profile* profile,
               std::string_view name,
               std::string_view color,
               std::string_view icon);
+// Um container temporário novo ("Temporário 1", "Temporário 2"...), em
+// cinza.
+Container AddTemporario(Profile* profile);
 // Atualiza nome, cor e ícone do container com o mesmo id.
 void Update(Profile* profile, const Container& container);
 // Tira da lista. Os dados ficam até alguém chamar ApagarDados.

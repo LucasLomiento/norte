@@ -56,6 +56,8 @@ constexpr const char* kPrefs[] = {
     "navegador.previa.shift_clique",
     "navegador.atualizacoes.procurar",
     "navegador.bloqueador.avisos_de_cookies",
+    "navegador.estilos.css",
+    "navegador.estilos.escuro",
 };
 
 // As opções que valem pro navegador inteiro (Local State: lidas antes de o

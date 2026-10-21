@@ -181,7 +181,7 @@ index b2e9ee838f..7430aec948 100644
      "//base",
      "//base:i18n",
 diff --git i/chrome/browser/renderer_context_menu/render_view_context_menu.cc w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-index 1a4de31b32..73a4ade81b 100644
+index 1a4de31b32..0444aba109 100644
 --- i/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 @@ -4,6 +4,10 @@
@@ -352,8 +352,8 @@ index 1a4de31b32..73a4ade81b 100644
    if (enum_id == -1) {
 +    // navegador: os itens do Norte (menu_da_pagina.h) ficam fora da métrica;
 +    // sem isso, clicar num deles derrubava o navegador aqui.
-+    if (id >= navegador::menu_da_pagina::kCopiarLinkLimpo &&
-+        id <= navegador::menu_da_pagina::kBloqueadorNoSite) {
++    if (id >= navegador::menu_da_pagina::kPrimeiroComando &&
++        id <= navegador::menu_da_pagina::kUltimoComando) {
 +      return;
 +    }
      NOTREACHED() << "Update UmaEnumForCommand(). Unhandled IDC: " << id;
@@ -906,6 +906,157 @@ index 60489fb251..cc45dbdcca 100644
  };
  
  #endif  // CHROME_BROWSER_UI_VIEWS_TABS_SHARED_NEW_TAB_BUTTON_MENU_MODEL_H_
+diff --git i/components/permissions/permission_util.cc w/components/permissions/permission_util.cc
+index d20920174d..e73fff60e0 100644
+--- i/components/permissions/permission_util.cc
++++ w/components/permissions/permission_util.cc
+@@ -28,6 +28,8 @@
+ #include "content/public/browser/permission_result.h"
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_process_host.h"
++#include "content/public/browser/storage_partition.h"
++#include "content/public/browser/storage_partition_config.h"
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/common/content_features.h"
+ #include "services/network/public/mojom/permissions_policy/permissions_policy_feature.mojom.h"
+@@ -681,6 +683,15 @@ bool PermissionUtil::IsPermissionBlockedInPartition(
+     case PermissionDelegationMode::kDoubleKeyed:
+       return false;
+     case PermissionDelegationMode::kUndelegated:
++      // navegador: a partição de um container (domínio "navegador") é a casa
++      // do site naquele container, e as notificações valem nela como na
++      // padrão (a permissão é do perfil). Sem isso, toda notificação de aba
++      // em container era negada.
++      if (render_process_host->GetStoragePartition()
++              ->GetConfig()
++              .partition_domain() == "navegador") {
++        return false;
++      }
+       // TODO(crbug.com/40220503): This will create |requesting_origin|'s home
+       // StoragePartition if it doesn't already exist. Given how
+       // StoragePartitions are used today, this shouldn't actually be a
+diff --git i/content/browser/notifications/notification_event_dispatcher_impl.cc w/content/browser/notifications/notification_event_dispatcher_impl.cc
+index a17db79ca9..c30eb83240 100644
+--- i/content/browser/notifications/notification_event_dispatcher_impl.cc
++++ w/content/browser/notifications/notification_event_dispatcher_impl.cc
+@@ -12,6 +12,7 @@
+ #include "base/notreached.h"
+ #include "build/build_config.h"
+ #include "content/browser/notifications/devtools_event_logging.h"
++#include "content/browser/notifications/notification_id_generator.h"
+ #include "content/browser/notifications/platform_notification_context_impl.h"
+ #include "content/browser/service_worker/service_worker_context_wrapper.h"
+ #include "content/browser/service_worker/service_worker_registration.h"
+@@ -21,6 +22,7 @@
+ #include "content/public/browser/render_frame_host.h"
+ #include "content/public/browser/render_process_host.h"
+ #include "content/public/browser/storage_partition.h"
++#include "content/public/browser/storage_partition_config.h"
+ #include "content/public/browser/weak_document_ptr.h"
+ #include "content/public/common/persistent_notification_status.h"
+ #include "third_party/blink/public/common/notifications/platform_notification_data.h"
+@@ -362,8 +364,17 @@ void DispatchNotificationEvent(
+   CHECK(!notification_id.empty(), base::NotFatalUntil::M159);
+   CHECK(origin.is_valid(), base::NotFatalUntil::M159);
+ 
+-  StoragePartition* partition =
+-      browser_context->GetStoragePartitionForUrl(origin);
++  // navegador: a de um container vem no id; sem isso, o clique procurava o
++  // service worker na partição padrão do site e não achava nada.
++  StoragePartition* partition = nullptr;
++  if (std::optional<std::string> particao =
++          NotificationIdGenerator::NavegadorParticao(notification_id)) {
++    partition =
++        browser_context->GetStoragePartition(StoragePartitionConfig::Create(
++            browser_context, "navegador", *particao, /*in_memory=*/false));
++  } else {
++    partition = browser_context->GetStoragePartitionForUrl(origin);
++  }
+ 
+   scoped_refptr<ServiceWorkerContextWrapper> service_worker_context =
+       static_cast<ServiceWorkerContextWrapper*>(
+diff --git i/content/browser/notifications/notification_id_generator.cc w/content/browser/notifications/notification_id_generator.cc
+index 8ea454f001..031080a428 100644
+--- i/content/browser/notifications/notification_id_generator.cc
++++ w/content/browser/notifications/notification_id_generator.cc
+@@ -20,6 +20,8 @@ const char kNotificationTagSeparator = '#';
+ const char kPersistentNotificationPrefix = 'p';
+ const char kNonPersistentNotificationPrefix = 'n';
+ const char kNotificationShownByBrowserFlag = 'b';
++// navegador: o fim do id das notificações persistentes de um container.
++constexpr std::string_view kNavegadorMarca = "#@navegador/";
+ 
+ }  // namespace
+ 
+@@ -65,9 +67,27 @@ std::string NotificationIdGenerator::GenerateForPersistentNotification(
+   else
+     stream << base::NumberToString(persistent_notification_id);
+ 
++  if (!navegador_particao_.empty()) {
++    stream << kNavegadorMarca << navegador_particao_;
++  }
++
+   return stream.str();
+ }
+ 
++// static
++std::optional<std::string> NotificationIdGenerator::NavegadorParticao(
++    std::string_view notification_id) {
++  if (!IsPersistentNotification(notification_id)) {
++    return std::nullopt;
++  }
++  const size_t marca = notification_id.rfind(kNavegadorMarca);
++  if (marca == std::string_view::npos ||
++      marca + kNavegadorMarca.size() == notification_id.size()) {
++    return std::nullopt;
++  }
++  return std::string(notification_id.substr(marca + kNavegadorMarca.size()));
++}
++
+ // Notification Id is of the following format:
+ // n#<origin>#<token>
+ std::string NotificationIdGenerator::GenerateForNonPersistentNotification(
+diff --git i/content/browser/notifications/notification_id_generator.h w/content/browser/notifications/notification_id_generator.h
+index 54569e4009..d0d87e1082 100644
+--- i/content/browser/notifications/notification_id_generator.h
++++ w/content/browser/notifications/notification_id_generator.h
+@@ -7,6 +7,7 @@
+ 
+ #include <stdint.h>
+ 
++#include <optional>
+ #include <string>
+ #include <string_view>
+ 
+@@ -54,6 +55,18 @@ class CONTENT_EXPORT NotificationIdGenerator {
+   NotificationIdGenerator(const NotificationIdGenerator&) = delete;
+   NotificationIdGenerator& operator=(const NotificationIdGenerator&) = delete;
+ 
++  // navegador: as notificações persistentes de um container (partição
++  // "navegador"/<nome>) levam o nome da partição no fim do id, pro clique e o
++  // fechar acharem o service worker na partição certa (e pra não trocar uma
++  // pela outra quando o mesmo site, com a mesma tag, está em dois
++  // containers).
++  void NavegadorDefinirParticao(std::string nome) {
++    navegador_particao_ = std::move(nome);
++  }
++  // O nome da partição de um id gerado assim, ou nada.
++  static std::optional<std::string> NavegadorParticao(
++      std::string_view notification_id);
++
+   // Returns whether |notification_id| belongs to a persistent notification.
+   static bool IsPersistentNotification(const std::string_view& notification_id);
+ 
+@@ -82,6 +95,9 @@ class CONTENT_EXPORT NotificationIdGenerator {
+   std::string GenerateForNonPersistentNotification(
+       const url::Origin& origin,
+       const std::string& token) const;
++
++ private:
++  std::string navegador_particao_;
+ };
+ 
+ }  // namespace context
 diff --git i/content/browser/preloading/prefetch/prefetch_document_manager.cc w/content/browser/preloading/prefetch/prefetch_document_manager.cc
 index c7ab5df07d..555068fe15 100644
 --- i/content/browser/preloading/prefetch/prefetch_document_manager.cc
@@ -963,6 +1114,23 @@ index bf1d6b6d81..9e70424c68 100644
    TRACE_EVENT_END("loading");
    GetPrefetch(
        *prefetch_service, tentative_resource_request.url,
+diff --git i/content/browser/storage_partition_impl.cc w/content/browser/storage_partition_impl.cc
+index 8efd6fe771..0c05c9e34d 100644
+--- i/content/browser/storage_partition_impl.cc
++++ w/content/browser/storage_partition_impl.cc
+@@ -1499,6 +1499,12 @@ void StoragePartitionImpl::Initialize(
+ 
+   platform_notification_context_ = new PlatformNotificationContextImpl(
+       path, browser_context_, service_worker_context_);
++  // navegador: notificação de container com a partição no id (ver
++  // NotificationIdGenerator::NavegadorDefinirParticao).
++  if (config_.partition_domain() == "navegador") {
++    platform_notification_context_->notification_id_generator()
++        ->NavegadorDefinirParticao(config_.partition_name());
++  }
+   platform_notification_context_->Initialize();
+ 
+   devtools_background_services_context_ =
 diff --git i/content/browser/web_contents/web_contents_impl.cc w/content/browser/web_contents/web_contents_impl.cc
 index 6d6d0947fa..70ab7898d5 100644
 --- i/content/browser/web_contents/web_contents_impl.cc

@@ -6,6 +6,8 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -1122,11 +1124,43 @@ class FaixaDeEspacos : public views::View,
 
   bool AcceleratorPressed(const ui::Accelerator& atalho) override {
     auto it = acoes_.find(atalho);
-    if (it == acoes_.end()) {
-      return false;
+    return it != acoes_.end() && ExecutarAcao(it->second);
+  }
+
+  // As ações dos atalhos (Atalhos() em espacos_dados.h) e as dos comandos da
+  // barra (comandos.h): "espaco:<id>", "container:<id>", "temporario",
+  // "fechar_repetidas", "copiar_enderecos" e "descarregar_outros".
+  bool ExecutarAcao(std::string_view acao) {
+    if (acao.starts_with("espaco:")) {
+      Focar(std::string(acao.substr(7)));
+      return true;
     }
-    const std::string& acao = it->second;
-    if (acao == "alternar_lateral") {
+    if (acao.starts_with("container:") || acao == "temporario") {
+      if (anonima_) {
+        return false;
+      }
+      const std::string id =
+          acao == "temporario"
+              ? containers::AddTemporario(Perfil()).id
+              : std::string(acao.substr(10));
+      int index = model_->count() - 1;
+      if (std::optional<tab_groups::TabGroupId> grupo =
+              model_->GetFocusedGroup();
+          grupo && model_->group_model()->ContainsTabGroup(*grupo)) {
+        index = model_->group_model()->GetTabGroup(*grupo)->ListTabs().end() -
+                1;
+      }
+      containers::AbrirEmContainer(model_, GURL("chrome://newtab/"), id, index,
+                                   /*ativar=*/true);
+      return true;
+    }
+    if (acao == "fechar_repetidas") {
+      FecharRepetidas();
+    } else if (acao == "copiar_enderecos") {
+      CopiarEnderecos();
+    } else if (acao == "descarregar_outros") {
+      DescarregarOutros();
+    } else if (acao == "alternar_lateral") {
       chrome::ExecuteCommand(browser_, IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
     } else if (acao == "alternar_barra") {
       barra::Alternar(browser_);
@@ -2225,6 +2259,11 @@ void FecharAbasDoEspaco(BrowserWindowInterface* browser) {
   if (FaixaDeEspacos* faixa = FaixaDe(browser)) {
     faixa->FecharAbas();
   }
+}
+
+bool ExecutarAcao(BrowserWindowInterface* browser, std::string_view acao) {
+  FaixaDeEspacos* faixa = FaixaDe(browser);
+  return faixa && faixa->ExecutarAcao(acao);
 }
 
 void MoverAbaPara(BrowserWindowInterface* browser,
