@@ -1,3 +1,50 @@
+diff --git i/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc w/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
+index 1276886b4b..060d422e49 100644
+--- i/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
++++ w/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
+@@ -4,12 +4,31 @@
+ 
+ #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
+ 
++#include "build/build_config.h"
+ #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_observer.h"
+ 
++#if BUILDFLAG(IS_OZONE)
++#include "ui/ozone/public/ozone_platform.h"
++#endif
++
+ namespace {
+ 
+ constexpr base::TimeDelta kBoundsChangedUpdateDelay = base::Milliseconds(250);
+ 
++// navegador: no Wayland o Chromium não sabe onde as janelas estão (toda janela
++// de topo fica em 0,0 pra ele): a janelinha de vídeo "cobria" os balões perto
++// do canto de cima da janela, e os botões das permissões paravam (só o X
++// fechava).
++bool SabeOndeEstaoAsJanelas() {
++#if BUILDFLAG(IS_OZONE)
++  return ui::OzonePlatform::GetInstance()
++      ->GetPlatformProperties()
++      .supports_global_screen_coordinates;
++#else
++  return true;
++#endif
++}
++
+ bool IsChildOfWidgetOrWidget(const views::Widget* widget,
+                              const views::Widget* potential_ancestor) {
+   const views::Widget* current = widget;
+@@ -300,7 +319,9 @@ void PictureInPictureOcclusionTracker::UpdateObserverStateForWidget(
+   for (const auto& [picture_in_picture_widget, observed_widget_data] :
+        observed_widget_data_) {
+     // We only care about occlusions from picture-in-picture widgets.
+-    if (!observed_widget_data.is_picture_in_picture_widget) {
++    // navegador: e só onde dá pra saber se ela está mesmo por cima.
++    if (!observed_widget_data.is_picture_in_picture_widget ||
++        !SabeOndeEstaoAsJanelas()) {
+       continue;
+     }
+ 
 diff --git i/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.cc w/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.cc
 index a7506130a0..86b7e71e6c 100644
 --- i/ui/ozone/platform/wayland/host/wayland_buffer_manager_host.cc

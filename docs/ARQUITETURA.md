@@ -177,6 +177,12 @@ Desde o driver 615 da NVIDIA (18/10/2026), a janela às vezes para de receber do
 
 O menu da aba (`//chrome/browser/ui/tabs`) e o do logo (`toolbar:impl`) não enxergam o `ui:ui`: chamam por **pontes** em `containers_ui` (`DefinirMoverAba`, `DefinirFixarAba`, `DefinirAbrirConfiguracoes`), que o código da janela registra.
 
+## Wayland: janelas sem posição
+
+O Wayland não conta pro app onde as janelas estão: pro Chromium, toda janela de topo fica em 0,0 (`WaylandToplevelWindow::HandleToplevelConfigure` passa a origem 0,0, e `supports_global_screen_coordinates` é falso). O que compara posições globais entre janelas diferentes erra. Caso achado na -46: o `PictureInPictureOcclusionTracker` achava que a janelinha de vídeo (em 0,0, com o tamanho dela) cobria a janelinha de permissão, que é uma subsuperfície da janela perto do canto de cima. O `PermissionPromptBaseView::ShouldIgnoreButtonPressedEventHandling` então ignorava Permitir e Bloquear, sem aviso, enquanto houvesse vídeo em janelinha; o X fecha por outro caminho. Agora a checagem só vale onde as posições são conhecidas (`SabeOndeEstaoAsJanelas`, 0012-wayland-vigia.patch). No X11 continua igual, e lá a sombra invisível do balão também conta: o vídeo encostando nela já trava os botões.
+
+Testar no Xvfb: janela do Norte no canto de baixo (`--window-position=950,580 --window-size=650,380`), `video.requestPictureInPicture()` e `Notification.requestPermission()` com gesto do usuário pelo CDP. O vídeo abre no canto da tela e encosta na borda da janelinha de permissão; os botões ficam à vista e travados.
+
 ## Fixados, pastas e favoritos (do Zen)
 
 `navegador/browser/containers/fixos.*` (dados) e `navegador/browser/ui/fixos.*` (lateral). Pref `navegador.espacos.fixos`: `{ "<espaço>": [site | pasta], "favoritos:<espaço>": [site] }`, com site `{id, url, titulo}` e pasta `{id, nome, aberta, itens}`. São do espaço, não da janela: toda janela no espaço mostra a mesma lista, e ela sobrevive a fechar o navegador.
