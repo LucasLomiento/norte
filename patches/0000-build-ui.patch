@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/ui/BUILD.gn w/chrome/browser/ui/BUILD.gn
-index 82f397571f..cd96976615 100644
+index 82f397571f..e04c2c61ff 100644
 --- i/chrome/browser/ui/BUILD.gn
 +++ w/chrome/browser/ui/BUILD.gn
 @@ -144,6 +144,8 @@ if (!is_android) {
@@ -19,7 +19,7 @@ index 82f397571f..cd96976615 100644
        ":tab_ui_helper",
        "//base",
        "//chrome/browser/apps/app_service",
-@@ -1522,6 +1525,40 @@ static_library("ui") {
+@@ -1522,6 +1525,50 @@ static_library("ui") {
        "browser_commands.cc",
        "browser_commands.h",
        "browser_live_tab_context.cc",
@@ -41,26 +41,36 @@ index 82f397571f..cd96976615 100644
 +      "//navegador/browser/ui/downloads/botao.h",
 +      "//navegador/browser/ui/espacos.cc",
 +      "//navegador/browser/ui/espacos.h",
++      "//navegador/browser/ui/exportar.cc",
++      "//navegador/browser/ui/exportar.h",
 +      "//navegador/browser/ui/fontes.cc",
 +      "//navegador/browser/ui/fontes.h",
 +      "//navegador/browser/ui/grupos_salvos.cc",
 +      "//navegador/browser/ui/grupos_salvos.h",
 +      "//navegador/browser/ui/fixos.cc",
 +      "//navegador/browser/ui/fixos.h",
++      "//navegador/browser/ui/importar_chromium.cc",
++      "//navegador/browser/ui/importar_chromium.h",
 +      "//navegador/browser/ui/importar_zen.cc",
 +      "//navegador/browser/ui/importar_zen.h",
++      "//navegador/browser/ui/links.cc",
++      "//navegador/browser/ui/links.h",
++      "//navegador/browser/ui/menu_da_pagina.cc",
++      "//navegador/browser/ui/menu_da_pagina.h",
 +      "//navegador/browser/ui/menu_do_logo.cc",
 +      "//navegador/browser/ui/menu_do_logo.h",
 +      "//navegador/browser/ui/previa.cc",
 +      "//navegador/browser/ui/previa.h",
 +      "//navegador/browser/ui/seletor_de_cor.cc",
 +      "//navegador/browser/ui/seletor_de_cor.h",
++      "//navegador/browser/ui/sinal_de_carga.cc",
++      "//navegador/browser/ui/sinal_de_carga.h",
 +      "//navegador/browser/ui/tocando.cc",
 +      "//navegador/browser/ui/tocando.h",
        "browser_manager_service.cc",
        "browser_manager_service.h",
        "browser_manager_service_factory.cc",
-@@ -1558,6 +1595,14 @@ static_library("ui") {
+@@ -1558,6 +1605,14 @@ static_library("ui") {
  
      # Non-android deps for "ui" target.
      deps += [
@@ -75,7 +85,7 @@ index 82f397571f..cd96976615 100644
        ":accelerator_table",
        ":browser_actions",
        ":browser_select_file_dialog_controller",
-@@ -3877,6 +3922,10 @@ source_set("layout_constants") {
+@@ -3877,6 +3932,10 @@ source_set("layout_constants") {
    sources = [
      "layout_constants.cc",
      "layout_constants.h",

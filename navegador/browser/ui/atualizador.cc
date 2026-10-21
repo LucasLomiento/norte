@@ -45,6 +45,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
@@ -67,6 +68,7 @@
 #include "ui/views/background.h"
 #include "ui/views/controls/button/md_text_button.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/controls/link.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
@@ -82,7 +84,9 @@ constexpr net::NetworkTrafficAnnotationTag kAnotacao =
           sender: "Atualizador do Norte"
           description:
             "Procura a última versão do navegador nas Releases do GitHub."
-          trigger: "Ao abrir o navegador, ou em 'Procurar agora'."
+          trigger:
+            "Ao abrir o navegador, a cada 6 horas com ele aberto, ou em "
+            "'Procurar agora'."
           data: "Nenhum dado do usuário."
           destination: OTHER
         }
@@ -104,6 +108,12 @@ constexpr std::string_view kFimDoPacote = ".pkg.tar.zst";
 // pacote, o VERSAO vem antes do executável, e reiniciar no meio pegava o
 // executável pela metade.
 constexpr base::TimeDelta kFolgaDoPacman = base::Seconds(3);
+
+// Com o navegador aberto, procura de novo a cada tanto: aberto por dias (uma
+// janela escondida noutra área de trabalho segura o processo), o aviso da
+// versão nova nunca aparecia. 4 consultas por dia, longe do limite de 60 por
+// hora da API do GitHub sem login.
+constexpr base::TimeDelta kIntervaloDaProcura = base::Hours(6);
 
 struct Versao {
   base::Version chromium;
@@ -152,7 +162,7 @@ struct Estado {
   std::string sha256_pacote;
   // Tamanho do pacote em bytes (0 sem a informação), pra porcentagem.
   int64_t tamanho_pacote = 0;
-  std::string url_pagina;
+  base::RepeatingTimer de_tempos_em_tempos;
   std::unique_ptr<network::SimpleURLLoader> pedido;
   std::vector<base::OnceCallback<void(const std::u16string&)>> esperando;
   base::RepeatingClosureList mudou;
@@ -180,6 +190,12 @@ void MudarPara(Etapa etapa) {
 void Falhou(std::u16string erro) {
   Atual().andamento.erro = std::move(erro);
   MudarPara(Etapa::kErro);
+}
+
+// A página da versão nas Releases (as notas do que mudou).
+std::string PaginaDaVersao(const std::string& versao) {
+  return std::string("https://github.com/") + kRepositorio +
+         "/releases/tag/v" + versao;
 }
 
 std::string LerArquivoDeVersao() {
@@ -217,6 +233,7 @@ void ConferirDisco() {
           return;
         }
         estado.andamento.nova = versao;
+        estado.andamento.pagina = PaginaDaVersao(versao);
         estado.andamento.erro.clear();
         MudarPara(Etapa::kInstalada);
       }));
@@ -328,6 +345,7 @@ void Chegou(std::optional<std::string> corpo) {
   if (std::optional<Versao> disco = LerVersao(estado.no_disco);
       disco && !MaisNova(*nova, *disco)) {
     estado.andamento.nova = estado.no_disco;
+    estado.andamento.pagina = PaginaDaVersao(estado.no_disco);
     estado.andamento.erro.clear();
     Responder(u"A versão " + base::UTF8ToUTF16(estado.no_disco) +
               u" já está instalada: falta reiniciar.");
@@ -362,9 +380,9 @@ void Chegou(std::optional<std::string> corpo) {
   estado.url_pacote = url;
   estado.sha256_pacote = sha256;
   estado.tamanho_pacote = tamanho;
-  if (const std::string* pagina = release.FindString("html_url")) {
-    estado.url_pagina = *pagina;
-  }
+  const std::string* pagina = release.FindString("html_url");
+  estado.andamento.pagina =
+      pagina ? *pagina : PaginaDaVersao(estado.andamento.nova);
   Responder(u"Versão nova: " + base::UTF8ToUTF16(estado.andamento.nova) +
             u".");
   MudarPara(Etapa::kDisponivel);
@@ -422,6 +440,43 @@ void Procurar() {
   estado.pedido->DownloadToString(
       g_browser_process->shared_url_loader_factory().get(),
       base::BindOnce(&Chegou), 1024 * 1024);
+}
+
+// A procura de tempos em tempos (kIntervaloDaProcura), com a opção ligada e
+// fora de uma atualização em andamento.
+void ProcurarDeNovo() {
+  Profile* perfil = ProfileManager::GetLastUsedProfileIfLoaded();
+  if (!perfil || !perfil->GetOriginalProfile()->GetPrefs()->GetBoolean(
+                     espacos::kProcurarAtualizacoesPref)) {
+    return;
+  }
+  switch (Atual().andamento.etapa) {
+    case Etapa::kBaixando:
+    case Etapa::kInstalando:
+    case Etapa::kInstalada:
+      return;
+    case Etapa::kNada:
+    case Etapa::kDisponivel:
+    case Etapa::kErro:
+      break;
+  }
+  Ler(base::BindOnce(&Procurar));
+}
+
+// O intervalo da procura; testando com o servidor desta máquina
+// (NORTE_ATUALIZACAO_TESTE), NORTE_ATUALIZACAO_INTERVALO dá outro, em
+// segundos.
+base::TimeDelta IntervaloDaProcura() {
+  std::unique_ptr<base::Environment> ambiente = base::Environment::Create();
+  int segundos = 0;
+  if (ambiente->HasVar("NORTE_ATUALIZACAO_TESTE") &&
+      base::StringToInt(
+          ambiente->GetVar("NORTE_ATUALIZACAO_INTERVALO").value_or(""),
+          &segundos) &&
+      segundos > 0) {
+    return base::Seconds(segundos);
+  }
+  return kIntervaloDaProcura;
 }
 
 // --- Baixar e instalar -------------------------------------------------------
@@ -656,7 +711,7 @@ class Aviso : public views::View {
   METADATA_HEADER(Aviso, views::View)
 
  public:
-  Aviso() {
+  explicit Aviso(BrowserWindowInterface* browser) : browser_(browser) {
     auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(10, 12), 6));
     layout->set_cross_axis_alignment(
@@ -670,6 +725,13 @@ class Aviso : public views::View {
     detalhe_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     detalhe_->SetMultiLine(true);
     detalhe_->SetFontList(gfx::FontList().DeriveWithSizeDelta(-1));
+    notas_ = AddChildView(std::make_unique<views::Link>(u"O que mudou"));
+    notas_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    notas_->SetFontList(gfx::FontList().DeriveWithSizeDelta(-1));
+    notas_->SetProperty(views::kCrossAxisAlignmentKey,
+                        views::LayoutAlignment::kStart);
+    notas_->SetCallback(
+        base::BindRepeating(&Aviso::AbrirNotas, base::Unretained(this)));
     botao_ = AddChildView(std::make_unique<views::MdTextButton>(
         base::BindRepeating(&Aviso::Apertou, base::Unretained(this)),
         std::u16string()));
@@ -685,6 +747,9 @@ class Aviso : public views::View {
     const Andamento& andamento = Atual().andamento;
     const std::u16string nova = base::UTF8ToUTF16(andamento.nova);
     SetVisible(andamento.etapa != Etapa::kNada);
+    notas_->SetVisible((andamento.etapa == Etapa::kDisponivel ||
+                        andamento.etapa == Etapa::kInstalada) &&
+                       !andamento.pagina.empty());
     switch (andamento.etapa) {
       case Etapa::kNada:
         break;
@@ -742,8 +807,18 @@ class Aviso : public views::View {
     Atualizar();
   }
 
+  void AbrirNotas() {
+    NavigateParams params(browser_, GURL(Atual().andamento.pagina),
+                          ui::PAGE_TRANSITION_LINK);
+    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+    Navigate(&params);
+  }
+
+  // A janela da lateral em que o aviso mora (vive mais que ele).
+  raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<views::Label> titulo_ = nullptr;
   raw_ptr<views::Label> detalhe_ = nullptr;
+  raw_ptr<views::Link> notas_ = nullptr;
   raw_ptr<views::MdTextButton> botao_ = nullptr;
   base::CallbackListSubscription inscricao_;
 };
@@ -767,8 +842,11 @@ std::unique_ptr<views::View> CriarAviso(BrowserWindowInterface* browser) {
           FROM_HERE, base::BindOnce(&Ler, base::BindOnce(&Procurar)),
           base::Seconds(5));
     }
+    // A opção é conferida a cada vez: ligada depois, já vale.
+    estado.de_tempos_em_tempos.Start(FROM_HERE, IntervaloDaProcura(),
+                                     base::BindRepeating(&ProcurarDeNovo));
   }
-  return std::make_unique<Aviso>();
+  return std::make_unique<Aviso>(browser);
 }
 
 void ProcurarAgora(Profile* perfil,

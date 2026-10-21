@@ -26,6 +26,11 @@ LISTAS=(
   "https://ublockorigin.github.io/uAssets/filters/unbreak.txt"
 )
 
+# Só as regras de esconder (o navegador aplica com a opção "Esconder avisos
+# de cookies"): barrar o script do aviso às vezes trava o site que espera o
+# consentimento.
+AVISOS="https://secure.fanboy.co.nz/fanboy-cookiemonster.txt"
+
 [ -x "$CONVERSOR" ] || { echo "Falta o $CONVERSOR (ver o cabeçalho)." >&2; exit 1; }
 
 BAIXADAS=$(mktemp -d)
@@ -41,6 +46,10 @@ for url in "${LISTAS[@]}"; do
 done
 # A EasyPrivacy quase não tem regras cosméticas; as outras, sim.
 ARQUIVOS_COSMETICOS=("${ARQUIVOS[0]}" "${ARQUIVOS[2]}" "${ARQUIVOS[3]}")
+LISTA_AVISOS="$BAIXADAS/avisos-de-cookies.txt"
+curl -fsSL --retry 3 -o "$LISTA_AVISOS" "$AVISOS"
+head -c 300 "$LISTA_AVISOS" | grep -q "^\[Adblock\|^! Title:" || {
+  echo "Não parece uma lista de filtros: $AVISOS" >&2; exit 1; }
 
 mkdir -p "$SAIDA"
 IFS=,
@@ -53,13 +62,14 @@ unset IFS
 # linha: "G<tab>seletor" (todo site), "S<tab>dominios<tab>seletor" (só
 # nesses sites; "~dominio" exclui) e "E<tab>dominios<tab>seletor" (exceção:
 # não esconder nesses sites).
-python3 -I "$RAIZ/tools/cosmetico.py" "${ARQUIVOS_COSMETICOS[@]}" > "$SAIDA/cosmetico.txt"
+python3 -I "$RAIZ/tools/cosmetico.py" "${ARQUIVOS_COSMETICOS[@]}" \
+  --avisos "$LISTA_AVISOS" > "$SAIDA/cosmetico.txt"
 
 date -u +%Y.%m.%d.%H%M > "$SAIDA/VERSAO"
 {
-  echo "Regras do bloqueador do Navegador, convertidas de:"
+  echo "Regras do bloqueador do Norte, convertidas de:"
   echo
-  for url in "${LISTAS[@]}"; do echo "  $url"; done
+  for url in "${LISTAS[@]}" "$AVISOS"; do echo "  $url"; done
   echo
   echo "EasyList, EasyPrivacy e EasyList Portuguese: (c) dos autores da"
   echo "EasyList (https://easylist.to), sob a GNU GPL v3 ou a Creative"
@@ -68,6 +78,11 @@ date -u +%Y.%m.%d.%H%M > "$SAIDA/VERSAO"
   echo
   echo "uBlock filters – Unbreak: (c) dos autores do uBlock Origin"
   echo "(https://github.com/uBlockOrigin/uAssets), sob a GNU GPL v3."
+  echo
+  echo "EasyList Cookie List: (c) dos autores da EasyList"
+  echo "(https://easylist.to), sob a Creative Commons Atribuição 3.0"
+  echo "(https://creativecommons.org/licenses/by/3.0/). Só as regras de"
+  echo "esconder elementos, convertidas pra CSS."
 } > "$SAIDA/LICENSE"
 
 echo "Regras em $SAIDA ($(du -h "$SAIDA/Filtering Rules" | cut -f1) de rede, $(wc -l < "$SAIDA/cosmetico.txt") cosméticas, versão $(cat "$SAIDA/VERSAO"))."

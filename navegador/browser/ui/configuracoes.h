@@ -19,11 +19,12 @@ namespace navegador::configuracoes {
 // Na ordem do menu da janela.
 enum class Aba {
   kGeral = 0,
-  kAparencia = 1,
-  kLateral = 2,
-  kEspacos = 3,
-  kContainers = 4,
-  kAtalhos = 5,
+  kPrivacidade = 1,
+  kAparencia = 2,
+  kLateral = 3,
+  kEspacos = 4,
+  kContainers = 5,
+  kAtalhos = 6,
 };
 
 // Abre (ou traz pra frente) a janela de configurações na aba pedida.

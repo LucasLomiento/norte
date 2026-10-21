@@ -150,6 +150,80 @@ INTEIROS = (
 )
 
 
+# Uma palavra só em português: "aba", como no resto do Norte (o Chromium em
+# pt-BR diz "guia": "+ Nova guia" na lateral, "Fechar guia" no menu). Só
+# nas traduções pt-BR: o inglês não muda, então os ids também não. Fica o
+# "guia" de manual: com artigo masculino antes ("o guia", "um guia") e o
+# "Guia de privacidade" e o "Guia de configuração".
+PT_BR = ("chrome/app/resources/generated_resources_pt-BR.xtb",
+         "components/strings/components_strings_pt-BR.xtb",
+         "chrome/app/resources/chromium_strings_pt-BR.xtb")
+MASCULINO = re.compile(
+    r"\b(?:o|os|um|uns|este|estes|esse|esses|do|dos|no|nos|ao|aos|pelo|"
+    r"pelos|neste|deste|desse|nesse)\s+$", re.I)
+DE_MANUAL = re.compile(r"\s+de\s+(?:privacidade|configura)", re.I)
+GUIA = re.compile(r"(?<![\w-])([Gg])uia(s?)(?![\w-])")
+# Textos inteiros trocados (pt-BR): o título do balão de downloads encostava
+# no X; o "Você e o Google" sem conta do Google; e o "Anúncios invasivos" do
+# Chromium, que no Norte é o bloqueador (em todo site, não só nos abusivos).
+TROCAS_PT = {
+    "Histórico de downloads recentes": "Downloads recentes",
+    "Você e o Google": "Você",
+    "Anúncios invasivos": "Bloqueador de anúncios",
+    "Neste site, há exibição de anúncios invasivos ou enganosos":
+        "O Norte bloqueia anúncios e rastreadores em todo site",
+    "No site, há exibição de anúncios invasivos ou enganosos":
+        "O Norte bloqueia anúncios e rastreadores em todo site",
+    "Bloquear a exibição de anúncios invasivos ou enganosos":
+        "Bloquear anúncios e rastreadores",
+    "Bloquear se o site mostrar anúncios invasivos ou enganosos":
+        "Bloquear anúncios e rastreadores",
+    "Os sites geralmente mostram anúncios para oferecer conteúdo ou serviços "
+    "sem custo financeiro. No entanto, alguns sites têm anúncios invasivos ou "
+    "enganosos.":
+        "O bloqueador do Norte tira anúncios e rastreadores de todo site (com "
+        "as listas EasyList e EasyPrivacy). Aqui dá pra liberar um site.",
+    "A publicidade é bloqueada em sites que mostram anúncios invasivos ou "
+    "enganosos":
+        "Anúncios e rastreadores bloqueados em todo site",
+}
+
+
+def aba_no_texto(texto):
+    def trocar_guia(m):
+        if MASCULINO.search(texto[:m.start()]) or DE_MANUAL.match(
+                texto, m.end()):
+            return m.group(0)
+        return ("A" if m.group(1) == "G" else "a") + "ba" + m.group(2)
+    return GUIA.sub(trocar_guia, texto)
+
+
+def palavras_pt(src):
+    padrao = re.compile(r'(<translation id="\d+">)(.*?)(</translation>)', re.S)
+    total = 0
+    for rel in PT_BR:
+        caminho = os.path.join(src, rel)
+        if not os.path.exists(caminho):
+            continue
+        conteudo = open(caminho, encoding="utf-8").read()
+
+        def na_traducao(m):
+            nonlocal total
+            texto = TROCAS_PT.get(m.group(2), m.group(2))
+            # Só o texto, fora das marcas (<ph name="..."/>).
+            pedacos = re.split(r"(<[^>]+>)", texto)
+            novo = "".join(p if p.startswith("<") else aba_no_texto(p)
+                           for p in pedacos)
+            if novo != m.group(2):
+                total += 1
+            return m.group(1) + novo + m.group(3)
+
+        novo = padrao.sub(na_traducao, conteudo)
+        if novo != conteudo:
+            open(caminho, "w", encoding="utf-8").write(novo)
+    print(f"marca: pt-BR: {total} traduções com \"aba\"")
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--src", default=os.path.expanduser(
@@ -159,6 +233,7 @@ def main():
     for grd_rel, xtb_glob in INTEIROS:
         trocar_inteiro(args.src, grd_rel, xtb_glob)
     especificas(args.src)
+    palavras_pt(args.src)
 
 
 def trocar_inteiro(src, grd_rel, xtb_glob):

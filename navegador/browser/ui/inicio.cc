@@ -4,26 +4,53 @@
 
 #include "base/functional/bind.h"
 #include "base/memory/raw_ptr.h"
+#include "base/strings/stringprintf.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "content/public/browser/web_ui.h"
 #include "content/public/browser/web_ui_data_source.h"
+#include "components/tab_groups/tab_group_id.h"
+#include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui_message_handler.h"
 #include "navegador/browser/containers/espacos_dados.h"
+#include "navegador/browser/ui/containers/containers_ui.h"
 #include "ui/webui/webui_util.h"
 
 namespace navegador::inicio {
 
 namespace {
 
-base::DictValue Estado(Profile* perfil) {
+// A cor do espaço da aba ("r, g, b"), pra luz do alto da página; vazio na
+// janela anônima ou numa aba sem espaço (fica a luz azul do CSS).
+std::string LuzDaAba(content::WebContents* contents, Profile* perfil) {
+  if (!contents || perfil->IsOffTheRecord()) {
+    return std::string();
+  }
+  tabs::TabInterface* aba = tabs::TabInterface::MaybeGetFromContents(contents);
+  const std::optional<tab_groups::TabGroupId> grupo =
+      aba ? aba->GetGroup() : std::nullopt;
+  const std::optional<std::string> id =
+      grupo ? espacos::EspacoDoGrupo(perfil, grupo->ToString()) : std::nullopt;
+  const std::optional<espacos::Espaco> espaco =
+      id ? espacos::Get(perfil, *id) : std::nullopt;
+  if (!espaco) {
+    return std::string();
+  }
+  const SkColor cor = containers::Cor(espaco->cor);
+  return base::StringPrintf("%d, %d, %d", SkColorGetR(cor), SkColorGetG(cor),
+                            SkColorGetB(cor));
+}
+
+base::DictValue Estado(Profile* perfil, content::WebContents* contents) {
   const PrefService* prefs = perfil->GetPrefs();
   base::DictValue estado;
   estado.Set("hora", prefs->GetBoolean(espacos::kInicioHoraPref));
   estado.Set("data", prefs->GetBoolean(espacos::kInicioDataPref));
   estado.Set("atalhos", static_cast<int>(LerAtalhos(prefs)));
+  estado.Set("luz", LuzDaAba(contents, perfil));
   return estado;
 }
 
@@ -77,7 +104,10 @@ class Mensagens : public content::WebUIMessageHandler {
     }
   }
 
-  void Avisar() { FireWebUIListener("navegador-inicio", Estado(perfil_)); }
+  void Avisar() {
+    FireWebUIListener("navegador-inicio",
+                      Estado(perfil_, web_ui()->GetWebContents()));
+  }
 
   raw_ptr<Profile> perfil_;
   PrefChangeRegistrar registrar_;

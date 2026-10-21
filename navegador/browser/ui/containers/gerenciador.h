@@ -21,9 +21,6 @@ namespace navegador::containers {
 // pra pôr dentro de outra janela (as Configurações do Navegador).
 std::unique_ptr<views::View> CriarPainel(Profile* profile);
 
-// Abre a janela por cima da janela do navegador que tem `aba`.
-void MostrarGerenciador(content::WebContents* aba);
-
 }  // namespace navegador::containers
 
 #endif  // NAVEGADOR_BROWSER_UI_CONTAINERS_GERENCIADOR_H_

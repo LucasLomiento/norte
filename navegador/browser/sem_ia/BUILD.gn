@@ -4,5 +4,8 @@ source_set("sem_ia") {
     "sem_ia.cc",
     "sem_ia.h",
   ]
-  deps = [ "//base" ]
+  deps = [
+    "//base",
+    "//components/prefs",
+  ]
 }

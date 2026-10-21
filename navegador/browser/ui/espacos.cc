@@ -37,6 +37,9 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
+#include "chrome/browser/ui/views/tabs/common/tab_view.h"
+#include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
+#include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
 #include "chrome/browser/ui/views/tabs/common/tab_strip_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/common/webui_url_constants.h"
@@ -58,9 +61,11 @@
 #include "navegador/browser/ui/barra.h"
 #include "navegador/browser/ui/configuracoes.h"
 #include "navegador/browser/ui/containers/containers_ui.h"
+#include "navegador/browser/ui/cores.h"
 #include "navegador/browser/ui/atualizador.h"
 #include "navegador/browser/ui/downloads/botao.h"
 #include "navegador/browser/ui/grupos_salvos.h"
+#include "navegador/browser/ui/links.h"
 #include "navegador/browser/ui/previa.h"
 #include "navegador/browser/ui/tocando.h"
 #include "navegador/browser/ui/containers/espaco.h"
@@ -82,8 +87,11 @@
 #include "ui/color/color_id.h"
 #include "ui/views/accessibility/view_accessibility.h"
 #include "ui/gfx/animation/animation.h"
+#include "ui/gfx/animation/animation_delegate.h"
+#include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/geometry/transform.h"
 #include "ui/compositor/layer.h"
+#include "ui/compositor/layer_solid_color.h"
 #include "ui/views/animation/animation_builder.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/border.h"
@@ -111,9 +119,9 @@ namespace {
 // Medidas do seletor de espaços (como o do Dia).
 constexpr int kAlturaFaixa = 38;
 constexpr int kLarguraMaximaTitulo = 160;
-constexpr int kEspacoEntreBolinhas = 3;
-constexpr int kBolinha = 10;  // área clicável de cada bolinha
-constexpr float kRaioBolinha = 3.0f;
+constexpr int kEspacoEntreBolinhas = 0;
+constexpr int kBolinha = 14;  // área clicável de cada bolinha
+constexpr float kRaioBolinha = 2.5f;
 constexpr float kRaioBolinhaAtual = 4.0f;
 // Como o Zen: entre duas trocas pela rodinha, pelo menos isto.
 constexpr base::TimeDelta kIntervaloRodinha = base::Milliseconds(200);
@@ -194,46 +202,60 @@ std::map<BrowserWindowInterface*, FaixaDeEspacos*>& Faixas() {
   return *faixas;
 }
 
-// Uma bolinha: um espaço. Clicar leva pro espaço.
-class Bolinha : public views::View {
-  METADATA_HEADER(Bolinha, views::View)
+// Uma bolinha: um espaço. Clicar leva pro espaço. É um botão com o nome do
+// espaço (leitor de tela e teclado). Com o ponteiro em cima, cresce um pouco.
+class Bolinha : public views::Button {
+  METADATA_HEADER(Bolinha, views::Button)
 
  public:
   Bolinha(std::string cor,
           bool atual,
           std::u16string nome,
           base::RepeatingClosure ao_clicar)
-      : cor_(std::move(cor)), atual_(atual), ao_clicar_(std::move(ao_clicar)) {
+      : views::Button(std::move(ao_clicar)),
+        cor_(std::move(cor)),
+        atual_(atual) {
     SetTooltipText(nome);
+    GetViewAccessibility().SetName(atual ? nome + u" (espaço atual)" : nome);
     SetPreferredSize(gfx::Size(kBolinha, kBolinha));
+    crescer_.SetSlideDuration(
+        gfx::Animation::RichAnimationDuration(base::Milliseconds(120)));
   }
 
-  void OnPaint(gfx::Canvas* canvas) override {
-    SkColor cor = containers::Cor(cor_);
-    if (!atual_) {
-      cor = SkColorSetA(cor, 0x66);
+  // views::Button:
+  void StateChanged(ButtonState old_state) override {
+    if (GetState() == STATE_HOVERED || GetState() == STATE_PRESSED) {
+      crescer_.Show();
+    } else {
+      crescer_.Hide();
     }
+  }
+
+  void PaintButtonContents(gfx::Canvas* canvas) override {
+    // Cor cheia em todas (com alfa, a cor do espaço ficava suja na lateral
+    // escura); a do espaço atual é maior.
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
-    flags.setColor(cor);
-    canvas->DrawCircle(gfx::PointF(width() / 2.0f, height() / 2.0f),
-                       atual_ ? kRaioBolinhaAtual : kRaioBolinha, flags);
+    flags.setColor(containers::Cor(cor_));
+    const float raio = (atual_ ? kRaioBolinhaAtual : kRaioBolinha) +
+                       static_cast<float>(crescer_.GetCurrentValue());
+    canvas->DrawCircle(gfx::PointF(width() / 2.0f, height() / 2.0f), raio,
+                       flags);
   }
 
-  bool OnMousePressed(const ui::MouseEvent& event) override {
-    return event.IsOnlyLeftMouseButton();
-  }
-
-  void OnMouseReleased(const ui::MouseEvent& event) override {
-    if (HitTestPoint(event.location())) {
-      ao_clicar_.Run();
+  // views::AnimationDelegateViews (o Button já é um, pro hover dele):
+  void AnimationProgressed(const gfx::Animation* animation) override {
+    if (animation == &crescer_) {
+      SchedulePaint();
+      return;
     }
+    views::Button::AnimationProgressed(animation);
   }
 
  private:
   std::string cor_;
   bool atual_;
-  base::RepeatingClosure ao_clicar_;
+  gfx::SlideAnimation crescer_{this};
 };
 
 BEGIN_METADATA(Bolinha)
@@ -480,8 +502,10 @@ class FaixaDeEspacos : public views::View,
         browser_(browser),
         model_(browser->GetTabStripModel()),
         anonima_(browser->GetProfile()->IsOffTheRecord()) {
+    // 10 dos lados: o ícone de downloads fica na coluna dos favicons das
+    // abas (com 6, ficava 4 px pra esquerda).
     layout_ = SetLayoutManager(std::make_unique<views::BoxLayout>(
-        views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(0, 6),
+        views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(0, 10),
         8));
     layout_->set_cross_axis_alignment(
         views::BoxLayout::CrossAxisAlignment::kCenter);
@@ -507,10 +531,12 @@ class FaixaDeEspacos : public views::View,
         views::BoxLayout::Orientation::kHorizontal, gfx::Insets(),
         kEspacoEntreBolinhas));
 
+    // No tamanho e no cinza do botão de downloads, do outro lado do pé.
     novo_ = AddChildView(views::CreateVectorImageButtonWithNativeTheme(
         base::BindRepeating(&FaixaDeEspacos::NovoEspaco,
                             base::Unretained(this)),
-        kAddIcon, 14));
+        kAddIcon, 16, kColorTabForegroundInactiveFrameActive,
+        ui::kColorIconDisabled, kColorTabForegroundActiveFrameActive));
     novo_->SetTooltipText(u"Novo espaço");
     auto* depois = AddChildView(std::make_unique<views::View>());
     layout_->SetFlexForView(depois, 1);
@@ -542,7 +568,19 @@ class FaixaDeEspacos : public views::View,
     Atualizar();
   }
 
-  std::optional<SkColor> Tom() const { return tom_; }
+  // Lido a cada cor pedida (BrowserWidget::GetColorProviderKey): guardado,
+  // mas refeito na hora quando o grupo focado muda. Assim o ThemeChanged que
+  // o próprio Chromium faz na troca de grupo (síncrono, antes do nosso
+  // Atualizar) já sai com a cor do espaço novo, e o do AtualizarTom cai no
+  // "mesma chave" do Widget: na troca de espaço, o tema da janela era
+  // refeito duas vezes, a primeira com a cor velha.
+  std::optional<SkColor> Tom() const {
+    if (!anonima_ && model_->GetFocusedGroup() != grupo_do_tom_) {
+      grupo_do_tom_ = model_->GetFocusedGroup();
+      tom_ = CalcularTom();
+    }
+    return tom_;
+  }
 
   ~FaixaDeEspacos() override {
     if (!anonima_) {
@@ -559,6 +597,9 @@ class FaixaDeEspacos : public views::View,
   void Focar(const std::string& espaco) {
     if (anonima_ || !Get(Perfil(), espaco)) {
       return;
+    }
+    if (GetColorProvider()) {
+      cor_antes_da_troca_ = GetColorProvider()->GetColor(ui::kColorFrameActive);
     }
     // O temporário é só da janela da extensão: noutra janela não ganha aba
     // nem vira o Ativo (a janela nova nasceria nele).
@@ -662,6 +703,48 @@ class FaixaDeEspacos : public views::View,
         .SetDuration(base::Milliseconds(230))
         .SetTransform(lista, gfx::Transform(), gfx::Tween::FAST_OUT_SLOW_IN)
         .SetOpacity(lista, 1.0f, gfx::Tween::EASE_OUT);
+    EsmaecerCorAnterior(de, geracao);
+  }
+
+  // A cor da lateral (a moldura de vidro, por baixo dela) também muda na
+  // troca, e mudava num corte seco: uma camada com a cor do espaço anterior,
+  // entre a moldura e a lateral, esmaece no mesmo tempo da lista. Sem o
+  // vidro a lateral pinta o próprio fundo por cima da camada, e a cor
+  // continua trocando seca.
+  // (A cor vem do Focar, guardada antes de o modelo mudar: trocas por outro
+  // caminho, como ativar uma aba de outro espaço pela busca, seguem secas.)
+  void EsmaecerCorAnterior(const std::string& de, int geracao) {
+    TirarCorAnterior();
+    const std::optional<SkColor> cor = cor_antes_da_troca_;
+    cor_antes_da_troca_.reset();
+    if (!cores::Vidro() || !cor || !lateral_->layer()) {
+      return;
+    }
+    cor_anterior_ = std::make_unique<ui::LayerSolidColor>();
+    cor_anterior_->SetColor(SkColor4f::FromColor(*cor));
+    cor_anterior_->SetBounds(lateral_->layer()->bounds());
+    lateral_->AddLayerToRegion(cor_anterior_.get(), views::LayerRegion::kBelow);
+    views::AnimationBuilder()
+        .OnEnded(base::BindOnce(&FaixaDeEspacos::FimDaCorAnterior,
+                                weak_factory_.GetWeakPtr(), geracao))
+        .OnAborted(base::BindOnce(&FaixaDeEspacos::FimDaCorAnterior,
+                                  weak_factory_.GetWeakPtr(), geracao))
+        .Once()
+        .SetDuration(base::Milliseconds(230))
+        .SetOpacity(cor_anterior_.get(), 0.0f, gfx::Tween::EASE_OUT);
+  }
+
+  void FimDaCorAnterior(int geracao) {
+    if (geracao == geracao_da_troca_) {
+      TirarCorAnterior();
+    }
+  }
+
+  void TirarCorAnterior() {
+    if (cor_anterior_) {
+      lateral_->RemoveLayerFromRegions(cor_anterior_.get());
+      cor_anterior_.reset();
+    }
   }
 
   // A troca acabou: tira a camada que só existia pra animar (trocas seguidas
@@ -681,6 +764,167 @@ class FaixaDeEspacos : public views::View,
     for (views::View* filho : lateral_->children()) {
       if (views::IsViewClass<TabStripView>(filho)) {
         return filho;
+      }
+    }
+    return nullptr;
+  }
+
+  // Fecha as abas repetidas do espaço (o mesmo endereço, sem contar o
+  // #fragmento): fica a primeira, ou a ativa se ela é uma das repetidas. As
+  // dos sites fixados ficam.
+  void FecharRepetidas() {
+    std::optional<tab_groups::TabGroupId> grupo =
+        anonima_ ? std::nullopt : GrupoDoEspaco(EspacoAtual());
+    if (!grupo) {
+      return;
+    }
+    auto endereco = [this](int i) {
+      GURL::Replacements sem_fragmento;
+      sem_fragmento.ClearRef();
+      return model_->GetWebContentsAt(i)->GetVisibleURL().ReplaceComponents(
+          sem_fragmento);
+    };
+    auto candidata = [this, grupo](int i) {
+      return model_->GetTabGroupForTab(i) == *grupo &&
+             !model_->IsTabPinned(i) &&
+             !fixos::SiteDaAba(model_->GetWebContentsAt(i));
+    };
+    // Quem fica: a ativa (se repetida) e, das outras, a primeira.
+    std::set<GURL> ficam;
+    const int ativa = model_->active_index();
+    if (ativa != TabStripModel::kNoTab && candidata(ativa)) {
+      ficam.insert(endereco(ativa));
+    }
+    std::vector<int> fechar;
+    for (int i = 0; i < model_->count(); ++i) {
+      if (i == ativa || !candidata(i)) {
+        continue;
+      }
+      if (!ficam.insert(endereco(i)).second) {
+        fechar.push_back(i);
+      }
+    }
+    for (auto i = fechar.rbegin(); i != fechar.rend(); ++i) {
+      model_->CloseWebContentsAt(*i, TabCloseTypes::CLOSE_USER_GESTURE |
+                                         TabCloseTypes::CLOSE_CREATE_HISTORICAL_TAB);
+    }
+  }
+
+  // Os endereços das abas do espaço (as selecionadas, se há mais de uma),
+  // um por linha, sem os parâmetros de rastreio.
+  void CopiarEnderecos() {
+    std::optional<tab_groups::TabGroupId> grupo =
+        anonima_ ? std::nullopt : GrupoDoEspaco(EspacoAtual());
+    const auto& selecao = model_->selection_model();
+    const bool so_selecionadas = selecao.size() > 1;
+    std::u16string texto;
+    for (int i = 0; i < model_->count(); ++i) {
+      const bool entra = so_selecionadas
+                             ? selecao.IsSelected(model_->GetTabAtIndex(i))
+                             : (!grupo || model_->GetTabGroupForTab(i) == *grupo);
+      if (!entra) {
+        continue;
+      }
+      if (!texto.empty()) {
+        texto += u"\n";
+      }
+      texto += base::UTF8ToUTF16(
+          links::Limpar(model_->GetWebContentsAt(i)->GetVisibleURL()).spec());
+    }
+    if (!texto.empty()) {
+      links::Copiar(browser_, texto);
+    }
+  }
+
+  // Descarrega da memória as abas dos outros espaços (voltam a carregar ao
+  // abrir). Ficam as que tocam som, as divididas e as que o Chromium não
+  // deixa (com formulário preenchido, por exemplo).
+  void DescarregarOutros() {
+    std::optional<tab_groups::TabGroupId> grupo =
+        anonima_ ? std::nullopt : GrupoDoEspaco(EspacoAtual());
+    for (int i = 0; i < model_->count(); ++i) {
+      content::WebContents* aba = model_->GetWebContentsAt(i);
+      tabs::TabInterface* tab = model_->GetTabAtIndex(i);
+      if (i == model_->active_index() ||
+          (grupo && model_->GetTabGroupForTab(i) == *grupo) ||
+          aba->IsCurrentlyAudible() || (tab && tab->IsSplit())) {
+        continue;
+      }
+      if (auto* vida = resource_coordinator::TabLifecycleUnitExternal::
+              FromWebContents(aba)) {
+        vida->DiscardTab(::mojom::LifecycleUnitDiscardReason::EXTERNAL);
+      }
+    }
+  }
+
+  // A lateral e a barra juntas (o modo compacto do Zen): com alguma à
+  // vista, esconde as duas; com as duas escondidas, mostra.
+  void ModoFoco() {
+    auto* lateral = tabs::VerticalTabStripStateController::From(browser_);
+    const bool lateral_a_vista = lateral && !lateral->IsCollapsed();
+    const bool barra_a_vista =
+        !Perfil()->GetPrefs()->GetBoolean(kBarraEscondidaPref);
+    const bool esconder = lateral_a_vista || barra_a_vista;
+    if (lateral && lateral_a_vista == esconder) {
+      chrome::ExecuteCommand(browser_, IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
+    }
+    barra::Definir(Perfil(), esconder);
+  }
+
+  // O "renomear no lugar" da aba ativa, como o clique duplo no nome dela
+  // (com a lateral recolhida, abre a lateral antes).
+  void RenomearAtiva() {
+    tabs::TabInterface* ativa = model_->GetActiveTab();
+    if (anonima_ || !ativa || ativa->IsPinned() ||
+        fixos::SiteDaAba(ativa->GetContents())) {
+      return;
+    }
+    auto* lateral = tabs::VerticalTabStripStateController::From(browser_);
+    if (lateral && lateral->IsCollapsed()) {
+      chrome::ExecuteCommand(browser_, IDC_TOGGLE_VERTICAL_TABS_COLLAPSE);
+      base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+          FROM_HERE,
+          base::BindOnce(&FaixaDeEspacos::RenomearAtiva,
+                         weak_factory_.GetWeakPtr()),
+          base::Milliseconds(300));
+      return;
+    }
+    TabView* aba = AchaAba(lateral_, ativa);
+    views::Label* nome = aba ? PrimeiroRotulo(aba) : nullptr;
+    if (!nome || !nome->GetVisible()) {
+      return;
+    }
+    abas::EditarNoLugar(
+        aba, *nome, nome->GetText(),
+        base::BindOnce(
+            [](base::WeakPtr<tabs::TabInterface> aba, std::u16string texto) {
+              if (aba) {
+                abas::RenomearAba(aba.get(), texto);
+              }
+            },
+            ativa->GetWeakPtr()));
+  }
+
+  static TabView* AchaAba(views::View* raiz, const tabs::TabInterface* aba) {
+    if (auto* tab_view = views::AsViewClass<TabView>(raiz);
+        tab_view && tab_view->GetTabInterface() == aba) {
+      return tab_view;
+    }
+    for (views::View* filho : raiz->children()) {
+      if (TabView* achou = AchaAba(filho, aba)) {
+        return achou;
+      }
+    }
+    return nullptr;
+  }
+
+  static views::Label* PrimeiroRotulo(views::View* raiz) {
+    for (views::View* filho : raiz->children()) {
+      if (auto* rotulo = views::AsViewClass<views::Label>(filho)) {
+        return rotulo;
+      }
+      if (views::Label* achou = PrimeiroRotulo(filho)) {
+        return achou;
       }
     }
     return nullptr;
@@ -835,7 +1079,26 @@ class FaixaDeEspacos : public views::View,
     if (std::optional<split_tabs::SplitTabId> divisao = ativa->GetSplit()) {
       if (model->GetSplitData(*divisao)->visual_data()->split_layout() ==
           layout) {
+        // Desfazendo: a metade que ainda é o seletor da divisão ("escolha
+        // uma aba", sem histórico) fecha junto, em vez de ficar na lista
+        // como uma "Nova aba" a mais.
+        std::vector<content::WebContents*> seletores;
+        for (tabs::TabInterface* metade :
+             model->GetSplitData(*divisao)->ListTabs()) {
+          content::WebContents* pagina = metade->GetContents();
+          if (pagina->GetLastCommittedURL() ==
+                  GURL(chrome::kChromeUISplitViewNewTabPageURL) &&
+              pagina->GetController().GetEntryCount() <= 1) {
+            seletores.push_back(pagina);
+          }
+        }
         model->RemoveSplit(*divisao);
+        for (content::WebContents* pagina : seletores) {
+          if (const int i = model->GetIndexOfWebContents(pagina);
+              i != TabStripModel::kNoTab) {
+            model->CloseWebContentsAt(i, TabCloseTypes::CLOSE_NONE);
+          }
+        }
       } else {
         model->UpdateSplitLayout(*divisao, layout);
         model->UpdateSplitRatio(*divisao, 0.5);
@@ -885,7 +1148,26 @@ class FaixaDeEspacos : public views::View,
     } else if (acao.starts_with("espaco_")) {
       IrParaPosicao(acao.back() - '1');
     } else if (acao == "copiar_endereco") {
-      chrome::ExecuteCommand(browser_, IDC_COPY_URL);
+      // Sem os parâmetros de rastreio (utm_*, fbclid...): links.h.
+      links::CopiarEnderecoDaAba(browser_);
+    } else if (acao == "fechar_espaco") {
+      FecharAbas();
+    } else if (acao == "modo_foco") {
+      ModoFoco();
+    } else if (acao == "renomear_aba") {
+      RenomearAtiva();
+    } else if (acao == "fixar_no_espaco") {
+      if (tabs::TabInterface* ativa = model_->GetActiveTab(); ativa && !anonima_) {
+        containers::FixarAbaNoEspaco(model_, model_->GetIndexOfTab(ativa),
+                             fixos::SiteDaAba(ativa->GetContents())
+                                 ? containers::kFixarDesafixar
+                                 : std::string());
+      }
+    } else if (acao == "favoritar") {
+      if (content::WebContents* ativa = model_->GetActiveWebContents();
+          ativa && !anonima_) {
+        fixos::AlternarFavorito(ativa);
+      }
     } else if (acao == "configuracoes") {
       configuracoes::Mostrar(browser_);
     } else if (acao == "containers") {
@@ -938,7 +1220,7 @@ class FaixaDeEspacos : public views::View,
     menu_->AddItem(kEditar, u"Editar espaço…");
     containers_ = containers::GetAll(Perfil());
     submenu_containers_ = std::make_unique<ui::SimpleMenuModel>(this);
-    submenu_containers_->AddCheckItem(kSemContainer, u"Nenhum");
+    submenu_containers_->AddCheckItem(kSemContainer, u"Sem container");
     for (size_t i = 0; i < containers_.size(); ++i) {
       submenu_containers_->AddCheckItem(
           kPrimeiroContainer + i, base::UTF8ToUTF16(containers_[i].name));
@@ -948,9 +1230,16 @@ class FaixaDeEspacos : public views::View,
     menu_->AddSubMenu(kContainerDoEspaco, u"Container do espaço",
                       submenu_containers_.get());
     menu_->AddItem(kFecharAbasCmd, u"Fechar as abas deste espaço");
+    menu_->AddItem(kFecharRepetidasCmd, u"Fechar as abas repetidas");
+    menu_->AddItem(kCopiarEnderecosCmd,
+                   model_->selection_model().size() > 1
+                       ? u"Copiar os endereços das abas selecionadas"
+                       : u"Copiar os endereços das abas");
+    menu_->AddItem(kDescarregarCmd, u"Descarregar os outros espaços");
     menu_->AddSeparator(ui::NORMAL_SEPARATOR);
-    menu_->AddItem(kNovo, u"Novo espaço");
-    menu_->AddItem(kConfigurar, u"Configurar espaços…");
+    // Os mesmos nomes do menu do nome do espaço (TituloDoEspaco).
+    menu_->AddItem(kNovo, u"Novo espaço…");
+    menu_->AddItem(kConfigurar, u"Editar espaços…");
     menu_->AddItem(kAtalhosCmd, u"Atalhos do teclado…");
     menu_runner_ = std::make_unique<views::MenuRunner>(
         menu_.get(), views::MenuRunner::CONTEXT_MENU);
@@ -988,6 +1277,15 @@ class FaixaDeEspacos : public views::View,
         return;
       case kFecharAbasCmd:
         FecharAbas();
+        return;
+      case kFecharRepetidasCmd:
+        FecharRepetidas();
+        return;
+      case kCopiarEnderecosCmd:
+        CopiarEnderecos();
+        return;
+      case kDescarregarCmd:
+        DescarregarOutros();
         return;
       case kSemContainer:
         containers::DefinirContainerDoEspaco(Perfil(), atual, "");
@@ -1677,13 +1975,18 @@ class FaixaDeEspacos : public views::View,
   // BrowserWidget::GetColorProviderKey a cada cor pedida). A do Chromium (cor
   // do grupo focado) só vem na troca de foco com a lateral já montada: na
   // abertura da janela não vinha, e a janela ficava na cor neutra.
-  void AtualizarTom() {
-    std::optional<SkColor> cor;
+  std::optional<SkColor> CalcularTom() const {
     if (model_->GetFocusedGroup()) {
       if (std::optional<Espaco> espaco = Get(Perfil(), EspacoAtual())) {
-        cor = containers::Cor(espaco->cor);
+        return containers::Cor(espaco->cor);
       }
     }
+    return std::nullopt;
+  }
+
+  void AtualizarTom() {
+    const std::optional<SkColor> cor = CalcularTom();
+    grupo_do_tom_ = model_->GetFocusedGroup();
     if (tom_ == cor) {
       return;
     }
@@ -1701,7 +2004,7 @@ class FaixaDeEspacos : public views::View,
                          if (!janela) {
                            return;
                          }
-                         janela->ThemeChanged();
+                         janela->ScheduleThemeChanged();
                          if (janela->non_client_view() &&
                              janela->non_client_view()->frame_view()) {
                            janela->non_client_view()
@@ -1758,6 +2061,9 @@ class FaixaDeEspacos : public views::View,
   static constexpr int kConfigurar = 4;
   static constexpr int kAtalhosCmd = 5;
   static constexpr int kFecharAbasCmd = 6;
+  static constexpr int kFecharRepetidasCmd = 7;
+  static constexpr int kCopiarEnderecosCmd = 8;
+  static constexpr int kDescarregarCmd = 9;
   static constexpr int kSemContainer = 100;
   static constexpr int kPrimeiroContainer = 101;
 
@@ -1784,6 +2090,10 @@ class FaixaDeEspacos : public views::View,
   // Animação da troca de espaço (AnimarTroca).
   int geracao_da_troca_ = 0;
   bool camada_da_troca_ = false;
+  // A cor da lateral do espaço anterior, esmaecendo (EsmaecerCorAnterior),
+  // e a da moldura no começo de uma troca (Focar).
+  std::unique_ptr<ui::LayerSolidColor> cor_anterior_;
+  std::optional<SkColor> cor_antes_da_troca_;
   // Abas que entraram nesta janela durante um arrasto (vindas de outra).
   std::vector<tabs::TabHandle> chegaram_;
   // Entrou aba fora de arrasto e de restauração: hora de tirar as "Nova guia"
@@ -1802,8 +2112,10 @@ class FaixaDeEspacos : public views::View,
   views::ViewTracker titulo_do_cabecalho_;
   bool atualizacao_pendente_ = false;
   bool garantia_pendente_ = false;
-  // Cor do espaço da janela (nada = sem espaço focado), ver AtualizarTom.
-  std::optional<SkColor> tom_;
+  // Cor do espaço da janela (nada = sem espaço focado) e o grupo focado de
+  // quando foi calculada, ver Tom e AtualizarTom.
+  mutable std::optional<SkColor> tom_;
+  mutable std::optional<tab_groups::TabGroupId> grupo_do_tom_;
   base::WeakPtrFactory<FaixaDeEspacos> weak_factory_{this};
 };
 
@@ -1850,9 +2162,11 @@ void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
           }
           return std::nullopt;
         }));
-    containers::DefinirAbrirConfiguracoes(
-        base::BindRepeating([](BrowserWindowInterface* janela) {
-          configuracoes::Mostrar(janela);
+    containers::DefinirAbrirConfiguracoes(base::BindRepeating(
+        [](BrowserWindowInterface* janela, bool containers) {
+          configuracoes::Mostrar(janela, containers
+                                             ? configuracoes::Aba::kContainers
+                                             : configuracoes::Aba::kGeral);
         }));
     // Shift+clique num link (o browser_navigator não enxerga a interface).
     containers::DefinirAbridorDePrevia(base::BindRepeating(&previa::Abrir));

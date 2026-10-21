@@ -1,8 +1,21 @@
 diff --git i/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts w/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
-index b6cf0bffe2..b68ec7ae64 100644
+index b6cf0bffe2..80b403864e 100644
 --- i/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 +++ w/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
-@@ -161,7 +161,8 @@ export function getHtml(this: SettingsAppearancePageElement) {
+@@ -11,8 +11,10 @@ export function getHtml(this: SettingsAppearancePageElement) {
+   return html`<!--_html_template_start_-->
+ <settings-section page-title="$i18n{appearancePageTitle}">
+   <div route-path="default">
+-    <div class="settings-row first" id="themeRow"
+-        ?hidden="${!this.pageVisibility_.setTheme}">
++    <!-- navegador: o tema é das Configurações do Norte (Aparência); os do
++         GTK e do Qt não mudavam nada, e o do Qt pode derrubar o Norte fora do
++         KDE. -->
++    <div class="settings-row first" id="themeRow" hidden>
+       <cr-link-row id="openTheme" class="first"
+           ?hidden="${!this.pageVisibility_.setTheme}"
+           label="$i18n{themes}" sub-label="${this.themeSublabel_}"
+@@ -161,7 +163,8 @@ export function getHtml(this: SettingsAppearancePageElement) {
      </if>
  
  
@@ -12,8 +25,38 @@ index b6cf0bffe2..b68ec7ae64 100644
        <div class="flex cr-padded-text" aria-hidden="true">
          $i18n{tabStripPosition}
        </div>
+@@ -175,7 +178,8 @@ export function getHtml(this: SettingsAppearancePageElement) {
+     <div class="list-frame indented-toggles"
+         ?hidden="${!this.verticalTabsEnabledPref_?.value}">
+       ${this.showVerticalTabsExpandOnHoverSetting_() ? html`
+-        <settings-toggle-button
++        <!-- navegador: a lateral escondida é das Configurações do Norte. -->
++        <settings-toggle-button hidden
+             id="showVerticalTabsExpandOnHover"
+             pref-key="vertical_tabs.expand_on_hover"
+             label="$i18n{showVerticalTabsExpandOnHover}">
+@@ -215,16 +219,17 @@ export function getHtml(this: SettingsAppearancePageElement) {
+         @change="${this.onShowTabSearchButtonChange_}">
+     </settings-toggle-button>
+ 
++    <!-- navegador: os grupos são os espaços (sem grupos salvos). -->
+     <settings-toggle-button class="hr" id="showSavedTabGroups"
+         pref-key="bookmark_bar.show_tab_groups"
+         label="$i18n{showTabGroupsInBookmarksBar}"
+-        ?hidden="${this.showOrganizerPanelEnabled_}">
++        hidden>
+     </settings-toggle-button>
+ 
+     <settings-toggle-button class="hr" id="autoPinNewTabGroups"
+         pref-key="auto_pin_new_tab_groups"
+         label="$i18n{autoPinNewTabGroups}"
+-        ?hidden="${this.showOrganizerPanelEnabled_}">
++        hidden>
+     </settings-toggle-button>
+ 
+     ${this.showCtrlTabMru_ ? html`
 diff --git i/chrome/browser/ui/tabs/tab_menu_model.cc w/chrome/browser/ui/tabs/tab_menu_model.cc
-index 97c6ded1ac..6f4e3db973 100644
+index 97c6ded1ac..aaa2162b90 100644
 --- i/chrome/browser/ui/tabs/tab_menu_model.cc
 +++ w/chrome/browser/ui/tabs/tab_menu_model.cc
 @@ -4,6 +4,9 @@
@@ -26,7 +69,20 @@ index 97c6ded1ac..6f4e3db973 100644
  #include <memory>
  #include <optional>
  
-@@ -408,60 +411,24 @@ void TabMenuModel::Build(int index) {
+@@ -339,6 +342,12 @@ void TabMenuModel::Build(int index) {
+                                             : IDS_TAB_CXMENU_NEWTABTORIGHT);
+   }
+   SetElementIdentifierAt(GetItemCount() - 1, kAddNewTabAdjacentMenuItem);
++  // navegador: ícones do Lucide (navegador/icones/LUGARES) nos itens que
++  // ficavam sem; antes, só 5 de 13 tinham.
++  SetIconForCommandId(
++      TabStripModel::CommandNewTabToRight,
++      ui::ImageModel::FromVectorIcon(kAddIcon, ui::kColorMenuIcon,
++                                     ui::SimpleMenuModel::kDefaultIconSize));
+ 
+   if (!tab_strip_->GetSplitForTab(index).has_value()) {
+     if (tab_strip_->GetActiveTab()->IsSplit()) {
+@@ -408,60 +417,28 @@ void TabMenuModel::Build(int index) {
      SetElementIdentifierAt(GetItemCount() - 1, kArrangeSplitTabsMenuItem);
    }
  
@@ -100,11 +156,31 @@ index 97c6ded1ac..6f4e3db973 100644
 +      navegador_fixar_submenu_->GetItemCount() > 0) {
 +    AddSubMenu(TabStripModel::CommandAddToNewGroup, u"Fixar no espaço",
 +               navegador_fixar_submenu_.get());
++    SetIconForCommandId(
++        TabStripModel::CommandAddToNewGroup,
++        ui::ImageModel::FromVectorIcon(views::kKeepIcon, ui::kColorMenuIcon,
++                                       ui::SimpleMenuModel::kDefaultIconSize));
    }
  
    if (ExistingWindowSubMenuModel::ShouldShowSubmenu(tab_strip_->profile())) {
-@@ -502,9 +469,23 @@ void TabMenuModel::Build(int index) {
+@@ -496,17 +473,48 @@ void TabMenuModel::Build(int index) {
+ 
+   AddSeparator(ui::NORMAL_SEPARATOR);
+   AddItemWithStringId(TabStripModel::CommandReload, IDS_TAB_CXMENU_RELOAD);
++  SetIconForCommandId(
++      TabStripModel::CommandReload,
++      ui::ImageModel::FromVectorIcon(vector_icons::kRefreshIcon,
++                                     ui::kColorMenuIcon,
++                                     ui::SimpleMenuModel::kDefaultIconSize));
+ 
+   AddItemWithStringId(TabStripModel::CommandDuplicate,
+                       IDS_TAB_CXMENU_DUPLICATE);
    SetElementIdentifierAt(GetItemCount() - 1, kDuplicateMenuItem);
++  SetIconForCommandId(
++      TabStripModel::CommandDuplicate,
++      ui::ImageModel::FromVectorIcon(vector_icons::kContentCopyIcon,
++                                     ui::kColorMenuIcon,
++                                     ui::SimpleMenuModel::kDefaultIconSize));
  
    bool will_pin = tab_strip_->WillContextMenuPin(index);
 -  AddItemWithStringId(
@@ -128,9 +204,29 @@ index 97c6ded1ac..6f4e3db973 100644
 +                                  : u"Tirar dos favoritos");
 +  }
  
-   if (features::IsMenuSimplificationEnabled()) {
+-  if (features::IsMenuSimplificationEnabled()) {
++  if (!tab_strip_->profile()->IsOffTheRecord()) {
++    // navegador: o item é dos favoritos (os ladrilhos): estrela. O alfinete
++    // ficou no "Fixar no espaço".
++    SetIconForCommandId(
++        TabStripModel::CommandTogglePinned,
++        ui::ImageModel::FromVectorIcon(kStarIcon, ui::kColorMenuIcon,
++                                       ui::SimpleMenuModel::kDefaultIconSize));
++  } else if (features::IsMenuSimplificationEnabled()) {
      SetIconForCommandId(
-@@ -585,32 +566,16 @@ void TabMenuModel::Build(int index) {
+         TabStripModel::CommandTogglePinned,
+         ui::ImageModel::FromVectorIcon(
+@@ -547,7 +555,8 @@ void TabMenuModel::Build(int index) {
+     glic_displayed = true;
+   }
+ 
+-  const bool display_read_later = tab_strip_->delegate()->SupportsReadLater();
++  // navegador: sem a lista de leitura (saiu também do menu da página).
++  const bool display_read_later = false;
+   const std::optional<send_tab_to_self::EntryPointDisplayReason>
+       send_tab_to_self_reason = send_tab_to_self::GetEntryPointDisplayReason(
+           tab_strip_->GetWebContentsAt(index));
+@@ -585,32 +594,21 @@ void TabMenuModel::Build(int index) {
      }
    }
  
@@ -167,11 +263,29 @@ index 97c6ded1ac..6f4e3db973 100644
 -                                                  tabs::kVerticalTabsNewBadge);
 -      SetIsNewFeatureAt(GetItemCount() - 1, show_badge);
 -    }
-+    AddSubMenu(TabStripModel::CommandToggleVertical, u"Abrir em container",
-+               navegador_containers_submenu_.get());
++    // O ícone é o dos containers nas Configurações e nos outros menus.
++    AddSubMenuWithIcon(TabStripModel::CommandToggleVertical,
++                       u"Abrir em container",
++                       navegador_containers_submenu_.get(),
++                       ui::ImageModel::FromVectorIcon(
++                           vector_icons::kWorkIcon, ui::kColorMenuIcon,
++                           ui::SimpleMenuModel::kDefaultIconSize));
    }
  
    // Append extension items for the 'tab' context if the feature is enabled.
+@@ -638,6 +636,12 @@ void TabMenuModel::Build(int index) {
+   // Separator Close Tab items
+   AddSeparator(ui::NORMAL_SEPARATOR);
+   AddItemWithStringId(TabStripModel::CommandCloseTab, IDS_TAB_CXMENU_CLOSETAB);
++  // navegador: ícone do Lucide (o x).
++  SetIconForCommandId(
++      TabStripModel::CommandCloseTab,
++      ui::ImageModel::FromVectorIcon(vector_icons::kCloseIcon,
++                                     ui::kColorMenuIcon,
++                                     ui::SimpleMenuModel::kDefaultIconSize));
+   AddItemWithStringId(TabStripModel::CommandCloseOtherTabs,
+                       IDS_TAB_CXMENU_CLOSEOTHERTABS);
+ 
 diff --git i/chrome/browser/ui/tabs/tab_strip_prefs.cc w/chrome/browser/ui/tabs/tab_strip_prefs.cc
 index ca0afc6fd0..bb10475d7c 100644
 --- i/chrome/browser/ui/tabs/tab_strip_prefs.cc
@@ -191,7 +305,7 @@ index ca0afc6fd0..bb10475d7c 100644
        prefs::kVerticalTabsExpandOnHoverEnabled,
        tabs::kVerticalTabsExpandOnHoverDefaultEnabled.Get());
 diff --git i/chrome/browser/ui/tabs/vertical_tab_strip_state_controller.cc w/chrome/browser/ui/tabs/vertical_tab_strip_state_controller.cc
-index 22ece00a8c..88a105da9d 100644
+index 22ece00a8c..11bc2b5c89 100644
 --- i/chrome/browser/ui/tabs/vertical_tab_strip_state_controller.cc
 +++ w/chrome/browser/ui/tabs/vertical_tab_strip_state_controller.cc
 @@ -4,6 +4,8 @@
@@ -222,7 +336,20 @@ index 22ece00a8c..88a105da9d 100644
    // If the user already has a pending mode switch, but tries to change tab
    // strip mode again, ensure the toast is displayed.
    if (enable_state_lock_count_ > 0 && enabled != is_vertical_tabs_enabled_ &&
-@@ -413,8 +420,13 @@ void VerticalTabStripStateController::UpdateCollapseActionItem() {
+@@ -243,7 +250,11 @@ void VerticalTabStripStateController::SetUncollapsedWidth(int width) {
+ }
+ 
+ bool VerticalTabStripStateController::IsExpandOnHoverEnabled() const {
+-  return is_expand_on_hover_enabled_;
++  // navegador: quem decide é o "Mostrar ao encostar na borda" do Norte
++  // (navegador.lateral.mostrar_na_borda, conferido na lateral). Desligada em
++  // chrome://settings/appearance, a opção do Chromium desligava em silêncio a
++  // do Norte, que continuava parecendo ligada.
++  return true;
+ }
+ 
+ void VerticalTabStripStateController::SetExpandOnHoverEnabled(bool enabled) {
+@@ -413,8 +424,13 @@ void VerticalTabStripStateController::UpdateCollapseActionItem() {
        actions::ActionManager::Get().FindAction(kActionToggleCollapseVertical,
                                                 root_action_item_);
    if (collapse_action) {
@@ -237,7 +364,7 @@ index 22ece00a8c..88a105da9d 100644
      collapse_action->SetText(
          chrome::GetCleanTitleAndTooltipText(l10n_util::GetStringUTF16(text)));
  
-@@ -426,7 +438,9 @@ void VerticalTabStripStateController::UpdateCollapseActionItem() {
+@@ -426,7 +442,9 @@ void VerticalTabStripStateController::UpdateCollapseActionItem() {
                    l10n_util::GetStringUTF16(text))
              : chrome::GetCleanTitleAndTooltipText(
                    l10n_util::GetStringFUTF16(tooltip_id, shortcut_text));
@@ -249,7 +376,7 @@ index 22ece00a8c..88a105da9d 100644
      collapse_action->SetEnabled(ShouldDisplayVerticalTabs());
    }
 diff --git i/chrome/browser/ui/toolbar/app_menu_model.cc w/chrome/browser/ui/toolbar/app_menu_model.cc
-index f8f6a64f35..8aedcc0bdd 100644
+index f8f6a64f35..ae8f7c90ef 100644
 --- i/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ w/chrome/browser/ui/toolbar/app_menu_model.cc
 @@ -4,6 +4,8 @@
@@ -326,7 +453,7 @@ index f8f6a64f35..8aedcc0bdd 100644
 +      AddSubMenuWithIcon(kNavegadorContainersMenu, u"Containers",
 +                         sub_menus_.back().get(),
 +                         ui::ImageModel::FromVectorIcon(
-+                             vector_icons::kCookieIcon, ui::kColorMenuIcon,
++                             vector_icons::kWorkIcon, ui::kColorMenuIcon,
 +                             ui::SimpleMenuModel::kDefaultIconSize));
 +    }
 +  }

@@ -163,7 +163,7 @@ export default {
     bloqueador_t: 'Bloqueador incluido',
     bloqueador: 'EasyList, EasyPrivacy y EasyList Portuguese vienen activadas y se actualizan con cada versión. Norte bloquea anuncios y rastreadores en la red y además oculta el espacio vacío que dejarían. Si un sitio se rompe, puedes desactivarlo solo para ese sitio, desde el candado de la barra.',
     sem_ia_t: 'Sin IA, sin cuenta, sin estadísticas',
-    sem_ia: 'Las funciones de IA de Chromium están desactivadas y fuera de los menús. No hay inicio de sesión de Google ni envío de datos de uso. Lo único que Norte hace en internet por su cuenta es buscar una versión nueva en GitHub, y eso se puede desactivar.',
+    sem_ia: 'Las funciones de IA de Chromium están desactivadas y fuera de los menús, incluido el Gemini Nano que usarían las páginas. No hay inicio de sesión de Google ni envío de datos de uso. Por su cuenta, Norte solo busca una versión nueva en GitHub (se puede desactivar); el Chromium de abajo todavía descarga de Google sus componentes, como el Widevine de Netflix y las listas de certificados.',
   },
 
   origem: {
@@ -213,7 +213,7 @@ export default {
       ['¿Puedo traer todo desde Zen?', 'Sí. En la Configuración de Norte (<span class="teclas"><kbd>Ctrl</kbd> <kbd>,</kbd></span>), la pestaña General (“Geral”) tiene un botón “Importar do Zen” que trae contenedores, espacios, sitios fijados y carpetas, las cookies de cada contenedor (tus sesiones), contraseñas, marcadores e historial. Zen puede quedar abierto.'],
       ['¿Y 1Password?', 'Funciona: el paquete ya instala la conexión entre la extensión y la aplicación de 1Password, y agrega Norte a la lista de navegadores en los que la app confía. Solo instala la extensión.'],
       ['¿Por qué no tiene IA?', 'Porque la idea es un navegador que solo navega. Las funciones de IA de Chromium (Gemini, “Ayúdame a escribir”, búsqueda con IA, organizar pestañas) están desactivadas y fuera de los menús, y nada de lo que navegas va a un asistente.'],
-      ['¿Qué envía Norte a internet?', 'Por su cuenta, solo una consulta a GitHub para saber si hay versión nueva (se desactiva en Configuración de Norte → General, “Geral” → Actualizaciones, “Atualizações”). No hay cuenta de Google, sincronización ni estadísticas de uso.'],
+      ['¿Qué envía Norte a internet?', 'Por su cuenta, una consulta a GitHub para saber si hay versión nueva, al abrir y cada 6 horas (se desactiva en Configuración de Norte → General, “Geral” → Actualizaciones, “Atualizações”). El Chromium de abajo consulta a Google de vez en cuando para actualizar sus componentes (el Widevine de Netflix, las listas de certificados y de seguridad), y lo que escribes en la barra va al buscador elegido, para las sugerencias. No hay cuenta de Google, sincronización ni estadísticas de uso.'],
       ['¿Se llamaba Navegador?', 'Hasta la versión 20, sí. Quien ya lo tenía instalado recibió Norte en la actualización de siempre, con todo el perfil: sesiones, espacios, contenedores y extensiones.'],
       ['¿Quién lo hace?', 'Es un proyecto personal de <a href="https://github.com/LucasLomiento">@LucasLomiento</a>, de código abierto (BSD-3-Clause). ¿Encontraste un problema o tienes una idea? <a href="https://github.com/LucasLomiento/norte/issues">Abre un issue</a>.'],
     ],

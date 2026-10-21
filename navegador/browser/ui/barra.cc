@@ -21,12 +21,22 @@
 #include "components/prefs/pref_service.h"
 #include "content/public/browser/web_contents.h"
 #include "navegador/browser/containers/espacos_dados.h"
+#include "cc/paint/paint_flags.h"
+#include "cc/paint/paint_shader.h"
 #include "ui/aura/window.h"
+#include "ui/base/metadata/metadata_header_macros.h"
+#include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/compositor/layer.h"
 #include "ui/events/event.h"
 #include "ui/events/event_handler.h"
 #include "ui/gfx/animation/animation_delegate.h"
 #include "ui/gfx/animation/slide_animation.h"
 #include "ui/gfx/animation/tween.h"
+#include "ui/gfx/animation/animation.h"
+#include "ui/gfx/canvas.h"
+#include "ui/gfx/skia_paint_util.h"
+#include "ui/views/view_observer.h"
+#include "ui/views/view_tracker.h"
 #include "ui/views/bubble/bubble_dialog_delegate_view.h"
 #include "ui/views/controls/menu/menu_controller.h"
 #include "ui/views/focus/focus_manager.h"
@@ -53,6 +63,28 @@ void Refazer(BrowserView* view) {
     }
     widget->GetRootView()->SchedulePaint();
   }
+}
+
+// Um quadro da animação: o layout da janela e, da moldura, só a faixa de
+// cima, onde a sombra do cartão muda com a barra descendo (a sombra vai uns
+// 10 px além da borda). O Refazer inteiro (moldura com os botões da janela e
+// a janela toda) fica pro começo e o fim: a cada quadro, eram ~25 repinturas
+// da janela inteira por ciclo.
+void RefazerQuadro(BrowserView* view) {
+  view->InvalidateLayout();
+  views::Widget* widget = view->GetWidget();
+  if (!widget || !widget->non_client_view() ||
+      !widget->non_client_view()->frame_view() || !view->top_container()) {
+    return;
+  }
+  views::View* moldura = widget->non_client_view()->frame_view();
+  // Os botões da janela descem junto com a barra (só o layout: quem muda de
+  // lugar repinta o que precisa).
+  moldura->InvalidateLayout();
+  const gfx::Rect topo = views::View::ConvertRectToTarget(
+      view, moldura, view->top_container()->bounds());
+  moldura->SchedulePaintInRect(
+      gfx::Rect(0, 0, moldura->width(), topo.bottom() + 12));
 }
 
 // Se o foco está na barra que vai sumir, passa pra página (senão o views
@@ -99,6 +131,63 @@ constexpr int kZonaDoTopo = 6;
 // Folga abaixo da barra antes de contar que o ponteiro voltou pra página.
 constexpr int kFolgaAbaixo = 12;
 
+// Uma sombra curta embaixo da barra escondida enquanto ela está por cima da
+// página (sem ela, o sublinhado do alto de um site parecia ser da barra).
+// Segue o contêiner do topo: a cada quadro da descida ele muda de altura, e
+// ela vai junto, com a opacidade de quanto a barra desceu.
+class SombraDaBarra : public views::View, public views::ViewObserver {
+  METADATA_HEADER(SombraDaBarra, views::View)
+
+ public:
+  explicit SombraDaBarra(BrowserView* view) : view_(view) {
+    SetPaintToLayer();
+    layer()->SetFillsBoundsOpaquely(false);
+    SetCanProcessEventsWithinSubtree(false);
+    SetProperty(views::kViewIgnoredByLayoutKey, true);
+    SetVisible(false);
+    if (view->top_container()) {
+      topo_.Observe(view->top_container());
+    }
+  }
+
+  void Atualizar() {
+    const std::optional<double> revelada = Sobreposta(view_);
+    views::View* topo = view_->top_container();
+    if (!revelada || *revelada <= 0 || !topo || !topo->GetVisible() ||
+        topo->parent() != view_) {
+      SetVisible(false);
+      return;
+    }
+    const gfx::Rect barra = topo->bounds();
+    SetBoundsRect(gfx::Rect(barra.x(), barra.bottom(), barra.width(), kAltura));
+    layer()->SetOpacity(static_cast<float>(*revelada));
+    SetVisible(true);
+  }
+
+  // views::ViewObserver:
+  void OnViewBoundsChanged(views::View* observado) override { Atualizar(); }
+  void OnViewIsDeleting(views::View* observado) override { topo_.Reset(); }
+
+  // views::View:
+  void OnPaint(gfx::Canvas* canvas) override {
+    cc::PaintFlags degrade;
+    degrade.setShader(gfx::CreateGradientShader(
+        gfx::Point(0, 0), gfx::Point(0, height()),
+        SkColorSetA(SK_ColorBLACK, 0x38), SK_ColorTRANSPARENT));
+    canvas->DrawRect(GetLocalBounds(), degrade);
+    canvas->FillRect(gfx::Rect(0, 0, width(), 1),
+                     SkColorSetA(SK_ColorBLACK, 0x29));
+  }
+
+ private:
+  static constexpr int kAltura = 6;
+  const raw_ptr<BrowserView> view_;
+  base::ScopedObservation<views::View, views::ViewObserver> topo_{this};
+};
+
+BEGIN_METADATA(SombraDaBarra)
+END_METADATA
+
 // A barra escondida de uma janela, mostrada por um tempo: pelo Ctrl+L / nova
 // aba (até o foco sair dela) ou pelo ponteiro no alto da página ou saindo da
 // janela por cima (até ele voltar pra página e passar a folga, como a lateral
@@ -118,6 +207,19 @@ class Espia : public views::FocusChangeListener,
       raiz_ = janela->GetRootWindow();
       raiz_->AddPreTargetHandler(this);
     }
+    // Por cima de tudo da janela (filha por último): a sombra cobre o alto
+    // da página. Fora daqui: a Espia nasce na primeira consulta de
+    // Escondida, que pode vir no meio do layout da janela.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(
+                       [](base::WeakPtr<Espia> espia) {
+                         if (espia) {
+                           espia->sombra_.SetView(espia->view_->AddChildView(
+                               std::make_unique<SombraDaBarra>(
+                                   espia->view_.get())));
+                         }
+                       },
+                       fraco_.GetWeakPtr()));
   }
   Espia(const Espia&) = delete;
   Espia& operator=(const Espia&) = delete;
@@ -153,10 +255,13 @@ class Espia : public views::FocusChangeListener,
   // gfx::AnimationDelegate: cada quadro refaz o layout (a barra desce por
   // cima da página, que não muda de tamanho).
   void AnimationProgressed(const gfx::Animation* animation) override {
-    Refazer(view_);
+    RefazerQuadro(view_);
   }
   void AnimationEnded(const gfx::Animation* animation) override {
     Refazer(view_);
+    if (auto* sombra = static_cast<SombraDaBarra*>(sombra_.view())) {
+      sombra->Atualizar();
+    }
   }
 
   // views::FocusChangeListener:
@@ -237,11 +342,14 @@ class Espia : public views::FocusChangeListener,
   // Desce ou sobe a barra conforme o estado, nos tempos da lateral escondida
   // (tab_strip_animations.cc: 250 ms pra abrir, 150 ms pra fechar).
   void Animar() {
+    // Com "menos movimento" no sistema, sem animação.
     if (a_vista()) {
-      animacao_.SetSlideDuration(base::Milliseconds(250));
+      animacao_.SetSlideDuration(
+          gfx::Animation::RichAnimationDuration(base::Milliseconds(250)));
       animacao_.Show();
     } else {
-      animacao_.SetSlideDuration(base::Milliseconds(150));
+      animacao_.SetSlideDuration(
+          gfx::Animation::RichAnimationDuration(base::Milliseconds(150)));
       animacao_.Hide();
     }
     Refazer(view_);
@@ -317,6 +425,8 @@ class Espia : public views::FocusChangeListener,
 
   const raw_ptr<BrowserView> view_;
   const raw_ptr<views::Widget> widget_;
+  // Filha da janela (é dela, e some com ela).
+  views::ViewTracker sombra_;
   raw_ptr<aura::Window> raiz_ = nullptr;
   bool espiando_ = false;
   bool pelo_ponteiro_ = false;

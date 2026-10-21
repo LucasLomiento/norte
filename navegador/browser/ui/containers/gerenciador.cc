@@ -238,28 +238,4 @@ std::unique_ptr<views::View> CriarPainel(Profile* profile) {
   return std::make_unique<PainelDeContainers>(profile);
 }
 
-void MostrarGerenciador(content::WebContents* aba) {
-  if (!aba) {
-    return;
-  }
-  Profile* profile = Profile::FromBrowserContext(aba->GetBrowserContext());
-  auto dialogo = std::make_unique<views::DialogDelegate>();
-  dialogo->SetTitle(u"Containers");
-  dialogo->SetModalType(ui::mojom::ModalType::kWindow);
-  dialogo->SetShowCloseButton(true);
-  // Lista que se edita no lugar: sem "OK"/"Fechar", só o x do título.
-  dialogo->SetButtons(static_cast<int>(ui::mojom::DialogButton::kNone));
-  dialogo->SetContentsView(CriarPainel(profile));
-  dialogo->set_fixed_width(480);
-  // Como os diálogos do Chromium: centralizado no alto da janela.
-  views::Widget* widget = constrained_window::CreateBrowserModalDialogViews(
-      std::move(dialogo), aba->GetTopLevelNativeWindow());
-  widget->Show();
-  // Subsuperfície no Wayland: só aparece com um quadro novo da janela.
-  if (views::Widget* janela = views::Widget::GetWidgetForNativeWindow(
-          aba->GetTopLevelNativeWindow())) {
-    janela->GetRootView()->SchedulePaint();
-  }
-}
-
 }  // namespace navegador::containers

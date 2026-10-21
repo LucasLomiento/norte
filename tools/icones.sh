@@ -49,6 +49,30 @@ rsvg-convert -w 32 -h 32 "$SVG" | magick png:- "xpm:$TMP"
 por "$TEMA/linux/product_logo_32.xpm"
 cp "$SVG" "$TMP"
 por "$TEMA/product_logo.svg"
+# Favicons das páginas internas (Configurações, Downloads, Histórico,
+# Extensões) e o favicon padrão (globo), no lugar dos do Chromium em azul do
+# Google: o Lucide em cinza, que serve no claro e no escuro
+# (navegador/icones/favicons, de tools/lucide.py --svg "#888892").
+FAV="$RAIZ/navegador/icones/favicons"
+favicon() {  # favicon <svg> <px> <destino>
+  rsvg-convert -w "$2" -h "$2" "$FAV/$1.svg" -o "$TMP"
+  por "$SRC/$3"
+}
+for escala in 1 2; do
+  base=$((16 * escala))
+  favicon settings $base "chrome/app/theme/default_${escala}00_percent/common/favicon_settings.png"
+  favicon download $base "chrome/app/theme/default_${escala}00_percent/common/favicon_downloads.png"
+  favicon puzzle $base "extensions/browser/resources/default_${escala}00_percent/favicon_extensions.png"
+done
+for escala in 1 2 3; do
+  base=$((16 * escala))
+  favicon rotate-ccw-clock $base "components/resources/default_${escala}00_percent/favicon_history.png"
+  for tema in "" "_dark"; do
+    favicon globe $base "ui/resources/default_${escala}00_percent/common/default_favicon${tema}.png"
+    favicon globe $((base * 2)) "ui/resources/default_${escala}00_percent/common/default_favicon${tema}_32.png"
+    favicon globe $((base * 4)) "ui/resources/default_${escala}00_percent/common/default_favicon${tema}_64.png"
+  done
+done
 # Ícones do Lucide no lugar dos do Chromium (navegador/icones/LUGARES; os
 # .icon saem de tools/lucide.py).
 while read -r nome destino; do

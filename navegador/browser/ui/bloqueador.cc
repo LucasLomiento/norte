@@ -25,6 +25,7 @@
 #include "components/content_settings/core/browser/host_content_settings_map.h"
 #include "components/content_settings/core/common/content_settings.h"
 #include "components/content_settings/core/common/content_settings_types.h"
+#include "components/prefs/pref_service.h"
 #include "components/subresource_filter/content/browser/ruleset_service.h"
 #include "components/subresource_filter/core/browser/ruleset_version.h"
 #include "content/public/browser/navigation_handle.h"
@@ -33,6 +34,7 @@
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 #include "mojo/public/cpp/bindings/associated_remote.h"
+#include "navegador/browser/containers/espacos_dados.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "url/gurl.h"
 
@@ -72,6 +74,13 @@ struct Cosmetico {
 std::unique_ptr<Cosmetico>& Regras() {
   static base::NoDestructor<std::unique_ptr<Cosmetico>> regras;
   return *regras;
+}
+
+// As da EasyList Cookie (avisos de cookies), à parte: valem só com a opção
+// ligada (kAvisosDeCookiesPref). No cosmetico.txt, com as letras minúsculas.
+std::unique_ptr<Cosmetico>& Avisos() {
+  static base::NoDestructor<std::unique_ptr<Cosmetico>> avisos;
+  return *avisos;
 }
 
 void Juntar(std::string& css, const std::vector<std::string_view>& seletores) {
@@ -136,16 +145,21 @@ bool ValorValido(std::string_view valor) {
          });
 }
 
-std::unique_ptr<Cosmetico> LerCosmetico(const base::FilePath& caminho) {
-  std::string texto;
-  if (!base::ReadFileToString(caminho, &texto)) {
-    return nullptr;
-  }
+// `avisos`: só as linhas da lista de avisos de cookies (letras minúsculas,
+// tools/cosmetico.py --avisos), com as letras de volta em maiúscula; senão,
+// só as outras.
+std::unique_ptr<Cosmetico> LerCosmetico(const std::string& texto, bool avisos) {
   auto regras = std::make_unique<Cosmetico>();
   for (std::string_view linha : base::SplitStringPiece(
            texto, "\n", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
     std::vector<std::string_view> campos = base::SplitStringPiece(
         linha, "\t", base::KEEP_WHITESPACE, base::SPLIT_WANT_ALL);
+    if (campos.empty() || campos[0].size() != 1 ||
+        base::IsAsciiLower(campos[0][0]) != avisos) {
+      continue;
+    }
+    const std::string letra(1, base::ToUpperASCII(campos[0][0]));
+    campos[0] = letra;
     if (campos.size() == 2 && campos[0] == "G") {
       regras->genericos.emplace_back(campos[1]);
       continue;
@@ -417,9 +431,16 @@ class Escondedor : public content::WebContentsObserver,
         CONTENT_SETTING_ALLOW) {
       return;
     }
+    std::string css = CssDoSite(*Regras(), url.host());
+    if (Avisos() &&
+        Profile::FromBrowserContext(web_contents()->GetBrowserContext())
+            ->GetPrefs()
+            ->GetBoolean(espacos::kAvisosDeCookiesPref)) {
+      css += CssDoSite(*Avisos(), url.host());
+    }
     mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> quadro;
     destino->GetRemoteAssociatedInterfaces()->GetInterface(&quadro);
-    quadro->NavegadorEsconderAnuncios(CssDoSite(*Regras(), url.host()),
+    quadro->NavegadorEsconderAnuncios(std::move(css),
                                       JsDoSite(*Regras(), url.host()), url);
   }
 
@@ -433,10 +454,11 @@ WEB_CONTENTS_USER_DATA_KEY_IMPL(Escondedor);
 struct Pasta {
   std::optional<subresource_filter::UnindexedRulesetInfo> rede;
   std::unique_ptr<Cosmetico> cosmetico;
+  std::unique_ptr<Cosmetico> avisos;
 };
 
 // Pasta das regras, ao lado do módulo: o pacote do Linux instala em
-// /usr/lib/navegador/bloqueador, o instalador do Windows na pasta da versão
+// /usr/lib/norte/bloqueador, o instalador do Windows na pasta da versão
 // (ao lado do chrome.dll); numa compilação de desenvolvimento, um link pra
 // pacote/bloqueador no out/.
 Pasta LerPasta() {
@@ -446,7 +468,11 @@ Pasta LerPasta() {
     return lida;
   }
   const base::FilePath pasta = exe.AppendASCII("bloqueador");
-  lida.cosmetico = LerCosmetico(pasta.AppendASCII("cosmetico.txt"));
+  std::string cosmetico;
+  if (base::ReadFileToString(pasta.AppendASCII("cosmetico.txt"), &cosmetico)) {
+    lida.cosmetico = LerCosmetico(cosmetico, /*avisos=*/false);
+    lida.avisos = LerCosmetico(cosmetico, /*avisos=*/true);
+  }
   std::string versao;
   if (!base::ReadFileToString(pasta.AppendASCII("VERSAO"), &versao)) {
     return lida;
@@ -466,6 +492,7 @@ Pasta LerPasta() {
 
 void Publicar(Pasta lida) {
   Regras() = std::move(lida.cosmetico);
+  Avisos() = std::move(lida.avisos);
   if (Regras()) {
     for (Escondedor* escondedor : Escondedor::Todos()) {
       escondedor->RegrasCarregadas();

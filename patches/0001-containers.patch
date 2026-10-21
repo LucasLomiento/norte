@@ -64,18 +64,27 @@ index 817cd91bda..27fafcf284 100644
      ":util",
      "//chrome/browser:browser_process",
 diff --git i/chrome/browser/prefs/browser_prefs.cc w/chrome/browser/prefs/browser_prefs.cc
-index 2653e37bec..dfd79662ac 100644
+index 2653e37bec..a653710f0a 100644
 --- i/chrome/browser/prefs/browser_prefs.cc
 +++ w/chrome/browser/prefs/browser_prefs.cc
-@@ -221,6 +221,7 @@
+@@ -221,6 +221,8 @@
  #include "components/webui/chrome_urls/pref_names.h"
  #include "components/webui/flags/pref_service_flags_storage.h"
  #include "content/public/browser/render_process_host.h"
 +#include "navegador/browser/containers/containers.h"
++#include "navegador/browser/sem_ia/sem_ia.h"
  #include "content/public/common/buildflags.h"
  #include "extensions/buildflags/buildflags.h"
  #include "net/http/http_server_properties_manager.h"
-@@ -1747,6 +1748,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -1413,6 +1415,7 @@ std::string GetCountry() {
+ }
+ 
+ void RegisterLocalState(PrefRegistrySimple* registry) {
++  navegador::RegisterLocalStatePrefs(registry);  // navegador
+   // Call outs to individual subsystems that register Local State (browser-wide)
+   // prefs en masse. See RegisterProfilePrefs for per-profile prefs. Please
+   // keep this list alphabetized.
+@@ -1747,6 +1750,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                            const std::string& locale) {
    TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
    // User prefs. Please keep this list alphabetized.
@@ -83,7 +92,7 @@ index 2653e37bec..dfd79662ac 100644
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
    AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
-@@ -1961,6 +1963,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -1961,6 +1965,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
    NewTabPageHandler::RegisterProfilePrefs(registry);
    NewTabPageUI::RegisterProfilePrefs(registry);
    MostVisitedPrefObserver::RegisterProfilePrefs(registry);
@@ -172,20 +181,21 @@ index b2e9ee838f..7430aec948 100644
      "//base",
      "//base:i18n",
 diff --git i/chrome/browser/renderer_context_menu/render_view_context_menu.cc w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-index 1a4de31b32..7fc9dad7d8 100644
+index 1a4de31b32..73a4ade81b 100644
 --- i/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-@@ -4,6 +4,9 @@
+@@ -4,6 +4,10 @@
  
  #include "chrome/browser/renderer_context_menu/render_view_context_menu.h"
  
 +#include "navegador/browser/ui/containers/containers_ui.h"
++#include "navegador/browser/ui/menu_da_pagina.h"
 +#include "navegador/icones/menu/vector_icons.h"
 +
  #include <stddef.h>
  
  #include <algorithm>
-@@ -431,6 +434,134 @@ constexpr int IDC_SPELLCHECK_LANGUAGES_LAST =
+@@ -431,6 +435,134 @@ constexpr int IDC_SPELLCHECK_LANGUAGES_LAST =
  
  constexpr int kTabMenuIconSize = 16;
  
@@ -320,16 +330,36 @@ index 1a4de31b32..7fc9dad7d8 100644
  base::OnceCallback<void(RenderViewContextMenu*)>* GetMenuShownCallback() {
    static base::NoDestructor<base::OnceCallback<void(RenderViewContextMenu*)>>
        callback;
-@@ -1578,6 +1709,8 @@ void RenderViewContextMenu::InitMenu() {
+@@ -1578,6 +1710,15 @@ void RenderViewContextMenu::InitMenu() {
        AppendReadAnythingItem();
      }
    }
 +
++  // navegador: os itens do Norte (copiar link limpo e como Markdown, o
++  // bloqueador no site), que entram no fim e vão pros lugares no Arrumar.
++  navegador_itens_ = navegador::menu_da_pagina::Criar(this, source_web_contents_);
++  navegador_itens_->InitMenu(params_);
++  observers_.AddObserver(navegador_itens_.get());
++
 +  NavegadorArrumarMenu(menu_model_);
++  navegador::menu_da_pagina::Arrumar(menu_model_);
  }
  
  Profile* RenderViewContextMenu::GetProfile() const {
-@@ -2146,6 +2279,21 @@ void RenderViewContextMenu::AppendLinkItems() {
+@@ -1650,6 +1791,12 @@ void RenderViewContextMenu::RecordUsedItem(int id) {
+   int enum_id =
+       FindUMAEnumValueForCommand(id, UmaEnumIdLookupType::GeneralEnumId);
+   if (enum_id == -1) {
++    // navegador: os itens do Norte (menu_da_pagina.h) ficam fora da métrica;
++    // sem isso, clicar num deles derrubava o navegador aqui.
++    if (id >= navegador::menu_da_pagina::kCopiarLinkLimpo &&
++        id <= navegador::menu_da_pagina::kBloqueadorNoSite) {
++      return;
++    }
+     NOTREACHED() << "Update UmaEnumForCommand(). Unhandled IDC: " << id;
+   }
+ 
+@@ -2146,6 +2293,21 @@ void RenderViewContextMenu::AppendLinkItems() {
      }
  #endif  // !BUILDFLAG(IS_CHROMEOS)
  
@@ -352,15 +382,18 @@ index 1a4de31b32..7fc9dad7d8 100644
  
      // Send-Tab-To-Self (user's other devices), link level.
 diff --git i/chrome/browser/renderer_context_menu/render_view_context_menu.h w/chrome/browser/renderer_context_menu/render_view_context_menu.h
-index cbf156d81c..9844fedb18 100644
+index cbf156d81c..695c0f8a7b 100644
 --- i/chrome/browser/renderer_context_menu/render_view_context_menu.h
 +++ w/chrome/browser/renderer_context_menu/render_view_context_menu.h
-@@ -535,6 +535,8 @@ class RenderViewContextMenu
+@@ -535,6 +535,11 @@ class RenderViewContextMenu
    GURL main_frame_url_;
  
    ui::SimpleMenuModel profile_link_submenu_model_;
 +  // navegador: "Abrir link em container".
 +  std::unique_ptr<ui::SimpleMenuModel> navegador_containers_submenu_;
++  // navegador: copiar link limpo, como Markdown e o bloqueador no site
++  // (navegador/browser/ui/menu_da_pagina.h).
++  std::unique_ptr<RenderViewContextMenuObserver> navegador_itens_;
    std::vector<base::FilePath> profile_link_paths_;
    bool multiple_profiles_open_;
  

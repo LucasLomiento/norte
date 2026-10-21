@@ -10,6 +10,7 @@
 #include "base/memory/raw_ptr.h"
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
+#include "base/scoped_observation.h"
 #include "base/task/bind_post_task.h"
 #include "base/time/time.h"
 #include "base/timer/timer.h"
@@ -18,9 +19,12 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "components/tabs/public/tab_interface.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
 #include "content/public/browser/media_player_id.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -32,6 +36,7 @@
 #include "ui/views/view_class_properties.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/views/widget/widget.h"
+#include "ui/views/widget/widget_observer.h"
 
 namespace navegador::cor_da_pagina {
 
@@ -135,7 +140,8 @@ void LimparFornecedoresSePreciso() {
 // topo da página aberta e usa a cor dominante na barra de navegação.
 class Observador : public views::View,
                    public TabStripModelObserver,
-                   public content::WebContentsObserver {
+                   public content::WebContentsObserver,
+                   public views::WidgetObserver {
   METADATA_HEADER(Observador, views::View)
 
  public:
@@ -146,35 +152,90 @@ class Observador : public views::View,
     SetProperty(views::kViewIgnoredByLayoutKey, true);
     model_->AddObserver(this);
     Observe(model_->GetActiveWebContents());
+    // Ligada ou desligada nas Configurações: na hora, sem relógio
+    // conferindo.
+    preferencias_.Init(browser_view->browser()->GetProfile()->GetPrefs());
+    preferencias_.Add(espacos::kBarraNaCorDoSitePref,
+                      base::BindRepeating(&Observador::Acordar,
+                                          base::Unretained(this)));
   }
 
   ~Observador() override { Cores().erase(browser_view_); }
 
   // views::View:
   void AddedToWidget() override {
-    Amostrar();
-    Agendar();
+    janela_.Observe(GetWidget());
+    Acordar();
   }
   void RemovedFromWidget() override {
+    janela_.Reset();
     relogio_.Stop();
     aviso_.Stop();
   }
+
+  // views::WidgetObserver: a janela voltou a ser a ativa (só ela amostra).
+  void OnWidgetActivationChanged(views::Widget* widget, bool active) override {
+    if (active) {
+      Acordar();
+    }
+  }
+  void OnWidgetDestroying(views::Widget* widget) override { janela_.Reset(); }
 
   // TabStripModelObserver:
   void OnTabStripModelChanged(
       TabStripModel* tab_strip_model,
       const TabStripModelChange& change,
       const TabStripSelectionChange& selection) override {
+    if (change.type() == TabStripModelChange::kRemoved) {
+      for (const TabStripModelChange::RemovedTab& aba :
+           change.GetRemove()->contents) {
+        guardadas_.erase(aba.contents.get());
+      }
+    } else if (change.type() == TabStripModelChange::kReplaced) {
+      guardadas_.erase(change.GetReplace()->old_contents.get());
+    }
     if (selection.active_tab_changed()) {
       Observe(model_->GetActiveWebContents());
       ++geracao_;
+      // A cor que a aba tinha da última vez, já na troca: a cópia da página
+      // é assíncrona, e até ela chegar (1 a 4 quadros) a barra ficava com a
+      // cor da aba anterior, ou grafite numa aba sem pixels prontos.
+      if (auto it = guardadas_.find(web_contents());
+          it != guardadas_.end() && Ligada() && !TelaCheia()) {
+        Definir(it->second);
+      }
       Acordar();
+    }
+  }
+
+  // Dividiu ou desfez a divisão: a barra perde ou volta a ter a cor do site
+  // (ver CorDaBarra).
+  void OnSplitTabChanged(const SplitTabChange& change) override {
+    if (views::Widget* widget = GetWidget()) {
+      widget->ScheduleThemeChanged();
     }
   }
 
   // content::WebContentsObserver:
   void DidFirstVisuallyNonEmptyPaint() override { Acordar(); }
   void DidStopLoading() override { Acordar(); }
+  // Navegação dentro da página (sites de uma página só): a barra muda sem
+  // carregar nada.
+  void DidFinishNavigation(content::NavigationHandle* navegacao) override {
+    if (navegacao->IsInPrimaryMainFrame() && navegacao->HasCommitted() &&
+        navegacao->IsSameDocument()) {
+      AcordarDepois();
+    }
+  }
+  // Rolar, clicar ou digitar podem mudar o topo da página (cabeçalho que
+  // encolhe, menu aberto): o relógio volta a amostrar por um tempo.
+  void DidGetUserInteraction(const blink::WebInputEvent& evento) override {
+    iguais_ = 0;
+    if (!relogio_.IsRunning()) {
+      intervalo_ = kIntervaloMinimo;
+      Agendar();
+    }
+  }
   // A cor de fundo e o theme-color podem mudar a cada quadro (transição ou
   // animação do fundo do body): cada aviso era uma cópia da tela e um
   // ThemeChanged da janela inteira. Espera os avisos pararem.
@@ -202,13 +263,18 @@ class Observador : public views::View,
   }
 
   // A página muda sem avisar (rolar, cabeçalho fixo): amostra de novo de
-  // tempos em tempos. Cada amostra pede uma cópia da tela ao compositor
-  // (que recompõe a janela): quando a cor não muda, o intervalo cresce até
-  // 6 s; algo acontecendo na aba volta pra 1,5 s. Desligada (Configurações
-  // → Aparência), não amostra nada.
+  // tempos em tempos depois de cada mudança. Cada amostra pede uma cópia da
+  // tela ao compositor (que recompõe a janela): quando a cor não muda, o
+  // intervalo dobra, e depois de kIguaisPraParar amostras iguais o relógio
+  // para (antes, uma cópia a cada 6 s com a janela parada, pra sempre). Os
+  // avisos da aba, a janela voltando a ficar ativa e a interação com a
+  // página acordam. Desligada (Configurações → Aparência), não amostra nada.
   void Agendar() {
-    // Desligada, só confere de vez em quando se foi ligada (sem cópia).
-    relogio_.Start(FROM_HERE, Ligada() ? intervalo_ : kIntervaloMaximo,
+    if (!Ligada()) {
+      relogio_.Stop();
+      return;
+    }
+    relogio_.Start(FROM_HERE, intervalo_,
                    base::BindOnce(&Observador::Tique, base::Unretained(this)));
   }
 
@@ -235,19 +301,20 @@ class Observador : public views::View,
   }
 
   void Tique() {
-    // Janela de fundo: a barra dela quase não aparece; espera.
+    // Janela de fundo (a barra dela quase não aparece), tela cheia ou vídeo
+    // tocando: para até um aviso (a janela ativa de novo, a saída da tela
+    // cheia, o fim do vídeo). Senão o AoAmostrar decide se continua.
     if (Ligada() && GetWidget() && GetWidget()->IsActive() && !TelaCheia() &&
         !TocandoVideo()) {
       Amostrar(/*periodica=*/true);
     }
-    intervalo_ = std::min(intervalo_ * 2, kIntervaloMaximo);
-    Agendar();
   }
 
   // Algo mudou na aba (troca, carregamento, cor do tema): uma amostra na
   // hora, mesmo com vídeo tocando (é um quadro só, junto da mudança).
   void Acordar() {
     intervalo_ = kIntervaloMinimo;
+    iguais_ = 0;
     if (!TelaCheia()) {
       Amostrar();
     }
@@ -318,12 +385,18 @@ class Observador : public views::View,
       }
     }
     candidata_.reset();
-    // Mudou: a página está se mexendo, amostra mais vezes.
+    // Mudou: a página está se mexendo, amostra mais vezes. Igual (no
+    // relógio): espaça, e depois de kIguaisPraParar seguidas, para.
     auto it = Cores().find(browser_view_);
     if (it == Cores().end() || Diferentes(it->second, cor)) {
       intervalo_ = kIntervaloMinimo;
+      iguais_ = 0;
+      Agendar();
+    } else if (periodica && ++iguais_ < kIguaisPraParar) {
+      intervalo_ = std::min(intervalo_ * 2, kIntervaloMaximo);
       Agendar();
     }
+    guardadas_[web_contents()] = cor;
     Definir(cor);
   }
 
@@ -332,6 +405,12 @@ class Observador : public views::View,
     content::WebContents* contents = web_contents();
     if (!contents) {
       return std::nullopt;
+    }
+    // A que a aba teve da última vez vale mais que o theme-color: numa aba
+    // de volta, a página branca sem pixels prontos deixava a barra grafite.
+    if (auto it = guardadas_.find(contents);
+        it != guardadas_.end() && it->second) {
+      return it->second;
     }
     std::optional<SkColor> cor = contents->GetThemeColor();
     if (!cor) {
@@ -351,8 +430,10 @@ class Observador : public views::View,
     }
     cores[browser_view_] = cor;
     LimparFornecedoresSePreciso();
+    // Agendado (junta com outros pedidos da mesma tarefa, como o tom do
+    // espaço na troca de espaço) e, com a mesma chave de cores, sai na hora.
     if (views::Widget* widget = GetWidget()) {
-      widget->ThemeChanged();
+      widget->ScheduleThemeChanged();
     }
   }
 
@@ -361,12 +442,19 @@ class Observador : public views::View,
   int geracao_ = 0;
   // Cor vista numa amostra do relógio, esperando a próxima confirmar.
   std::optional<std::optional<SkColor>> candidata_;
+  // A última cor de cada aba da janela (só a chave: o ponteiro nunca é
+  // usado), pra trocar de aba já com ela. Sai quando a aba sai da janela.
+  std::map<const content::WebContents*, std::optional<SkColor>> guardadas_;
   static constexpr base::TimeDelta kIntervaloMinimo = base::Milliseconds(1500);
   static constexpr base::TimeDelta kIntervaloMaximo = base::Seconds(6);
+  static constexpr int kIguaisPraParar = 2;
   base::TimeDelta intervalo_ = kIntervaloMinimo;
+  int iguais_ = 0;
   base::OneShotTimer relogio_;
   static constexpr base::TimeDelta kEsperaDoAviso = base::Milliseconds(250);
   base::OneShotTimer aviso_;
+  PrefChangeRegistrar preferencias_;
+  base::ScopedObservation<views::Widget, views::WidgetObserver> janela_{this};
   base::WeakPtrFactory<Observador> weak_factory_{this};
 };
 
@@ -381,6 +469,15 @@ std::optional<SkColor> CorDaBarra(const BrowserView* browser_view) {
       !browser_view->browser()->GetProfile()->GetPrefs()->GetBoolean(
           navegador::espacos::kBarraNaCorDoSitePref)) {
     return std::nullopt;
+  }
+  // Tela dividida: a barra é das duas metades, e a cor de uma virava uma
+  // moldura em volta das duas.
+  if (browser_view && browser_view->browser()) {
+    tabs::TabInterface* ativa =
+        browser_view->browser()->GetTabStripModel()->GetActiveTab();
+    if (ativa && ativa->IsSplit()) {
+      return std::nullopt;
+    }
   }
   auto& cores = Cores();
   auto it = cores.find(browser_view);

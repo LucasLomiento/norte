@@ -1,0 +1,40 @@
+diff --git i/base/check.cc w/base/check.cc
+index a91851e30e..cf7782c7b8 100644
+--- i/base/check.cc
++++ w/base/check.cc
+@@ -56,7 +56,14 @@ constexpr char kCheckFailureMessageSeparator[] =
+     ;
+ 
+ LogSeverity GetDumpSeverity() {
+-#if defined(OFFICIAL_BUILD)
++// navegador: o pacote (compilação estática) trata as verificações "suaves"
++// (DUMP_WILL_BE_CHECK, DUMP_WILL_BE_NOTREACHED, NotFatalUntil de versões
++// futuras) como o Chrome e o Chromium do Arch: uma linha no log em vez de
++// derrubar o navegador. Fora da official build eram ~4,4 mil pontos de queda
++// (a lista de buscadores voltando de uma migração era um deles). A
++// compilação de desenvolvimento (component build) continua derrubando, pra
++// achar o problema.
++#if defined(OFFICIAL_BUILD) || !defined(COMPONENT_BUILD)
+   return DCHECK_IS_ON() ? LOGGING_DCHECK : LOGGING_ERROR;
+ #else
+   // Crash outside official builds (outside user-facing builds) to detect
+diff --git i/build/config/compiler/BUILD.gn w/build/config/compiler/BUILD.gn
+index ccfe9692ba..69e71fb72a 100644
+--- i/build/config/compiler/BUILD.gn
++++ w/build/config/compiler/BUILD.gn
+@@ -1123,6 +1123,15 @@ config("linker") {
+     }
+   }
+ 
++  # navegador: relocações empacotadas (RELR) no Linux, como no Chromium do
++  # Arch (vêm do LDFLAGS do makepkg): ~27 MB a menos no binário. O linker
++  # (mold no 155, ou lld) põe a dependência GLIBC_ABI_DT_RELR (glibc 2.36 ou
++  # mais nova).
++  if (is_linux && (use_mold || use_lld) &&
++      current_toolchain == default_toolchain) {
++    ldflags += [ "-Wl,-z,pack-relative-relocs" ]
++  }
++
+   if (is_chromeos_device && current_toolchain == default_toolchain) {
+     # Flags added automatically by ChromeOS's custom toolchain that are
+     # not already added elsewhere in the configuration. Add these here,

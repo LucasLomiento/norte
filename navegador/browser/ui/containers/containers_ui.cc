@@ -40,6 +40,10 @@ namespace navegador::containers {
 
 namespace {
 
+// "Gerenciar containers…" dos submenus (definida mais abaixo, junto da ponte
+// das Configurações).
+void GerenciarContainers(content::WebContents* aba);
+
 // Os ids dos itens dos submenus são únicos no menu inteiro: o Views acha o
 // comando pelo id, no primeiro item com ele (MenuModel::
 // GetModelAndIndexForCommandId, em profundidade). Com ids repetidos, "Abrir
@@ -127,7 +131,7 @@ class SubmenuDaAba : public ui::SimpleMenuModel,
       return;
     }
     if (command_id == kGerenciar) {
-      MostrarGerenciador(alvo_.get());
+      GerenciarContainers(alvo_.get());
       return;
     }
     const int index = tab_strip_->GetIndexOfWebContents(alvo_.get());
@@ -244,6 +248,18 @@ AbrirConfiguracoes& PonteConfiguracoes() {
   return *ponte;
 }
 
+// "Gerenciar containers…": a página Containers das Configurações, na janela
+// da aba (antes, um diálogo à parte, com outro desenho).
+void GerenciarContainers(content::WebContents* aba) {
+  tabs::TabInterface* tab =
+      aba ? tabs::TabInterface::MaybeGetFromContents(aba) : nullptr;
+  if (tab && tab->GetBrowserWindowInterface() &&
+      !PonteConfiguracoes().is_null()) {
+    PonteConfiguracoes().Run(tab->GetBrowserWindowInterface(),
+                             /*containers=*/true);
+  }
+}
+
 // "Mover para o espaço" no menu de contexto da aba.
 class SubmenuDeEspacos : public ui::SimpleMenuModel,
                          public ui::SimpleMenuModel::Delegate {
@@ -317,7 +333,7 @@ class SubmenuDoLink : public ui::SimpleMenuModel,
   void ExecuteCommand(int command_id, int event_flags) override {
     if (command_id == kGerenciar) {
       if (origem_) {
-        MostrarGerenciador(origem_.get());
+        GerenciarContainers(origem_.get());
       }
       return;
     }
@@ -365,7 +381,7 @@ class SubmenuNovaAba : public ui::SimpleMenuModel,
   // ui::SimpleMenuModel::Delegate:
   void ExecuteCommand(int command_id, int event_flags) override {
     if (command_id == kGerenciar) {
-      MostrarGerenciador(tab_strip_->GetActiveWebContents());
+      GerenciarContainers(tab_strip_->GetActiveWebContents());
       return;
     }
     const size_t i = command_id - kPrimeiro;
@@ -511,6 +527,14 @@ void DefinirFixarAba(FixarAba fixar) {
   PonteFixar() = std::move(fixar);
 }
 
+void FixarAbaNoEspaco(TabStripModel* tab_strip,
+                      int index,
+                      const std::string& destino) {
+  if (!PonteFixar().is_null() && !tab_strip->profile()->IsOffTheRecord()) {
+    PonteFixar().Run(tab_strip, index, destino);
+  }
+}
+
 std::unique_ptr<ui::SimpleMenuModel> CriarSubmenuFixar(TabStripModel* tab_strip,
                                                        int index) {
   return std::make_unique<SubmenuFixar>(tab_strip, index);
@@ -520,9 +544,9 @@ void DefinirAbrirConfiguracoes(AbrirConfiguracoes abrir) {
   PonteConfiguracoes() = std::move(abrir);
 }
 
-void MostrarConfiguracoes(BrowserWindowInterface* browser) {
+void MostrarConfiguracoes(BrowserWindowInterface* browser, bool containers) {
   if (!PonteConfiguracoes().is_null()) {
-    PonteConfiguracoes().Run(browser);
+    PonteConfiguracoes().Run(browser, containers);
   }
 }
 

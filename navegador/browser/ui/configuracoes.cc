@@ -20,6 +20,8 @@
 #include "base/task/single_thread_task_runner.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/vector_icons/vector_icons.h"
+#include "chrome/browser/browser_process.h"
+#include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/prefs/session_startup_pref.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/themes/theme_service.h"
@@ -29,7 +31,13 @@
 #include "chrome/browser/ui/navigator/browser_navigator.h"
 #include "chrome/browser/ui/navigator/browser_navigator_params.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/common/pref_names.h"
 #include "components/constrained_window/constrained_window_views.h"
+#include "components/content_settings/core/browser/cookie_settings.h"
+#include "components/content_settings/core/browser/host_content_settings_map.h"
+#include "components/content_settings/core/common/pref_names.h"
+#include "components/content_settings/core/common/content_settings.h"
+#include "components/content_settings/core/common/content_settings_types.h"
 #include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/vector_icons/vector_icons.h"
@@ -42,9 +50,13 @@
 #include "navegador/browser/ui/containers/containers_ui.h"
 #include "navegador/browser/ui/containers/gerenciador.h"
 #include "navegador/browser/ui/espacos.h"
+#include "navegador/browser/ui/exportar.h"
+#include "navegador/browser/ui/importar_chromium.h"
 #include "navegador/browser/ui/importar_zen.h"
 #include "navegador/browser/ui/inicio.h"
+#include "navegador/browser/sem_ia/sem_ia.h"
 #include "navegador/browser/ui/seletor_de_cor.h"
+#include "navegador/icones/menu/vector_icons.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
@@ -74,6 +86,7 @@
 #include "ui/views/controls/highlight_path_generator.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
+#include "ui/views/controls/link.h"
 #include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/separator.h"
 #include "ui/views/controls/slider.h"
@@ -166,7 +179,21 @@ void RefazerJanelas(Profile* perfil) {
   }
 }
 
-void AbrirPagina(BrowserWindowInterface* browser, const char* endereco) {
+// As Configurações abertas em cada janela.
+std::map<BrowserWindowInterface*, base::WeakPtr<views::Widget>>& Abertas() {
+  static base::NoDestructor<
+      std::map<BrowserWindowInterface*, base::WeakPtr<views::Widget>>>
+      abertas;
+  return *abertas;
+}
+
+// Abre `endereco` numa aba da janela. As Configurações travam a janela (são
+// um diálogo dela): fecham antes, senão a aba nova ficava presa atrás.
+void AbrirPagina(BrowserWindowInterface* browser, std::string endereco) {
+  if (auto it = Abertas().find(browser);
+      it != Abertas().end() && it->second) {
+    it->second->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
+  }
   NavigateParams params(browser, GURL(endereco),
                         ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
   params.disposition = WindowOpenDisposition::SINGLETON_TAB;
@@ -228,12 +255,44 @@ std::unique_ptr<views::Label> Titulo(std::u16string texto,
   return titulo;
 }
 
+// Descrição de várias linhas que acompanha a largura que sobra na linha. O
+// controle à direita muda de largura de uma linha pra outra, e com a altura
+// sempre a de `kLarguraDescricao` o texto ficava cortado (controles largos,
+// como os do importar) ou com sobra embaixo (interruptor).
+class TextoDeDescricao : public views::Label {
+  METADATA_HEADER(TextoDeDescricao, views::Label)
+
+ public:
+  using views::Label::Label;
+
+  void OnBoundsChanged(const gfx::Rect& anteriores) override {
+    views::Label::OnBoundsChanged(anteriores);
+    if (width() > 0 && width() != largura_) {
+      largura_ = width();
+      SizeToFit(largura_);
+      PreferredSizeChanged();
+    }
+  }
+
+ private:
+  int largura_ = 0;
+};
+
+BEGIN_METADATA(TextoDeDescricao)
+END_METADATA
+
 std::unique_ptr<views::Label> Descricao(std::u16string texto,
                                         int largura = kLarguraDescricao) {
-  auto descricao = std::make_unique<views::Label>(texto);
+  auto descricao = std::make_unique<TextoDeDescricao>(texto);
   descricao->SetFontList(Fonte(12, gfx::Font::Weight::NORMAL));
   descricao->SetMultiLine(true);
   descricao->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+  // A altura é a das linhas na largura fixa; esticada mais larga, o texto
+  // ocupa menos linhas e ficava centrado nela (vãos de 25 a 36 px entre o
+  // título e a descrição). No alto, o vão é sempre o mesmo. Entrelinha de
+  // 16 (a da tipografia do Chromium dava 23 na fonte de 12).
+  descricao->SetVerticalAlignment(gfx::ALIGN_TOP);
+  descricao->SetLineHeight(16);
   descricao->SetEnabledColor(ui::kColorLabelForegroundSecondary);
   descricao->SizeToFit(largura);
   return descricao;
@@ -510,7 +569,6 @@ class LinhaDeImportar : public views::View {
 
   void Escrever(const std::u16string& texto) {
     situacao_->SetText(texto);
-    situacao_->SizeToFit(kLarguraDescricao);
     PreferredSizeChanged();
   }
 
@@ -523,6 +581,188 @@ class LinhaDeImportar : public views::View {
 BEGIN_METADATA(LinhaDeImportar)
 END_METADATA
 
+// Favoritos e histórico de um navegador do Chromium achado aqui (Chrome,
+// Brave, Vivaldi...; importar_chromium.h).
+class LinhaDeImportarChromium : public views::View {
+  METADATA_HEADER(LinhaDeImportarChromium, views::View)
+
+ public:
+  explicit LinhaDeImportarChromium(Profile* perfil) : perfil_(perfil) {
+    auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(12, 16),
+        16));
+    layout->set_cross_axis_alignment(
+        views::BoxLayout::CrossAxisAlignment::kCenter);
+    layout->set_minimum_cross_axis_size(44);
+    auto* textos = AddChildView(std::make_unique<views::View>());
+    textos->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 2));
+    textos->AddChildView(Titulo(u"Importar do Chrome, Brave ou Vivaldi", 14,
+                                gfx::Font::Weight::NORMAL));
+    situacao_ = textos->AddChildView(
+        Descricao(u"Procurando os navegadores deste computador…"));
+    layout->SetFlexForView(textos, 1);
+    controles_ = AddChildView(std::make_unique<views::View>());
+    controles_
+        ->SetLayoutManager(std::make_unique<views::BoxLayout>(
+            views::BoxLayout::Orientation::kHorizontal, gfx::Insets(), 8))
+        ->set_cross_axis_alignment(
+            views::BoxLayout::CrossAxisAlignment::kCenter);
+    controles_->SetVisible(false);
+    importar_chromium::Procurar(base::BindOnce(
+        &LinhaDeImportarChromium::Achou, weak_factory_.GetWeakPtr()));
+  }
+
+ private:
+  void Achou(std::vector<importar_chromium::Origem> origens) {
+    origens_ = std::move(origens);
+    if (origens_.empty()) {
+      Escrever(u"Nenhum navegador do Chromium foi encontrado neste "
+               u"computador.");
+      return;
+    }
+    Escrever(kExplicacao);
+    std::vector<std::u16string> nomes;
+    for (const importar_chromium::Origem& origem : origens_) {
+      nomes.push_back(origem.nome);
+    }
+    controles_->AddChildView(Escolha(
+        nomes, 0, u"De qual navegador",
+        base::BindRepeating(
+            [](LinhaDeImportarChromium* linha, size_t escolha) {
+              linha->escolhida_ = escolha;
+            },
+            base::Unretained(this))));
+    botao_ = controles_->AddChildView(Botao(
+        u"Importar", base::BindRepeating(&LinhaDeImportarChromium::Importar,
+                                         base::Unretained(this))));
+    controles_->SetVisible(true);
+    PreferredSizeChanged();
+  }
+
+  void Importar() {
+    if (escolhida_ >= origens_.size()) {
+      return;
+    }
+    botao_->SetEnabled(false);
+    Escrever(u"Importando de " + origens_[escolhida_].nome + u"…");
+    importar_chromium::Importar(
+        perfil_, origens_[escolhida_],
+        base::BindOnce(&LinhaDeImportarChromium::Pronto,
+                       weak_factory_.GetWeakPtr()));
+  }
+
+  void Pronto(const importar_chromium::Resumo& resumo) {
+    botao_->SetEnabled(true);
+    if (!resumo.ok) {
+      Escrever(resumo.erro);
+      return;
+    }
+    Escrever(u"Pronto: " + base::NumberToString16(resumo.favoritos) +
+             u" favoritos (em Outros favoritos) e " +
+             base::NumberToString16(resumo.historico) +
+             u" páginas do histórico.");
+  }
+
+  void Escrever(const std::u16string& texto) {
+    situacao_->SetText(texto);
+    PreferredSizeChanged();
+  }
+
+  static constexpr char16_t kExplicacao[] =
+      u"Favoritos e histórico (as senhas e os logins ficam: o Chrome os "
+      u"guarda cifrados). Pode deixar o outro navegador aberto.";
+
+  raw_ptr<Profile> perfil_;
+  raw_ptr<views::Label> situacao_ = nullptr;
+  raw_ptr<views::View> controles_ = nullptr;
+  raw_ptr<views::MdTextButton> botao_ = nullptr;
+  std::vector<importar_chromium::Origem> origens_;
+  size_t escolhida_ = 0;
+  base::WeakPtrFactory<LinhaDeImportarChromium> weak_factory_{this};
+};
+
+BEGIN_METADATA(LinhaDeImportarChromium)
+END_METADATA
+
+// Exportar e importar o jeito do Norte (exportar.h): espaços, fixados,
+// containers, atalhos e opções num arquivo.
+// Depois de importar: refaz a página Geral da janela de configurações em que
+// `de_dentro` está (os controles ficavam com os valores de antes) e põe a
+// frase de volta na linha de exportar. Definida depois da janela.
+void RefazerDepoisDeImportar(views::View* de_dentro, std::u16string frase);
+
+class LinhaDeExportar : public views::View {
+  METADATA_HEADER(LinhaDeExportar, views::View)
+
+ public:
+  explicit LinhaDeExportar(BrowserWindowInterface* browser)
+      : browser_(browser) {
+    auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(12, 16),
+        16));
+    layout->set_cross_axis_alignment(
+        views::BoxLayout::CrossAxisAlignment::kCenter);
+    layout->set_minimum_cross_axis_size(44);
+    auto* textos = AddChildView(std::make_unique<views::View>());
+    textos->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical, gfx::Insets(), 2));
+    textos->AddChildView(Titulo(u"Levar pra outra máquina", 14,
+                                gfx::Font::Weight::NORMAL));
+    situacao_ = textos->AddChildView(Descricao(
+        u"Espaços, sites fixados e favoritos, containers, atalhos e as opções, "
+        u"num arquivo. Importar substitui os deste perfil."));
+    layout->SetFlexForView(textos, 1);
+    AddChildView(Botao(u"Exportar…",
+                       base::BindRepeating(&LinhaDeExportar::Exportar,
+                                           base::Unretained(this))));
+    AddChildView(Botao(u"Importar…",
+                       base::BindRepeating(&LinhaDeExportar::Importar,
+                                           base::Unretained(this))));
+  }
+
+  // A frase embaixo do título: o resultado de exportar ou importar.
+  void Escrever(const std::u16string& texto) {
+    situacao_->SetText(texto);
+    PreferredSizeChanged();
+  }
+
+ private:
+  void Exportar() {
+    exportar::Exportar(
+        browser_,
+        base::BindOnce(
+            [](base::WeakPtr<LinhaDeExportar> linha, bool ok,
+               const std::u16string& frase) {
+              if (linha) {
+                linha->Escrever(frase);
+              }
+            },
+            weak_factory_.GetWeakPtr()));
+  }
+
+  void Importar() {
+    exportar::Importar(browser_,
+                       base::BindOnce(&LinhaDeExportar::Importou,
+                                      weak_factory_.GetWeakPtr()));
+  }
+
+  void Importou(bool ok, const std::u16string& frase) {
+    if (ok) {
+      RefazerDepoisDeImportar(this, frase);
+    } else {
+      Escrever(frase);
+    }
+  }
+
+  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<views::Label> situacao_ = nullptr;
+  base::WeakPtrFactory<LinhaDeExportar> weak_factory_{this};
+};
+
+BEGIN_METADATA(LinhaDeExportar)
+END_METADATA
+
 // Versão instalada e a atualização inteira, sem sair daqui: procurar,
 // atualizar (a senha vai na janela do sistema) e reiniciar. Segue o mesmo
 // andamento do aviso no pé da lateral, que fica fora de alcance com as
@@ -531,7 +771,9 @@ class LinhaDeVersao : public views::View {
   METADATA_HEADER(LinhaDeVersao, views::View)
 
  public:
-  explicit LinhaDeVersao(Profile* perfil) : perfil_(perfil) {
+  explicit LinhaDeVersao(BrowserWindowInterface* browser)
+      : browser_(browser),
+        perfil_(browser->GetProfile()->GetOriginalProfile()) {
     auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kHorizontal, gfx::Insets::VH(12, 16),
         16));
@@ -544,6 +786,14 @@ class LinhaDeVersao : public views::View {
     textos->AddChildView(
         Titulo(u"Versão instalada", 14, gfx::Font::Weight::NORMAL));
     situacao_ = textos->AddChildView(Descricao(u"…"));
+    notas_ = textos->AddChildView(std::make_unique<views::Link>(u"O que mudou"));
+    notas_->SetFontList(Fonte(12, gfx::Font::Weight::NORMAL));
+    notas_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
+    notas_->SetCallback(base::BindRepeating(
+        [](BrowserWindowInterface* browser) {
+          AbrirPagina(browser, atualizador::Agora().pagina);
+        },
+        browser));
     layout->SetFlexForView(textos, 1);
     botao_ = AddChildView(Botao(
         u"Procurar agora", base::BindRepeating(&LinhaDeVersao::Apertou,
@@ -644,12 +894,16 @@ class LinhaDeVersao : public views::View {
     botao_->SetStyle(destaque ? ui::ButtonStyle::kProminent
                               : ui::ButtonStyle::kTonal);
     situacao_->SetText(texto);
-    situacao_->SizeToFit(kLarguraDescricao);
+    notas_->SetVisible((andamento.etapa == atualizador::Etapa::kDisponivel ||
+                        andamento.etapa == atualizador::Etapa::kInstalada) &&
+                       !andamento.pagina.empty());
     PreferredSizeChanged();
   }
 
+  raw_ptr<BrowserWindowInterface> browser_;
   raw_ptr<Profile> perfil_;
   raw_ptr<views::Label> situacao_ = nullptr;
+  raw_ptr<views::Link> notas_ = nullptr;
   raw_ptr<views::MdTextButton> botao_ = nullptr;
   std::u16string versao_;
   // A resposta do último "Procurar agora" (ou a versão instalada).
@@ -670,7 +924,7 @@ std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
   const bool continuar = SessionStartupPref::GetStartupPref(perfil).type ==
                          SessionStartupPref::LAST;
   abrir->Adicionar(Linha(
-      u"Começar com", u"As abas de onde você parou voltam abertas.",
+      u"Começar com", u"O que aparece quando o Norte abre.",
       Escolha({u"Uma nova aba", u"As abas de onde parei"}, continuar ? 1 : 0,
               u"Começar com",
               base::BindRepeating(
@@ -698,38 +952,88 @@ std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
                       },
                       perfil))));
 
+  // No Local State: a lista de recursos é montada antes das prefs do perfil.
+  Cartao* memoria = pagina->Secao(u"Memória");
+  memoria->Adicionar(Linha(
+      u"Congelar as abas dos outros espaços",
+      u"Depois de 15 minutos sem uso, elas param de rodar (gastam menos "
+      u"processador e bateria) e voltam na hora ao abrir. Música, chamada, "
+      u"upload e sites com notificação continuam. Vale ao reiniciar o Norte.",
+      Interruptor(g_browser_process->local_state()->GetBoolean(
+                      kCongelarOutrosEspacosPref),
+                  u"Congelar as abas dos outros espaços",
+                  base::BindRepeating([](bool ligado) {
+                    g_browser_process->local_state()->SetBoolean(
+                        kCongelarOutrosEspacosPref, ligado);
+                  }))));
+
+  // Vídeo em janelinha (PiP) sozinho ao sair da aba: a escolha é o padrão do
+  // Chromium pra todos os sites (cada site ainda pode ter a dele).
+  Cartao* midia = pagina->Secao(u"Mídia");
+  constexpr ContentSetting kEscolhasDoPip[] = {
+      CONTENT_SETTING_ASK, CONTENT_SETTING_ALLOW, CONTENT_SETTING_BLOCK};
+  HostContentSettingsMap* sites =
+      HostContentSettingsMapFactory::GetForProfile(perfil);
+  const ContentSetting pip = sites->GetDefaultContentSetting(
+      ContentSettingsType::AUTO_PICTURE_IN_PICTURE);
+  midia->Adicionar(Linha(
+      u"Vídeo em janelinha ao trocar de aba",
+      u"O vídeo que está tocando passa pra uma janelinha por cima quando "
+      u"você troca de aba ou de espaço, e volta pra página quando você volta.",
+      Escolha({u"Perguntar a cada site", u"Sempre", u"Nunca"},
+              pip == CONTENT_SETTING_ALLOW   ? 1
+              : pip == CONTENT_SETTING_BLOCK ? 2
+                                             : 0,
+              u"Vídeo em janelinha ao trocar de aba",
+              base::BindRepeating(
+                  [](Profile* perfil, size_t escolha) {
+                    HostContentSettingsMapFactory::GetForProfile(perfil)
+                        ->SetDefaultContentSetting(
+                            ContentSettingsType::AUTO_PICTURE_IN_PICTURE,
+                            kEscolhasDoPip[std::min<size_t>(escolha, 2)]);
+                  },
+                  perfil))));
+
+  Cartao* mouse = pagina->Secao(u"Mouse");
+  mouse->Adicionar(Linha(
+      u"Rolar com o botão do meio",
+      u"Clique com o botão do meio na página (fora de link e de campo) e "
+      u"mova o ponteiro pra rolar. Nos campos, o botão do meio continua "
+      u"colando a seleção. Vale ao reiniciar o Norte.",
+      Interruptor(
+          g_browser_process->local_state()->GetBoolean(kRolagemComOMeioPref),
+          u"Rolar com o botão do meio", base::BindRepeating([](bool ligado) {
+            g_browser_process->local_state()->SetBoolean(kRolagemComOMeioPref,
+                                                         ligado);
+          }))));
+
   Cartao* atualizacoes = pagina->Secao(u"Atualizações");
   atualizacoes->Adicionar(Linha(
-      u"Procurar ao abrir",
-      u"Ao abrir o navegador, procura uma versão nova no GitHub e mostra um "
-      u"aviso no pé da lateral. Dá pra atualizar por ali ou por aqui.",
+      u"Procurar versão nova",
+      u"Ao abrir o navegador e a cada 6 horas, procura uma versão nova no "
+      u"GitHub e mostra um aviso no pé da lateral. Dá pra atualizar por ali "
+      u"ou por aqui.",
       Interruptor(perfil->GetPrefs()->GetBoolean(
                       espacos::kProcurarAtualizacoesPref),
-                  u"Procurar ao abrir",
+                  u"Procurar versão nova",
                   base::BindRepeating(
                       [](Profile* perfil, bool ligado) {
                         perfil->GetPrefs()->SetBoolean(
                             espacos::kProcurarAtualizacoesPref, ligado);
                       },
                       perfil))));
-  atualizacoes->Adicionar(std::make_unique<LinhaDeVersao>(perfil));
-
-  Cartao* privacidade = pagina->Secao(u"Privacidade");
-  privacidade->Adicionar(Linha(
-      u"Bloquear anúncios e rastreadores",
-      u"Com as listas EasyList e EasyPrivacy: as páginas carregam menos "
-      u"coisa e gastam menos. Pra liberar só um site, clique no ícone dele "
-      u"no fim da barra de endereço (Anúncios invasivos → Permitir).",
-      Interruptor(bloqueador::Ligado(perfil),
-                  u"Bloquear anúncios e rastreadores",
-                  base::BindRepeating(
-                      [](Profile* perfil, bool ligado) {
-                        bloqueador::Ligar(perfil, ligado);
-                      },
-                      perfil))));
+  atualizacoes->Adicionar(std::make_unique<LinhaDeVersao>(browser));
 
   Cartao* importar = pagina->Secao(u"Trazer de outro navegador");
   importar->Adicionar(std::make_unique<LinhaDeImportar>(perfil));
+  importar->Adicionar(std::make_unique<LinhaDeImportarChromium>(perfil));
+  importar->Adicionar(std::make_unique<LinhaDeExportar>(browser));
+  importar->Adicionar(Linha(
+      u"Importar do Firefox ou de um arquivo de favoritos",
+      u"Pelo importador do Chromium: favoritos, histórico e senhas.",
+      Botao(u"Abrir", base::BindRepeating(
+                          &AbrirPagina, browser,
+                          std::string("chrome://settings/importData")))));
 
   Cartao* janela = pagina->Secao(u"Janela");
   janela->Adicionar(Linha(
@@ -750,11 +1054,141 @@ std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
       u"Configurações avançadas",
       u"Senhas, privacidade, downloads, idioma e mecanismo de busca.",
       Botao(u"Abrir", base::BindRepeating(&AbrirPagina, browser,
-                                          "chrome://settings"))));
+                                          std::string("chrome://settings")))));
   chromium->Adicionar(Linha(
       u"Extensões", std::u16string(),
       Botao(u"Abrir", base::BindRepeating(&AbrirPagina, browser,
-                                          "chrome://extensions"))));
+                                          std::string("chrome://extensions")))));
+  return pagina;
+}
+
+// --- Privacidade ------------------------------------------------------------
+
+// Os servidores do DNS seguro que dá pra escolher (o "automático" usa o do
+// sistema, se ele tiver).
+constexpr char kDnsCloudflare[] = "https://chrome.cloudflare-dns.com/dns-query";
+constexpr char kDnsQuad9[] = "https://dns.quad9.net/dns-query";
+
+std::unique_ptr<views::View> PaginaPrivacidade(
+    BrowserWindowInterface* browser) {
+  Profile* perfil = browser->GetProfile()->GetOriginalProfile();
+  auto pagina = std::make_unique<Pagina>(u"Privacidade");
+
+  Cartao* bloqueio = pagina->Secao(u"Bloqueador");
+  bloqueio->Adicionar(Linha(
+      u"Bloquear anúncios e rastreadores",
+      u"Com as listas EasyList e EasyPrivacy: as páginas carregam menos "
+      u"coisa e gastam menos. Pra liberar só um site, clique com o botão "
+      u"direito na página → Desligar o bloqueador neste site.",
+      Interruptor(bloqueador::Ligado(perfil),
+                  u"Bloquear anúncios e rastreadores",
+                  base::BindRepeating(
+                      [](Profile* perfil, bool ligado) {
+                        bloqueador::Ligar(perfil, ligado);
+                      },
+                      perfil))));
+  bloqueio->Adicionar(Linha(
+      u"Esconder avisos de cookies",
+      u"Some com os avisos de consentimento de cookies da maioria dos sites "
+      u"(a lista EasyList Cookie), nas páginas que abrirem depois. Se um "
+      u"site travar a rolagem por isso, desligue o bloqueador nele.",
+      Interruptor(perfil->GetPrefs()->GetBoolean(espacos::kAvisosDeCookiesPref),
+                  u"Esconder avisos de cookies",
+                  base::BindRepeating(
+                      [](Profile* perfil, bool ligado) {
+                        perfil->GetPrefs()->SetBoolean(
+                            espacos::kAvisosDeCookiesPref, ligado);
+                      },
+                      perfil))));
+
+  Cartao* cookies = pagina->Secao(u"Cookies");
+  cookies->Adicionar(Linha(
+      u"Bloquear cookies de terceiros",
+      u"Os de outros sites dentro da página (anúncios, botões de redes "
+      u"sociais). Alguns logins embutidos (Google, Microsoft, gov.br) podem "
+      u"parar: dá pra liberar um site pelo ícone dele na barra.",
+      Interruptor(
+          perfil->GetPrefs()->GetInteger(prefs::kCookieControlsMode) ==
+              static_cast<int>(
+                  content_settings::CookieControlsMode::kBlockThirdParty),
+          u"Bloquear cookies de terceiros",
+          base::BindRepeating(
+              [](Profile* perfil, bool ligado) {
+                perfil->GetPrefs()->SetInteger(
+                    prefs::kCookieControlsMode,
+                    static_cast<int>(
+                        ligado ? content_settings::CookieControlsMode::
+                                     kBlockThirdParty
+                               : content_settings::CookieControlsMode::
+                                     kIncognitoOnly));
+              },
+              perfil))));
+
+  Cartao* conexao = pagina->Secao(u"Conexão");
+  conexao->Adicionar(Linha(
+      u"Avisar antes de abrir um site sem HTTPS",
+      u"Tenta sempre a versão com cadeado e avisa quando o site só tem a "
+      u"sem.",
+      Interruptor(perfil->GetPrefs()->GetBoolean(prefs::kHttpsOnlyModeEnabled),
+                  u"Avisar antes de abrir um site sem HTTPS",
+                  base::BindRepeating(
+                      [](Profile* perfil, bool ligado) {
+                        perfil->GetPrefs()->SetBoolean(
+                            prefs::kHttpsOnlyModeEnabled, ligado);
+                      },
+                      perfil))));
+  // O DNS seguro é do navegador inteiro (Local State), não do perfil.
+  PrefService* local = g_browser_process->local_state();
+  const std::string modo = local->GetString(prefs::kDnsOverHttpsMode);
+  const std::string servidor = local->GetString(prefs::kDnsOverHttpsTemplates);
+  size_t dns = 0;
+  if (modo == "off") {
+    dns = 3;
+  } else if (modo == "secure") {
+    dns = servidor == kDnsQuad9 ? 2 : 1;
+  }
+  conexao->Adicionar(Linha(
+      u"DNS seguro",
+      u"O endereço de cada site é procurado com criptografia: o provedor de "
+      u"internet não vê quais sites você abre.",
+      Escolha({u"Automático", u"Cloudflare", u"Quad9", u"Desligado"}, dns,
+              u"DNS seguro", base::BindRepeating([](size_t escolha) {
+                PrefService* local = g_browser_process->local_state();
+                switch (escolha) {
+                  case 0:
+                    local->SetString(prefs::kDnsOverHttpsMode, "automatic");
+                    local->ClearPref(prefs::kDnsOverHttpsTemplates);
+                    break;
+                  case 1:
+                  case 2:
+                    local->SetString(prefs::kDnsOverHttpsMode, "secure");
+                    local->SetString(prefs::kDnsOverHttpsTemplates,
+                                     escolha == 1 ? kDnsCloudflare : kDnsQuad9);
+                    break;
+                  default:
+                    local->SetString(prefs::kDnsOverHttpsMode, "off");
+                    break;
+                }
+              }))));
+  conexao->Adicionar(Linha(
+      u"Esconder o IP local nas chamadas",
+      u"Nas chamadas de vídeo e de voz pelo navegador (WebRTC), os sites não "
+      u"veem o endereço da sua rede local.",
+      Interruptor(perfil->GetPrefs()->GetString(
+                      prefs::kWebRTCIPHandlingPolicy) ==
+                      "default_public_interface_only",
+                  u"Esconder o IP local nas chamadas",
+                  base::BindRepeating(
+                      [](Profile* perfil, bool ligado) {
+                        perfil->GetPrefs()->SetString(
+                            prefs::kWebRTCIPHandlingPolicy,
+                            ligado ? "default_public_interface_only"
+                                   : "default");
+                      },
+                      perfil))));
+  pagina->Rodape(
+      u"Mais opções em Geral → Configurações avançadas (Privacidade e "
+      u"segurança).");
   return pagina;
 }
 
@@ -1252,6 +1686,9 @@ class PaginaDeEspacos : public views::View,
                             id),
         u"Excluir espaço…");
     excluir->SetEnabledTextColors(ui::kColorSysError);
+    // Um vermelho leve, sem o contorno (que era azul).
+    excluir->SetBgColorIdOverride(ui::kColorSysErrorContainer);
+    excluir->SetStrokeColorIdOverride(ui::kColorSysErrorContainer);
     excluir->SetEnabled(todos.size() > 1);
     perigo->AddChildView(std::move(excluir));
     Trocar(std::move(pagina));
@@ -1457,6 +1894,18 @@ class BotaoDeAtalho : public views::LabelButton {
 BEGIN_METADATA(BotaoDeAtalho)
 END_METADATA
 
+// Atalho fixo (do Chromium), com a mesma cara de tecla do BotaoDeAtalho, mas
+// sem trocar.
+std::unique_ptr<views::View> Tecla(std::u16string texto) {
+  auto tecla = std::make_unique<views::Label>(std::move(texto));
+  tecla->SetHorizontalAlignment(gfx::ALIGN_CENTER);
+  tecla->SetEnabledColor(ui::kColorLabelForegroundSecondary);
+  tecla->SetBackground(
+      views::CreateRoundedRectBackground(ui::kColorSysSurfaceVariant, 6));
+  tecla->SetPreferredSize(gfx::Size(124, 28));
+  return tecla;
+}
+
 class PaginaDeAtalhos : public views::View {
   METADATA_HEADER(PaginaDeAtalhos, views::View)
 
@@ -1482,6 +1931,22 @@ class PaginaDeAtalhos : public views::View {
                     base::BindRepeating(&PaginaDeAtalhos::ReconstruirDepois,
                                         weak_factory_.GetWeakPtr()))));
     }
+    Cartao* chromium = pagina->Secao(u"Do Chromium");
+    chromium->Adicionar(Linha(
+        u"Ctrl+Tab na ordem de uso",
+        u"Ctrl+Tab volta pra aba usada por último, e de novo pra anterior; "
+        u"desligado, vai pra aba de baixo na lateral.",
+        Interruptor(perfil_->GetPrefs()->GetBoolean(prefs::kCtrlTabMru),
+                    u"Ctrl+Tab na ordem de uso",
+                    base::BindRepeating(
+                        [](Profile* perfil, bool ligado) {
+                          perfil->GetPrefs()->SetBoolean(prefs::kCtrlTabMru,
+                                                         ligado);
+                        },
+                        perfil_.get()))));
+    chromium->Adicionar(Linha(u"Modo de leitura", u"Só o texto da página, "
+                              u"num painel ao lado.",
+                              Tecla(u"Shift+Alt+R")));
     auto* rodape = pagina->AddChildView(std::make_unique<views::View>());
     rodape
         ->SetLayoutManager(std::make_unique<views::BoxLayout>(
@@ -1650,6 +2115,7 @@ class JanelaDeConfiguracoes : public views::View {
     };
     const Entrada entradas[] = {
         {raw_ref(vector_icons::kSettingsIcon), u"Geral"},
+        {raw_ref(icones_menu::kShieldCheckIcon), u"Privacidade"},
         {raw_ref(kBrushFilledIcon), u"Aparência"},
         {raw_ref(kViewListIcon), u"Lateral"},
         {raw_ref(kGridViewIcon), u"Espaços"},
@@ -1683,6 +2149,9 @@ class JanelaDeConfiguracoes : public views::View {
       case Aba::kGeral:
         conteudo_->AddChildView(Rolando(PaginaGeral(browser_)));
         break;
+      case Aba::kPrivacidade:
+        conteudo_->AddChildView(Rolando(PaginaPrivacidade(browser_)));
+        break;
       case Aba::kAparencia:
         conteudo_->AddChildView(Rolando(PaginaAparencia(browser_)));
         break;
@@ -1704,7 +2173,50 @@ class JanelaDeConfiguracoes : public views::View {
     SchedulePaint();
   }
 
+  // Refaz a página Geral (depois de importar) com `frase` na linha de
+  // exportar, à vista. Depois da pilha de quem pediu: a linha que pediu é
+  // apagada junto com a página.
+  void RefazerGeral(std::u16string frase) {
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&JanelaDeConfiguracoes::RefazerGeralAgora,
+                                  weak_factory_.GetWeakPtr(),
+                                  std::move(frase)));
+  }
+
  private:
+  void RefazerGeralAgora(std::u16string frase) {
+    Selecionar(Aba::kGeral);
+    if (LinhaDeExportar* linha = AcharLinhaDeExportar(conteudo_)) {
+      linha->Escrever(frase);
+    }
+    // Rola até ela depois de o layout assentar: as descrições acertam a
+    // altura pela largura de verdade (TextoDeDescricao) em mais de uma
+    // passada, e rolando na hora a frase ficava cortada embaixo.
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+        FROM_HERE,
+        base::BindOnce(&JanelaDeConfiguracoes::MostrarLinhaDeExportar,
+                       weak_factory_.GetWeakPtr()),
+        base::Milliseconds(100));
+  }
+
+  void MostrarLinhaDeExportar() {
+    if (LinhaDeExportar* linha = AcharLinhaDeExportar(conteudo_)) {
+      linha->ScrollViewToVisible();
+    }
+  }
+
+  static LinhaDeExportar* AcharLinhaDeExportar(views::View* raiz) {
+    if (auto* linha = views::AsViewClass<LinhaDeExportar>(raiz)) {
+      return linha;
+    }
+    for (views::View* filho : raiz->children()) {
+      if (LinhaDeExportar* linha = AcharLinhaDeExportar(filho)) {
+        return linha;
+      }
+    }
+    return nullptr;
+  }
+
   // O item do menu que pediu ainda está na pilha.
   void SelecionarDepois(Aba aba) {
     base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
@@ -1721,11 +2233,13 @@ class JanelaDeConfiguracoes : public views::View {
 BEGIN_METADATA(JanelaDeConfiguracoes)
 END_METADATA
 
-std::map<BrowserWindowInterface*, base::WeakPtr<views::Widget>>& Abertas() {
-  static base::NoDestructor<
-      std::map<BrowserWindowInterface*, base::WeakPtr<views::Widget>>>
-      abertas;
-  return *abertas;
+void RefazerDepoisDeImportar(views::View* de_dentro, std::u16string frase) {
+  for (views::View* v = de_dentro; v; v = v->parent()) {
+    if (auto* janela = views::AsViewClass<JanelaDeConfiguracoes>(v)) {
+      janela->RefazerGeral(std::move(frase));
+      return;
+    }
+  }
 }
 
 class EditorDeEspaco : public views::DialogDelegate {

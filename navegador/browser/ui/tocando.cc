@@ -54,6 +54,7 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/view.h"
+#include "ui/views/widget/widget.h"
 #include "ui/views/view_class_properties.h"
 #include "url/gurl.h"
 
@@ -138,11 +139,17 @@ class Andamento : public views::View {
     SetPreferredSize(gfx::Size(10, kBotao));
   }
 
-  void Definir(std::optional<double> parte, bool pode_buscar) {
-    if (parte == parte_ && pode_buscar == pode_buscar_) {
+  // Repinta só quando a parte tocada anda um pixel: a fração muda a cada
+  // tique, e cada repintura era um quadro da interface (2 por segundo). Sem
+  // `pintar` (fora da vista), só guarda: a próxima pintura já sai certa.
+  void Definir(std::optional<double> parte, bool pode_buscar,
+               bool pintar = true) {
+    const int pixels = parte ? static_cast<int>(*parte * width()) : -1;
+    parte_ = parte;
+    if (!pintar || (pixels == pixels_ && pode_buscar == pode_buscar_)) {
       return;
     }
-    parte_ = parte;
+    pixels_ = pixels;
     pode_buscar_ = pode_buscar;
     SchedulePaint();
   }
@@ -186,6 +193,8 @@ class Andamento : public views::View {
  private:
   base::RepeatingCallback<void(double)> buscar_;
   std::optional<double> parte_;
+  // Até onde a parte tocada foi pintada, em pixels (-1: sem andamento).
+  int pixels_ = -1;
   bool pode_buscar_ = false;
 };
 
@@ -232,12 +241,12 @@ class Cartao : public views::Button,
     const gfx::FontList base;
     titulo_ = textos->AddChildView(std::make_unique<views::Label>());
     titulo_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-    titulo_->SetElideBehavior(gfx::ELIDE_TAIL);
+    titulo_->SetElideBehavior(gfx::FADE_TAIL);
     titulo_->SetFontList(base.DeriveWithSizeDelta(12 - base.GetFontSize())
                              .DeriveWithWeight(gfx::Font::Weight::SEMIBOLD));
     detalhe_ = textos->AddChildView(std::make_unique<views::Label>());
     detalhe_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
-    detalhe_->SetElideBehavior(gfx::ELIDE_TAIL);
+    detalhe_->SetElideBehavior(gfx::FADE_TAIL);
     detalhe_->SetFontList(base.DeriveWithSizeDelta(11 - base.GetFontSize()));
 
     auto* controles = AddChildView(std::make_unique<views::View>());
@@ -481,7 +490,7 @@ class Cartao : public views::Button,
     const bool tocando =
         mostrar && info_->playback_state == MediaPlaybackState::kPlaying;
     if (tocando && ParteTocada() && !relogio_.IsRunning()) {
-      relogio_.Start(FROM_HERE, base::Milliseconds(500),
+      relogio_.Start(FROM_HERE, IntervaloDoAndamento(),
                      base::BindRepeating(&Cartao::AtualizarAndamento,
                                          base::Unretained(this)));
     } else if (!tocando || !ParteTocada()) {
@@ -518,8 +527,26 @@ class Cartao : public views::Button,
 
   void Proxima() { controlador_->NextTrack(); }
 
+  // O tempo pra linha andar um pixel (entre 0,5 e 10 s): numa música de 3
+  // min, ~1 s; num vídeo de 1 h, 10 s.
+  base::TimeDelta IntervaloDoAndamento() const {
+    if (!posicao_ || andamento_->width() <= 0) {
+      return base::Milliseconds(500);
+    }
+    return std::clamp(posicao_->duration() / andamento_->width(),
+                      base::Milliseconds(500), base::Seconds(10));
+  }
+
+  // Fora da vista (lateral recolhida ou escondida, janela minimizada), o
+  // tique não pinta.
+  bool AVista() const {
+    return GetWidget() && !GetWidget()->IsMinimized() && IsDrawn() &&
+           !GetVisibleBounds().IsEmpty() &&
+           GetVisibleBounds().width() >= width() / 2;
+  }
+
   void AtualizarAndamento() {
-    andamento_->Definir(ParteTocada(), pode_buscar_);
+    andamento_->Definir(ParteTocada(), pode_buscar_, AVista());
   }
 
   void Buscar(double parte) {

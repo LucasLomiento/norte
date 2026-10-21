@@ -64,7 +64,7 @@ constexpr Paleta kClaro = {
     .divisor = SkColorSetARGB(0x0F, 0x00, 0x00, 0x00),
     .endereco = SK_ColorWHITE,
     .endereco_hover = SkColorSetRGB(0xF1, 0xF1, 0xF1),
-    .destaque = SkColorSetRGB(0x00, 0x5F, 0xB8),
+    .destaque = SkColorSetRGB(0x2B, 0x6C, 0xF5),  // o mesmo acento do escuro
 };
 
 // Escuro: o "Noite elétrica" do Resenha (resenha/app/src/renderer/app.css):
@@ -152,8 +152,9 @@ void PintarSistemaEscuro(ui::ColorMixer& mixer) {
   mixer[ui::kColorSysBaseTonalContainer] = {
       color_utils::AlphaBlend(kAcentoMarca, kPainel, 0.12f)};
   mixer[ui::kColorSysOnBaseTonalContainer] = {SkColorSetRGB(0xD6, 0xE4, 0xFF)};
-  mixer[ui::kColorSysTonalOutline] = {
-      color_utils::AlphaBlend(kAcentoMarca, kElevado, 0.45f)};
+  // Contornos de botão, chip e seletor neutros: o Material faz em azul, e no
+  // Resenha o azul é raro (só a ação principal).
+  mixer[ui::kColorSysTonalOutline] = {kLinhaForte};
   mixer[ui::kColorSysInversePrimary] = {kAcento};
 
   mixer[ui::kColorSysOutline] = {color_utils::AlphaBlend(SK_ColorWHITE, kElevado, 0.14f)};
@@ -180,7 +181,25 @@ void PintarSistemaEscuro(ui::ColorMixer& mixer) {
   mixer[ui::kColorSysStateOnHeaderHover] = {kHover};
 
   mixer[ui::kColorSysError] = {kVermelho};
+  mixer[ui::kColorSysErrorContainer] = {
+      color_utils::AlphaBlend(kVermelho, kElevado, 0.12f)};
+  mixer[ui::kColorSysOnErrorContainer] = {kVermelho};
   mixer[ui::kColorSysShadow] = {SK_ColorBLACK};
+
+  // Botões secundários (tonais) em cinza, ao lado do principal azul: no
+  // Material saem num azul-acinzentado. O kColorSysTonalContainer fica como
+  // está: também é o fundo da seleção de texto.
+  mixer[ui::kColorButtonBackgroundTonal] = {kSobre};
+  mixer[ui::kColorButtonBackgroundTonalFocused] = {kSobre};
+  mixer[ui::kColorButtonForegroundTonal] = {kTexto};
+  // Interruptor desligado e trilho do deslizador que se veem no cartão
+  // (eram #38383B sobre #222226, e o trilho branco puro).
+  mixer[ui::kColorToggleButtonTrackOff] = {SkColorSetRGB(0x3F, 0x3F, 0x46)};
+  mixer[ui::kColorToggleButtonThumbOff] = {kTexto2};
+  mixer[ui::kColorSliderTrack] = {SkColorSetRGB(0x3F, 0x3F, 0x46)};
+  // A linha do perfil no menu do logo, na cor do menu (o cartão mais claro
+  // do Chrome parecia um segundo item selecionado).
+  mixer[ui::kColorAppMenuProfileRowBackground] = {kElevado};
 
   // Avisos rápidos ("Link copiado"): o Material usa a superfície invertida
   // (um balão claro no escuro); aqui ficam no cinza elevado, como os menus.
@@ -188,6 +207,118 @@ void PintarSistemaEscuro(ui::ColorMixer& mixer) {
   mixer[ui::kColorToastBackgroundProminent] = {kSobre};
   mixer[ui::kColorToastForeground] = {kTexto};
   mixer[ui::kColorToastButton] = {kAcentoTexto};
+}
+
+// O texto num tom apagado (60% sobre o fundo), clareado ou escurecido até
+// ter pelo menos `contraste` contra o fundo.
+SkColor Apagado(SkColor texto, SkColor fundo, float contraste) {
+  const SkColor solido = color_utils::GetResultingPaintColor(texto, fundo);
+  return color_utils::BlendForMinContrast(
+             color_utils::AlphaBlend(solido, fundo, 0.6f), fundo, std::nullopt,
+             contraste)
+      .color;
+}
+
+// O claro do "Noite elétrica": a mesma ideia ao contrário (os tokens claros
+// da nova aba, new_tab_page_third_party.html). Sem isto, no claro o
+// Material semeava os controles com a cor do espaço (interruptores verdes,
+// pílulas menta).
+namespace dia {
+constexpr SkColor kBranco = SK_ColorWHITE;                           // --fundo
+constexpr SkColor kElevado = SkColorSetRGB(0xF4, 0xF4, 0xF5);        // --elevado
+constexpr SkColor kSobre = SkColorSetRGB(0xE9, 0xE9, 0xEC);
+constexpr SkColor kControle = SkColorSetRGB(0xD4, 0xD4, 0xD8);
+constexpr SkColor kTexto = SkColorSetRGB(0x18, 0x18, 0x1B);          // --texto
+constexpr SkColor kTexto2 = SkColorSetRGB(0x52, 0x52, 0x5B);         // --texto-2
+constexpr SkColor kTexto3 = SkColorSetRGB(0x71, 0x71, 0x7A);         // --texto-3
+constexpr SkColor kLinha = SkColorSetARGB(0x14, 0x00, 0x00, 0x00);   // --linha
+constexpr SkColor kLinhaForte = SkColorSetARGB(0x1F, 0x00, 0x00, 0x00);
+constexpr SkColor kHover = SkColorSetARGB(0x0B, 0x00, 0x00, 0x00);   // --hover
+constexpr SkColor kPressionado = SkColorSetARGB(0x1C, 0x00, 0x00, 0x00);
+constexpr SkColor kAcento = SkColorSetRGB(0x2B, 0x6C, 0xF5);         // --acento
+constexpr SkColor kAcentoEscuro = SkColorSetRGB(0x1D, 0x4E, 0xC2);
+constexpr SkColor kVermelho = SkColorSetRGB(0xD9, 0x2D, 0x3F);
+}  // namespace dia
+
+void PintarSistemaClaro(ui::ColorMixer& mixer) {
+  using namespace dia;
+  mixer[ui::kColorSysBase] = {kBranco};
+  mixer[ui::kColorSysBaseContainer] = {kElevado};
+  mixer[ui::kColorSysBaseContainerElevated] = {kBranco};
+  mixer[ui::kColorSysSurface] = {kBranco};
+  mixer[ui::kColorSysSurface1] = {kBranco};
+  mixer[ui::kColorSysSurface2] = {kBranco};
+  mixer[ui::kColorSysSurface3] = {kElevado};
+  mixer[ui::kColorSysSurface4] = {kElevado};
+  mixer[ui::kColorSysSurface5] = {kElevado};
+  mixer[ui::kColorSysSurfaceVariant] = {kElevado};
+  mixer[ui::kColorSysSurfaceSection] = {kElevado};
+  mixer[ui::kColorSysBaseContainerOnSurface] = {kElevado};
+  mixer[ui::kColorSysNeutralContainer] = {kElevado};
+  mixer[ui::kColorSysHeader] = {kClaro.fundo};
+  mixer[ui::kColorSysHeaderInactive] = {kClaro.fundo};
+  mixer[ui::kColorSysHeaderContainer] = {kBranco};
+  mixer[ui::kColorSysHeaderContainerInactive] = {kBranco};
+  mixer[ui::kColorSysOmniboxContainer] = {kElevado};
+
+  mixer[ui::kColorSysOnSurface] = {kTexto};
+  mixer[ui::kColorSysOnSurfaceVariant] = {kTexto2};
+  mixer[ui::kColorSysOnSurfaceSecondary] = {kTexto2};
+  mixer[ui::kColorSysOnSurfaceSubtle] = {kTexto3};
+  mixer[ui::kColorSysOnSurfacePrimary] = {kAcentoEscuro};
+  mixer[ui::kColorSysOnSurfacePrimaryInactive] = {kTexto3};
+
+  mixer[ui::kColorSysPrimary] = {kAcento};
+  mixer[ui::kColorSysOnPrimary] = {SK_ColorWHITE};
+  mixer[ui::kColorSysPrimaryContainer] = {
+      color_utils::AlphaBlend(kAcento, kBranco, 0.12f)};
+  mixer[ui::kColorSysOnPrimaryContainer] = {kAcentoEscuro};
+  mixer[ui::kColorSysTonalContainer] = {
+      color_utils::AlphaBlend(kAcento, kBranco, 0.14f)};
+  mixer[ui::kColorSysOnTonalContainer] = {SkColorSetRGB(0x0B, 0x2E, 0x6E)};
+  mixer[ui::kColorSysBaseTonalContainer] = {
+      color_utils::AlphaBlend(kAcento, kBranco, 0.08f)};
+  mixer[ui::kColorSysOnBaseTonalContainer] = {SkColorSetRGB(0x0B, 0x2E, 0x6E)};
+  mixer[ui::kColorSysTonalOutline] = {kLinhaForte};
+  mixer[ui::kColorSysInversePrimary] = {kAcento};
+
+  mixer[ui::kColorSysOutline] = {color_utils::AlphaBlend(SK_ColorBLACK, kBranco, 0.18f)};
+  mixer[ui::kColorSysNeutralOutline] = {color_utils::AlphaBlend(SK_ColorBLACK, kBranco, 0.12f)};
+  mixer[ui::kColorSysDivider] = {color_utils::AlphaBlend(SK_ColorBLACK, kBranco, 0.08f)};
+  mixer[ui::kColorSysOnHeaderDivider] = {kLinha};
+  mixer[ui::kColorSysOnHeaderPrimary] = {kTexto2};
+
+  mixer[ui::kColorSysStateHover] = {kHover};
+  mixer[ui::kColorSysStateHoverOnSubtle] = {kHover};
+  mixer[ui::kColorSysStateHoverOnProminent] = {SkColorSetARGB(0x1A, 0xFF, 0xFF, 0xFF)};
+  mixer[ui::kColorSysStatePressed] = {kPressionado};
+  mixer[ui::kColorSysStateRippleNeutralOnSubtle] = {kPressionado};
+  mixer[ui::kColorSysStateRippleNeutralOnProminent] = {SkColorSetARGB(0x24, 0xFF, 0xFF, 0xFF)};
+  mixer[ui::kColorSysStateRipplePrimary] = {SkColorSetA(kAcento, 0x3D)};
+  mixer[ui::kColorSysStateFocusRing] = {kAcento};
+  mixer[ui::kColorSysStateFocusHighlight] = {SkColorSetA(kAcento, 0x24)};
+  mixer[ui::kColorSysStateTextHighlight] = {SkColorSetA(kAcento, 0x40)};
+  mixer[ui::kColorSysStateOnTextHighlight] = {kTexto};
+  mixer[ui::kColorSysStateDisabled] = {SkColorSetA(kTexto, 0x61)};
+  mixer[ui::kColorSysStateDisabledContainer] = {SkColorSetA(kTexto, 0x14)};
+  mixer[ui::kColorSysStateScrim] = {SkColorSetARGB(0x66, 0x00, 0x00, 0x00)};
+  mixer[ui::kColorSysStateHeaderHover] = {kHover};
+  mixer[ui::kColorSysStateOnHeaderHover] = {kHover};
+
+  mixer[ui::kColorSysError] = {kVermelho};
+  mixer[ui::kColorSysErrorContainer] = {
+      color_utils::AlphaBlend(kVermelho, kBranco, 0.10f)};
+  mixer[ui::kColorSysOnErrorContainer] = {SkColorSetRGB(0xB4, 0x23, 0x18)};
+
+  // Os mesmos ajustes do escuro: botões secundários, interruptor e
+  // deslizador neutros, e a linha do perfil no menu na cor do menu.
+  mixer[ui::kColorButtonBackgroundTonal] = {kSobre};
+  mixer[ui::kColorButtonBackgroundTonalFocused] = {kSobre};
+  mixer[ui::kColorButtonForegroundTonal] = {kTexto};
+  mixer[ui::kColorToggleButtonTrackOff] = {kControle};
+  mixer[ui::kColorToggleButtonThumbOff] = {kTexto3};
+  mixer[ui::kColorSliderTrack] = {kControle};
+  mixer[ui::kColorAppMenuProfileRowBackground] = {kBranco};
 }
 
 // Cor da página na barra de navegação, com texto e ícones no contraste.
@@ -211,12 +342,21 @@ class Barra : public ui::ColorProviderKey::InitializerSupplier {
         color_utils::BlendTowardMaxContrast(cor_, 0x16)};
     mixer[kColorToolbarText] = {texto};
     mixer[kColorOmniboxText] = {texto};
-    mixer[kColorOmniboxTextDimmed] = {SkColorSetA(texto, 0x99)};
+    // O tom apagado do "domínio / título" com pelo menos 3:1 sobre a cor do
+    // site (0x99 fixo dava 2,84:1 no vermelho). Mais que isso, nas cores
+    // médias os dois tons quase se igualam.
+    mixer[kColorOmniboxTextDimmed] = {Apagado(texto, cor_, 3.0f)};
     mixer[kColorToolbarButtonIcon] = {texto};
     mixer[kColorToolbarButtonIconHovered] = {texto};
     mixer[kColorToolbarButtonIconPressed] = {texto};
     mixer[kColorToolbarButtonIconInactive] = {SkColorSetA(texto, 0x5C)};
     mixer[kColorToolbarInkDrop] = {texto};
+    // Hover e clique dos botões da barra no tom do texto: o padrão é branco
+    // translúcido, invisível na barra clara.
+    mixer[kColorToolbarInkDropHover] = {SkColorSetA(texto, 0x14)};
+    mixer[kColorToolbarInkDropRipple] = {SkColorSetA(texto, 0x24)};
+    // Botão de dividir aceso (aba dividida) no tom do texto, não azul.
+    mixer[kColorToolbarActionItemEngaged] = {texto};
     mixer[kColorToolbarContentAreaSeparator] = {SkColorSetA(texto, 0x1A)};
 
     // Ícone do site sem a bolinha de fundo do Chromium (no Dia é só o
@@ -230,18 +370,23 @@ class Barra : public ui::ColorProviderKey::InitializerSupplier {
 
     // Endereço focado e sugestões no mesmo tom da barra: sem isso, num site
     // escuro com o sistema claro a caixa ficava branca com o texto branco.
+    // No escuro, só um tom acima da barra (o BlendTowardMaxContrast deixava
+    // a caixa mais clara que os menus).
     const SkColor caixa =
-        escura ? color_utils::BlendTowardMaxContrast(cor_, 0x1C)
+        escura ? color_utils::AlphaBlend(SK_ColorWHITE, cor_, 0.05f)
                : SK_ColorWHITE;
-    const SkColor fraco = SkColorSetA(texto, 0x99);
+    // Texto secundário das sugestões: dá pra ler (4,5:1 sobre a caixa).
+    const SkColor fraco = Apagado(texto, caixa, 4.5f);
     const SkColor link = escura ? SkColorSetRGB(0x8A, 0xB4, 0xF8)
                                 : SkColorSetRGB(0x0B, 0x57, 0xD0);
     mixer[kColorOmniboxResultsBackground] = {caixa};
     mixer[kColorOmniboxResultsBackgroundIph] = {caixa};
     mixer[kColorOmniboxResultsBackgroundHovered] = {
-        color_utils::BlendTowardMaxContrast(caixa, 0x10)};
+        escura ? color_utils::AlphaBlend(SK_ColorWHITE, caixa, 0.04f)
+               : color_utils::BlendTowardMaxContrast(caixa, 0x10)};
     mixer[kColorOmniboxResultsBackgroundSelected] = {
-        color_utils::BlendTowardMaxContrast(caixa, 0x1C)};
+        escura ? color_utils::AlphaBlend(SK_ColorWHITE, caixa, 0.07f)
+               : color_utils::BlendTowardMaxContrast(caixa, 0x1C)};
     mixer[kColorOmniboxResultsBackgroundHoverOverlay] = {
         SkColorSetA(texto, 0x10)};
     mixer[kColorOmniboxResultsTextSelected] = {texto};
@@ -377,9 +522,30 @@ void AddColorMixer(ui::ColorProvider* provider,
     mixer[ui::kColorMenuSeparator] = {noite::kLinha};
     mixer[ui::kColorBubbleBackground] = {noite::kElevado};
     mixer[ui::kColorDialogBackground] = {noite::kElevado};
+    // Cartão de hover da aba (o fundo da prévia e o globo de espera) no
+    // grafite, sem o cinza do Google.
+    mixer[kColorTabHoverCardBackground] = {noite::kSobre};
+    mixer[kColorTabHoverCardForeground] = {noite::kTexto4};
     // Cor do espaço na moldura, mais discreta (grafite sujo de cor fica
     // pesado).
+  } else {
+    PintarSistemaClaro(mixer);
+    mixer[ui::kColorLinkForegroundDefault] = {dia::kAcentoEscuro};
+    mixer[ui::kColorButtonForeground] = {dia::kTexto};
+    // Menus e balões brancos, com a seleção cinza.
+    mixer[ui::kColorMenuBackground] = {dia::kBranco};
+    mixer[ui::kColorMenuItemBackgroundHighlighted] = {dia::kElevado};
+    mixer[ui::kColorMenuSeparator] = {dia::kLinha};
+    mixer[ui::kColorBubbleBackground] = {dia::kBranco};
+    mixer[ui::kColorDialogBackground] = {dia::kBranco};
+    mixer[kColorTabHoverCardBackground] = {dia::kElevado};
+    mixer[kColorTabHoverCardForeground] = {dia::kControle};
   }
+  // Caixa de seleção marcada das páginas internas (Limpar dados, por
+  // exemplo) no azul, como o interruptor ligado. No padrão ela tem a cor do
+  // botão de texto, que aqui é a do texto (clara no escuro), e o visto branco
+  // sumia nela.
+  mixer[ui::kColorCheckboxForegroundChecked] = {ui::kColorSysPrimary};
 
   if (barra) {
     barra->Pintar(mixer);

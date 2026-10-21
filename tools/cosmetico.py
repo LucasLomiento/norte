@@ -1,6 +1,11 @@
 """Extrai as regras de esconder elementos de listas no formato do Adblock Plus.
 
-    python3 -I tools/cosmetico.py lista1.txt [lista2.txt ...] > cosmetico.txt
+    python3 -I tools/cosmetico.py lista1.txt [lista2.txt ...] \
+        [--avisos lista-de-avisos.txt ...] > cosmetico.txt
+
+As listas depois de --avisos (a EasyList Cookie: os avisos de cookies) saem
+com as letras em minúscula (g, s, e): o navegador aplica só com a opção
+"Esconder avisos de cookies" ligada.
 
 Saída (uma regra por linha, campos separados por tab):
   G  seletor              esconder em todo site
@@ -50,7 +55,11 @@ def scriptlet(dominios, corpo):
 
 def main():
     vistas = set()
+    avisos = False
     for caminho in sys.argv[1:]:
+        if caminho == "--avisos":
+            avisos = True
+            continue
         with open(caminho, encoding="utf-8", errors="replace") as lista:
             for linha in lista:
                 linha = linha.strip()
@@ -81,6 +90,8 @@ def main():
                     regra = ("S", dominios, seletor)
                 else:
                     regra = ("G", seletor)
+                if avisos:
+                    regra = (regra[0].lower(),) + regra[1:]
                 if regra not in vistas:
                     vistas.add(regra)
                     print("\t".join(regra))

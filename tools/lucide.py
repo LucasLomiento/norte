@@ -2,6 +2,9 @@
 .icon do Chromium (ui/gfx/vector_icon_types.h).
 
     python3 -I tools/lucide.py <pasta dos ícones> <nome> [traço] > arquivo.icon
+    python3 -I tools/lucide.py --svg <cor> <pasta dos ícones> <nome> > arquivo.svg
+        (o SVG, pra virar PNG com o rsvg-convert: favicons das páginas
+        internas, tools/icones.sh)
 
 <pasta dos ícones>: os .svelte do pacote @lucide/svelte (dist/icons), que
 trazem o desenho em JSON ({"node": [["path", {"d": ...}], ...]}). Traço em
@@ -179,7 +182,24 @@ def elemento(tipo, a):
     raise ValueError(f"elemento {tipo} não suportado")
 
 
+def svg(pasta, nome, cor, traco=2.0):
+    """O ícone como SVG, no traço do Lucide e na cor pedida."""
+    from xml.sax.saxutils import quoteattr
+    elementos = []
+    for tipo, attrs in ler_icone(pasta, nome):
+        atributos = " ".join(f"{k}={quoteattr(str(v))}"
+                             for k, v in attrs.items() if k != "key")
+        elementos.append(f"<{tipo} {atributos}/>")
+    return ('<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" '
+            f'viewBox="0 0 24 24" fill="none" stroke={quoteattr(cor)} '
+            f'stroke-width="{traco}" stroke-linecap="round" '
+            'stroke-linejoin="round">' + "".join(elementos) + "</svg>")
+
+
 def main():
+    if sys.argv[1] == "--svg":
+        print(svg(sys.argv[3], sys.argv[4], sys.argv[2]))
+        return
     pasta, nome = sys.argv[1], sys.argv[2]
     traco = float(sys.argv[3]) if len(sys.argv) > 3 else 2.1
     linhas = [

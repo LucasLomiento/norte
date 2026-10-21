@@ -65,6 +65,11 @@
 #include "ui/gfx/shadow_value.h"
 #include "ui/gfx/skia_paint_util.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "content/public/browser/render_widget_host_view.h"
+#include "content/public/browser/web_contents_observer.h"
+#include "ui/display/screen.h"
+#include "ui/gfx/animation/animation.h"
+#include "ui/gfx/geometry/transform.h"
 #include "ui/views/animation/animation_builder.h"
 #include "ui/views/animation/ink_drop.h"
 #include "ui/views/controls/button/image_button.h"
@@ -272,6 +277,34 @@ class Tela : public views::View {
 BEGIN_METADATA(Tela)
 END_METADATA
 
+// O fundo da página da prévia antes de ela pintar, na cor do cartão, como a
+// aba faz com o dela (ContentsWebView): sem isso, um clarão branco até a
+// página chegar. A página nova (outro processo) ganha o fundo também.
+class FundoDaPrevia : public content::WebContentsObserver {
+ public:
+  FundoDaPrevia(content::WebContents* contents, SkColor cor)
+      : content::WebContentsObserver(contents),
+        cor_(SkColorSetA(cor, SK_AlphaOPAQUE)) {
+    Aplicar();
+  }
+
+  void RenderViewReady() override { Aplicar(); }
+  void RenderViewHostChanged(content::RenderViewHost* antiga,
+                             content::RenderViewHost* nova) override {
+    Aplicar();
+  }
+
+ private:
+  void Aplicar() {
+    if (content::RenderWidgetHostView* view =
+            web_contents()->GetRenderWidgetHostView()) {
+      view->SetBackgroundColor(cor_);
+    }
+  }
+
+  const SkColor cor_;
+};
+
 class Previa : public content::WebContentsDelegate,
                public TabStripModelObserver,
                public views::WidgetObserver,
@@ -287,6 +320,7 @@ class Previa : public content::WebContentsDelegate,
 
   ~Previa() override {
     TirarTela();
+    fundo_.reset();
     if (contents_) {
       contents_->SetDelegate(nullptr);
     }
@@ -328,6 +362,8 @@ class Previa : public content::WebContentsDelegate,
     tela_->SetID(visual::kIdPrevia);
     tela_->DefinirIcone(favicon::GetDefaultFavicon().AsImageSkia());
     tela_->pagina()->SetWebContents(contents_.get());
+    fundo_ = std::make_unique<FundoDaPrevia>(
+        contents_.get(), tela_->GetColorProvider()->GetColor(ui::kColorSysSurface));
     AtualizarTextos(url);
     area->InvalidateLayout();
 
@@ -337,11 +373,23 @@ class Previa : public content::WebContentsDelegate,
     carregar.transition_type = ui::PAGE_TRANSITION_LINK;
     contents_->GetController().LoadURLWithParams(carregar);
 
+    // Nasce do ponto do clique (o ponteiro, no Shift+clique), crescendo e
+    // aparecendo. Com "menos movimento" no sistema, aparece de uma vez.
+    gfx::Point ponto = display::Screen::Get()->GetCursorScreenPoint();
+    views::View::ConvertPointFromScreen(tela_, &ponto);
+    gfx::Transform inicio;
+    inicio.Translate(ponto.x(), ponto.y());
+    inicio.Scale(0.92, 0.92);
+    inicio.Translate(-ponto.x(), -ponto.y());
+    tela_->layer()->SetTransform(inicio);
     tela_->layer()->SetOpacity(0.0f);
     views::AnimationBuilder()
         .Once()
-        .SetDuration(base::Milliseconds(160))
-        .SetOpacity(tela_->layer(), 1.0f, gfx::Tween::EASE_OUT);
+        .SetDuration(
+            gfx::Animation::RichAnimationDuration(base::Milliseconds(260)))
+        .SetOpacity(tela_->layer(), 1.0f, gfx::Tween::EASE_OUT)
+        .SetTransform(tela_->layer(), gfx::Transform(),
+                      gfx::Tween::FAST_OUT_SLOW_IN);
     tela_->pagina()->RequestFocus();
 
     browser_->GetTabStripModel()->AddObserver(this);
@@ -352,6 +400,24 @@ class Previa : public content::WebContentsDelegate,
     if (tela_) {
       tela_->SetVisible(false);
     }
+  }
+
+  // Fecha esmaecendo (120 ms; com "menos movimento", na hora). Devolve
+  // quanto falta pra sumir de vez.
+  base::TimeDelta EsconderAnimado() {
+    const base::TimeDelta tempo =
+        gfx::Animation::RichAnimationDuration(base::Milliseconds(120));
+    if (!tela_ || !tela_->GetVisible() || tempo.is_zero()) {
+      Esconder();
+      return base::TimeDelta();
+    }
+    // Sumindo, não pega mais clique nem tecla.
+    tela_->SetCanProcessEventsWithinSubtree(false);
+    views::AnimationBuilder()
+        .Once()
+        .SetDuration(tempo)
+        .SetOpacity(tela_->layer(), 0.0f, gfx::Tween::EASE_IN);
+    return tempo;
   }
 
   // Volta o foco pra aba de origem (a prévia está fechando).
@@ -495,6 +561,7 @@ class Previa : public content::WebContentsDelegate,
     // A página sai já: na saída do navegador a tarefa do FecharDepois pode
     // não rodar, e uma WebContents viva segura o perfil. O fechar da janela
     // é assíncrono, então não estamos dentro de um evento dela.
+    fundo_.reset();
     if (contents_) {
       contents_->SetDelegate(nullptr);
       contents_.reset();
@@ -536,6 +603,7 @@ class Previa : public content::WebContentsDelegate,
     }
     browser_->GetTabStripModel()->RemoveObserver(this);
     icones_.Reset();
+    fundo_.reset();
     tela_->pagina()->SetWebContents(nullptr);
     contents_->SetDelegate(nullptr);
     std::unique_ptr<content::WebContents> pagina = std::move(contents_);
@@ -568,6 +636,8 @@ class Previa : public content::WebContentsDelegate,
   bool janela_fechando_ = false;
   bool virou_aba_ = false;
   std::unique_ptr<content::WebContents> contents_;
+  // Declarado depois do contents_: sai antes dele.
+  std::unique_ptr<FundoDaPrevia> fundo_;
   raw_ptr<Tela> tela_ = nullptr;
   views::UnhandledKeyboardEventHandler teclas_;
   base::ScopedObservation<favicon::FaviconDriver,
@@ -593,10 +663,12 @@ void FecharDepois(BrowserWindowInterface* browser) {
   if (it == Previas().end()) {
     return;
   }
-  // Some na hora; o resto (a página) é destruído fora do evento.
-  it->second->Esconder();
-  base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
-      FROM_HERE, base::BindOnce(&Fechar, browser));
+  // Some esmaecendo; o resto (a página) é destruído fora do evento, depois
+  // que a animação termina (e um quadro de folga).
+  const base::TimeDelta tempo = it->second->EsconderAnimado();
+  base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
+      FROM_HERE, base::BindOnce(&Fechar, browser),
+      tempo.is_zero() ? base::TimeDelta() : tempo + base::Milliseconds(16));
 }
 
 }  // namespace

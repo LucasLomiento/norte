@@ -1,0 +1,34 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "puzzle" do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.1f,
+MOVE_TO, 15.39f, 4.39f,
+ARC_TO, 1, 1, 0, 0, 0, 17.07f, 3.916f,
+ARC_TO, 2.5f, 2.5f, 0, 1, 1, 20.084f, 6.931f,
+ARC_TO, 1, 1, 0, 0, 0, 19.61f, 8.611f,
+LINE_TO, 21.293f, 10.293f,
+ARC_TO, 2.414f, 2.414f, 0, 0, 1, 21.293f, 13.707f,
+LINE_TO, 19.61f, 15.39f,
+ARC_TO, 1, 1, 0, 0, 1, 17.93f, 14.916f,
+ARC_TO, 2.5f, 2.5f, 0, 1, 0, 14.916f, 17.931f,
+ARC_TO, 1, 1, 0, 0, 1, 15.39f, 19.611f,
+LINE_TO, 13.707f, 21.293f,
+ARC_TO, 2.414f, 2.414f, 0, 0, 1, 10.293f, 21.293f,
+LINE_TO, 8.61f, 19.61f,
+ARC_TO, 1, 1, 0, 0, 0, 6.93f, 20.084f,
+ARC_TO, 2.5f, 2.5f, 0, 1, 1, 3.916f, 17.069f,
+ARC_TO, 1, 1, 0, 0, 0, 4.39f, 15.389f,
+LINE_TO, 2.707f, 13.707f,
+ARC_TO, 2.414f, 2.414f, 0, 0, 1, 2.707f, 10.293f,
+LINE_TO, 4.39f, 8.61f,
+ARC_TO, 1, 1, 0, 0, 1, 6.07f, 9.084f,
+ARC_TO, 2.5f, 2.5f, 0, 1, 0, 9.084f, 6.069f,
+ARC_TO, 1, 1, 0, 0, 1, 8.61f, 4.389f,
+LINE_TO, 10.293f, 2.707f,
+ARC_TO, 2.414f, 2.414f, 0, 0, 1, 13.707f, 2.707f,
+CLOSE,

@@ -142,7 +142,7 @@ index 63c3090b4c..fc7b6a6cbb 100644
      // Read the split state from the active tab because when BrowserView is in
      // full screen it may not be rendering a split, even though the active tab
 diff --git i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index d69e4dd30f..29715bca1f 100644
+index d69e4dd30f..136105c6e2 100644
 --- i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 @@ -95,8 +95,9 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
@@ -168,23 +168,30 @@ index d69e4dd30f..29715bca1f 100644
    } else {
      // If the vertical tab strip is uncollapsed, then lay out the buttons
      // horizontally. The exact y-level of the buttons depends on if they can lay
-@@ -238,6 +243,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -238,9 +243,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
                LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
      }
  
 +    int depois_do_logo = left_alignment;
      if (collapse_button_ && collapse_button_->GetVisible()) {
++      // navegador: 2 px pra dentro, o logo na coluna dos favicons das abas
++      // (o nome do espaço fica onde estava).
++      constexpr int kRecuoDoLogo = 2;
        const gfx::Size pref_size = collapse_button_->GetPreferredSize();
-       gfx::Rect bounds(left_alignment,
-@@ -249,6 +255,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+-      gfx::Rect bounds(left_alignment,
++      gfx::Rect bounds(left_alignment + kRecuoDoLogo,
+                        std::max(0, y_baseline - pref_size.height() / 2),
+                        pref_size.width(), pref_size.height());
+       layout.child_layouts.emplace_back(collapse_button_.get(),
+@@ -249,6 +258,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
            bounds.bottom() +
            GetLayoutConstant(
                LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
-+      depois_do_logo = bounds.right();
++      depois_do_logo = bounds.right() - kRecuoDoLogo;
      }
  
      int right_alignment = host_size.width();
-@@ -268,6 +275,20 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -268,6 +278,20 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
        layout.child_layouts.emplace_back(combo_button_.get(),
                                          combo_button_->GetVisible(), bounds);
      }
@@ -205,7 +212,7 @@ index d69e4dd30f..29715bca1f 100644
    }
  
    layout.host_size = host_size;
-@@ -292,6 +313,15 @@ views::LabelButton* VerticalTabStripTopContainer::AddChildButtonFor(
+@@ -292,6 +316,15 @@ views::LabelButton* VerticalTabStripTopContainer::AddChildButtonFor(
    return container_button_ptr;
  }
  
@@ -221,7 +228,7 @@ index d69e4dd30f..29715bca1f 100644
  TabStripComboButton* VerticalTabStripTopContainer::GetComboButton() {
    return combo_button_.get();
  }
-@@ -314,6 +344,11 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+@@ -314,6 +347,11 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
      return false;
    }
  
@@ -233,7 +240,7 @@ index d69e4dd30f..29715bca1f 100644
    return true;
  }
  
-@@ -333,6 +368,12 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
+@@ -333,6 +371,12 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
      context_menu_runner_.reset();
  
      context_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
@@ -246,7 +253,7 @@ index d69e4dd30f..29715bca1f 100644
      context_menu_model_->AddCheckItem(
          IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER,
          l10n_util::GetStringUTF16(
-@@ -375,7 +416,8 @@ bool VerticalTabStripTopContainer::IsCommandIdChecked(int command_id) const {
+@@ -375,7 +419,8 @@ bool VerticalTabStripTopContainer::IsCommandIdChecked(int command_id) const {
  }
  
  bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
@@ -256,7 +263,7 @@ index d69e4dd30f..29715bca1f 100644
      return true;
    }
    return false;
-@@ -383,7 +425,8 @@ bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
+@@ -383,7 +428,8 @@ bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
  
  void VerticalTabStripTopContainer::ExecuteCommand(int command_id,
                                                    int event_flags) {

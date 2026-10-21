@@ -10,12 +10,12 @@
 # com replaces/conflicts/provides=navegador.
 pkgname=navegador
 pkgver=155.0.8059.79
-pkgrel=41
+pkgrel=42
 pkgdesc="Norte: navegador em cima do Chromium, com abas na lateral, espaços e containers"
 provides=(norte)
 arch=(x86_64)
 url="https://github.com/LucasLomiento/norte"
-license=(BSD-3-Clause 'GPL-3.0-or-later OR CC-BY-SA-3.0' OFL-1.1)  # listas do bloqueador; fontes
+license=(BSD-3-Clause 'GPL-3.0-or-later OR CC-BY-SA-3.0' CC-BY-3.0 OFL-1.1)  # listas do bloqueador (a de avisos de cookies é CC BY); fontes
 depends=(fontconfig alsa-lib at-spi2-core cups dbus desktop-file-utils gtk3 hicolor-icon-theme
          libcups libdrm libpulse libxkbcommon mesa nss pango systemd ttf-liberation
          xdg-utils)

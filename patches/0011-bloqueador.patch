@@ -1,29 +1,64 @@
-diff --git i/chrome/browser/component_updater/registration.cc w/chrome/browser/component_updater/registration.cc
-index b11907b0f4..c4a149cf28 100644
---- i/chrome/browser/component_updater/registration.cc
-+++ w/chrome/browser/component_updater/registration.cc
-@@ -90,6 +90,8 @@
- 
- #if BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
- #include "chrome/browser/component_updater/widevine_cdm_component_installer.h"
+diff --git i/chrome/browser/chrome_browser_main.cc w/chrome/browser/chrome_browser_main.cc
+index cbf3b6c563..88aba9ff55 100644
+--- i/chrome/browser/chrome_browser_main.cc
++++ w/chrome/browser/chrome_browser_main.cc
+@@ -132,6 +132,8 @@
+ #include "content/public/common/content_switches.h"
+ #include "media/audio/audio_manager.h"
+ #include "media/base/localized_strings.h"
 +#include "navegador/browser/ui/bloqueador.h"
 +#include "navegador/browser/ui/fontes.h"
- #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
+ #include "net/base/data_url.h"
+ #include "net/base/module/net_module.h"
+ #include "pdf/buildflags.h"
+@@ -1969,6 +1971,12 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
+           switches::kDisableComponentUpdate)) {
+     component_updater::RegisterComponentsForUpdate();
+   }
++  // navegador: as listas do bloqueador (as do pacote: EasyList etc.) e, no
++  // Windows, as fontes do desenho (fontes.h). Não são componentes do Google:
++  // valem também com --disable-component-update (antes, o bloqueador parava
++  // com ela).
++  navegador::bloqueador::CarregarListas();
++  navegador::fontes::InstalarSeFaltar();
  
- #if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) || \
-@@ -152,7 +154,11 @@ void RegisterComponentsForUpdate() {
+   // `profile` may be nullptr if the profile picker is shown.
+   Profile* profile = profile_info.profile;
+diff --git i/chrome/browser/component_updater/registration.cc w/chrome/browser/component_updater/registration.cc
+index b11907b0f4..7e91d09242 100644
+--- i/chrome/browser/component_updater/registration.cc
++++ w/chrome/browser/component_updater/registration.cc
+@@ -152,7 +152,6 @@ void RegisterComponentsForUpdate() {
    RegisterWidevineCdmComponent(cus);
  #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
  
 -  RegisterSubresourceFilterComponent(cus);
-+  // navegador: o bloqueador usa as listas que vêm no pacote (EasyList etc.),
-+  // não as do Google (que só servem pra sites abusivos).
-+  navegador::bloqueador::CarregarListas();
-+  // navegador: no Windows, as fontes do desenho pro usuário (fontes.h).
-+  navegador::fontes::InstalarSeFaltar();
    RegisterOnDeviceHeadSuggestComponent(
        cus, g_browser_process->GetApplicationLocale());
    RegisterOptimizationHintsComponent(cus);
+@@ -160,7 +159,8 @@ void RegisterComponentsForUpdate() {
+   RegisterPrivateVerificationTokensComponentIfEnabled(cus);
+   RegisterFirstPartySetsComponent(cus);
+   RegisterPrivacySandboxAttestationsComponent(cus);
+-  RegisterActorSafetyListsComponent(cus, base::OnceClosure());
++  // navegador: sem as listas de segurança do agente do Gemini (o Gemini não
++  // existe aqui, e o componente baixava mesmo com ele desligado).
+   if (history_embeddings::IsHistoryEmbeddingsFeatureEnabled()) {
+     RegisterHistorySearchStringsComponent(cus);
+   }
+@@ -231,9 +231,9 @@ void RegisterComponentsForUpdate() {
+ #endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX) ||
+         // BUILDFLAG(IS_CHROMEOS) || BUILDFLAG(IS_ANDROID)
+ 
+-#if BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
+-  RegisterWasmTtsEngineComponent(cus, g_browser_process->local_state());
+-#endif  // BUILDFLAG(IS_WIN) || BUILDFLAG(IS_MAC) || BUILDFLAG(IS_LINUX)
++  // navegador: sem a voz do Google pro "ouvir" do modo de leitura (~25 MB
++  // baixados sem pedir; o "ouvir" saiu dos menus e as vozes do sistema
++  // continuam).
+ 
+   RegisterCaptchaProviderComponent(cus);
+ 
 diff --git i/chrome/browser/ui/tab_helpers.cc w/chrome/browser/ui/tab_helpers.cc
 index 3b1e2e30ef..4aea50799f 100644
 --- i/chrome/browser/ui/tab_helpers.cc

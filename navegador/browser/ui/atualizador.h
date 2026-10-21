@@ -1,6 +1,7 @@
 // Atualizador: ao abrir o navegador (o primeiro processo depois de fechar
-// todas as janelas), procura a última versão nas Releases do GitHub
-// (LucasLomiento/norte-releases) e, se for mais nova que a instalada,
+// todas as janelas) e depois a cada 6 h, procura a última versão nas
+// Releases do GitHub (LucasLomiento/norte-releases) e, se for mais nova que a
+// instalada,
 // mostra um aviso no pé da lateral. "Atualizar" (no aviso ou nas
 // Configurações) baixa o pacote novo, instala com o pacman (pela janela de
 // senha do sistema, pkexec) e oferece reiniciar.
@@ -57,6 +58,8 @@ struct Andamento {
   int porcento = -1;
   // kErro: o que deu errado, pra mostrar.
   std::u16string erro;
+  // A página da versão nova nas Releases ("O que mudou"), fora do kNada.
+  std::string pagina;
 };
 
 // Aviso no pé da lateral (escondido enquanto não há versão nova). A primeira

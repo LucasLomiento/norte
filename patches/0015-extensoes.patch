@@ -1,0 +1,26 @@
+diff --git i/extensions/browser/manifest_v2_handler.cc w/extensions/browser/manifest_v2_handler.cc
+index 5841d3dfbc..f04730ddf3 100644
+--- i/extensions/browser/manifest_v2_handler.cc
++++ w/extensions/browser/manifest_v2_handler.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "extensions/browser/manifest_v2_handler.h"
+ 
++#include "base/command_line.h"
++
+ #include "base/auto_reset.h"
+ #include "base/metrics/histogram_functions.h"
+ #include "base/one_shot_event.h"
+@@ -113,6 +115,12 @@ bool ShouldDisableLegacyExtensions() {
+     // We allow legacy MV2 extensions for testing purposes.
+     return false;
+   }
++  // navegador: com --norte-mv2 (no ~/.config/norte-flags.conf), as extensões
++  // MV2 continuam (o uBlock Origin completo, carregado sem compactar). Sem
++  // garantia: o resto do Chromium pode tirar o suporte numa versão nova.
++  if (base::CommandLine::ForCurrentProcess()->HasSwitch("norte-mv2")) {
++    return false;
++  }
+ 
+   return true;
+ }

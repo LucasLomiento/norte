@@ -33,8 +33,28 @@ SISTEMA=(
   --ozone-platform-hint=auto
   --enable-wayland-ime --wayland-text-input-version=3
   --password-store=gnome-libsecret
-  --enable-features=TouchpadOverscrollHistoryNavigation
 )
+LIGAR=TouchpadOverscrollHistoryNavigation
+DESLIGAR=
+# O Chromium fica só com o último --enable-features (e --disable-features) da
+# linha: um no norte-flags.conf apagava o gesto do touchpad daqui. Os do
+# arquivo e os da linha de comando entram junto com os daqui, numa flag só.
+OUTRAS=()
+FIM=
+for f in "${FLAGS[@]}" "$@"; do
+  if [[ -n "$FIM" ]]; then
+    OUTRAS+=("$f")
+    continue
+  fi
+  case "$f" in
+    --) FIM=1; OUTRAS+=("$f") ;;
+    --enable-features=*) LIGAR+=",${f#--enable-features=}" ;;
+    --disable-features=*) DESLIGAR+="${DESLIGAR:+,}${f#--disable-features=}" ;;
+    *) OUTRAS+=("$f") ;;
+  esac
+done
+SISTEMA+=("--enable-features=$LIGAR")
+[[ -n "$DESLIGAR" ]] && SISTEMA+=("--disable-features=$DESLIGAR")
 # Extensões que o Omarchy põe no Chromium (Alt+Shift+L copia o endereço,
 # Alt+Shift+D baixa o vídeo, WhatsApp no tema do sistema), se existirem.
 OMARCHY=/usr/share/omarchy/default/chromium/extensions
@@ -46,5 +66,13 @@ if ((${#EXTENSOES[@]})); then
   SISTEMA+=("--load-extension=$(IFS=,; echo "${EXTENSOES[*]}")")
 fi
 
-exec /usr/lib/norte/norte "${SISTEMA[@]}" --lang="$IDIOMA" \
-  "${FLAGS[@]}" "$@"
+NORTE=(/usr/lib/norte/norte "${SISTEMA[@]}" --lang="$IDIOMA")
+
+# Aberto pelo lançador do sistema (sem terminal), os erros vão pro journal
+# (`journalctl -t norte`): o aviso da tela congelada e as quedas se perdiam.
+# Só a partir de ERROR, sem as linhas de informação. No terminal, ficam nele.
+if [[ ! -t 2 ]] && command -v systemd-cat >/dev/null; then
+  exec systemd-cat -t norte --level-prefix=false \
+    "${NORTE[@]}" --log-level=2 "${OUTRAS[@]}"
+fi
+exec "${NORTE[@]}" "${OUTRAS[@]}"

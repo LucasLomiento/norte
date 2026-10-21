@@ -17,6 +17,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/time/time.h"
 #include "cc/paint/paint_flags.h"
 #include "cc/paint/path_effect.h"
 #include "chrome/app/vector_icons/vector_icons.h"
@@ -38,26 +39,23 @@
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/keyed_service/core/service_access_type.h"
-#include "base/time/time.h"
 #include "components/prefs/pref_change_registrar.h"
-#include "navegador/browser/containers/titulos.h"
-#include "navegador/browser/ui/abas/abas.h"
-#include "ui/events/event_constants.h"
-#include "ui/views/controls/scroll_view.h"
-#include "ui/views/controls/textfield/textfield.h"
 #include "components/prefs/pref_service.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
+#include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/referrer.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/containers/fixos.h"
+#include "navegador/browser/containers/titulos.h"
+#include "navegador/browser/ui/abas/abas.h"
 #include "navegador/browser/ui/containers/containers_ui.h"
+#include "navegador/browser/ui/espacos.h"
 #include "navegador/browser/ui/visual.h"
-#include "ui/compositor/paint_recorder.h"
-#include "ui/gfx/geometry/rect_conversions.h"
-#include "ui/views/paint_info.h"
+#include "navegador/icones/menu/vector_icons.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
 #include "ui/base/models/image_model.h"
@@ -67,27 +65,38 @@
 #include "ui/base/page_transition_types.h"
 #include "ui/base/window_open_disposition.h"
 #include "ui/color/color_provider.h"
+#include "ui/compositor/layer.h"
+#include "ui/compositor/paint_recorder.h"
 #include "ui/events/event.h"
+#include "ui/events/event_constants.h"
+#include "ui/gfx/animation/animation.h"
 #include "ui/gfx/canvas.h"
 #include "ui/gfx/color_utils.h"
 #include "ui/gfx/font_list.h"
+#include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/geometry/transform.h"
+#include "ui/gfx/geometry/transform_util.h"
 #include "ui/menus/simple_menu_model.h"
 #include "ui/views/accessibility/view_accessibility.h"
+#include "ui/views/animation/animation_builder.h"
 #include "ui/views/border.h"
 #include "ui/views/context_menu_controller.h"
 #include "ui/views/controls/button/button.h"
 #include "ui/views/controls/button/image_button.h"
 #include "ui/views/controls/button/image_button_factory.h"
+#include "ui/views/controls/button/label_button.h"
 #include "ui/views/controls/image_view.h"
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/menu/menu_runner.h"
+#include "ui/views/controls/scroll_view.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/layout/box_layout.h"
 #include "ui/views/layout/fill_layout.h"
-#include "ui/views/view.h"
+#include "ui/views/paint_info.h"
+#include "ui/views/style/typography.h"
 #include "ui/views/vector_icons.h"
+#include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
@@ -104,7 +113,7 @@ constexpr int kAlturaLinha = 30;
 constexpr int kRaio = 8;
 constexpr int kRecuoDaPasta = 12;
 // Linha embaixo dos fixados: 1 de altura, 5 em cima e embaixo, 12 dos lados.
-constexpr int kAlturaDivisor = 11;
+constexpr int kAlturaDivisor = 15;
 constexpr int kMargemDivisor = 12;
 
 constexpr const char* kNovaPasta = containers::kFixarNovaPasta;
@@ -240,6 +249,14 @@ class LinhaDoSite : public views::Button {
         13 - gfx::FontList().GetFontSize()));
     titulo_->SetCanProcessEventsWithinSubtree(false);
     layout->SetFlexForView(titulo_, 1);
+    // A aba do site tocando som (como o ícone de som das abas).
+    som_ = AddChildView(std::make_unique<views::ImageView>(
+        ui::ImageModel::FromVectorIcon(icones_menu::kVolume2Icon,
+                                       kColorTabForegroundInactiveFrameActive,
+                                       14)));
+    som_->SetCanProcessEventsWithinSubtree(false);
+    som_->SetTooltipText(u"Tocando");
+    som_->SetVisible(false);
     fechar_ = AddChildView(views::CreateVectorImageButtonWithNativeTheme(
         std::move(fechar), vector_icons::kCloseSmallIcon, 16));
     fechar_->SetTooltipText(u"Fechar a aba (o site continua aqui)");
@@ -281,10 +298,14 @@ class LinhaDoSite : public views::Button {
     views::Button::OnMouseReleased(event);
   }
 
-  void Mostrar(bool aberta, bool ativa, const ui::ImageModel& icone) {
+  void Mostrar(bool aberta,
+               bool ativa,
+               const ui::ImageModel& icone,
+               bool tocando = false) {
     aberta_ = aberta;
     ativa_ = ativa;
     icone_->SetImage(icone);
+    som_->SetVisible(tocando);
     fechar_->SetVisible(aberta_ && (ativa_ || IsMouseHovered()));
     AtualizarCor();
     SchedulePaint();
@@ -312,11 +333,17 @@ class LinhaDoSite : public views::Button {
   }
 
  private:
-  // Site sem aba aberta fica um pouco apagado.
+  // Como as abas: o site aberto e ativo no branco da aba ativa, aberto no
+  // cinza das inativas e fechado mais apagado ainda (antes, aberto ficava no
+  // branco e fechado quase no cinza das abas, o contrário delas).
   void AtualizarCor() {
     if (const ui::ColorProvider* cores = GetColorProvider()) {
-      SkColor cor = cores->GetColor(kColorTabForegroundActiveFrameActive);
-      titulo_->SetEnabledColor(aberta_ ? cor : SkColorSetA(cor, 0xB3));
+      const SkColor inativa =
+          cores->GetColor(kColorTabForegroundInactiveFrameActive);
+      titulo_->SetEnabledColor(
+          ativa_    ? cores->GetColor(kColorTabForegroundActiveFrameActive)
+          : aberta_ ? inativa
+                    : SkColorSetA(inativa, 0x99));
     }
   }
 
@@ -327,6 +354,7 @@ class LinhaDoSite : public views::Button {
   bool ativa_ = false;
   raw_ptr<views::ImageView> icone_ = nullptr;
   raw_ptr<views::Label> titulo_ = nullptr;
+  raw_ptr<views::ImageView> som_ = nullptr;
   raw_ptr<views::ImageButton> fechar_ = nullptr;
 };
 
@@ -463,6 +491,29 @@ class Ladrilho : public views::Button {
     SchedulePaint();
   }
 
+  // Apertado, encolhe um pouco, como uma tecla; com "menos movimento" no
+  // sistema, não.
+  void StateChanged(ButtonState old_state) override {
+    views::Button::StateChanged(old_state);
+    const bool apertado = GetState() == STATE_PRESSED;
+    if (apertado == (old_state == STATE_PRESSED) ||
+        !gfx::Animation::ShouldRenderRichAnimation()) {
+      return;
+    }
+    if (!layer()) {
+      SetPaintToLayer();
+      layer()->SetFillsBoundsOpaquely(false);
+    }
+    views::AnimationBuilder()
+        .Once()
+        .SetDuration(base::Milliseconds(100))
+        .SetTransform(this,
+                      apertado ? gfx::GetScaleTransform(
+                                     GetLocalBounds().CenterPoint(), 0.96f)
+                               : gfx::Transform(),
+                      gfx::Tween::EASE_OUT);
+  }
+
   void PaintButtonContents(gfx::Canvas* canvas) override {
     const ui::ColorProvider* cores = GetColorProvider();
     if (!cores) {
@@ -470,13 +521,16 @@ class Ladrilho : public views::Button {
     }
     const bool escuro =
         color_utils::IsDark(cores->GetColor(ui::kColorFrameActive));
-    SkColor fundo = escuro ? SkColorSetARGB(0x10, 0xFF, 0xFF, 0xFF)
+    // Parado < hover < ativo, em cinza (o hover acendia mais que o ativo; e
+    // no Resenha fundo de linha não leva cor). O ativo também tem o contorno
+    // mais forte.
+    SkColor fundo = escuro ? SkColorSetARGB(0x0D, 0xFF, 0xFF, 0xFF)
                            : SkColorSetARGB(0x99, 0xFF, 0xFF, 0xFF);
     if (ativa_) {
-      fundo = cores->GetColor(kColorTabBackgroundActiveFrameActive);
+      fundo = escuro ? SkColorSetARGB(0x24, 0xFF, 0xFF, 0xFF) : SK_ColorWHITE;
     } else if (IsMouseHovered()) {
-      fundo = escuro ? SkColorSetARGB(0x1F, 0xFF, 0xFF, 0xFF)
-                     : SkColorSetARGB(0xCC, 0xFF, 0xFF, 0xFF);
+      fundo = escuro ? SkColorSetARGB(0x17, 0xFF, 0xFF, 0xFF)
+                     : SkColorSetARGB(0xC2, 0xFF, 0xFF, 0xFF);
     }
     const gfx::RectF caixa(GetLocalBounds());
     cc::PaintFlags flags;
@@ -485,11 +539,21 @@ class Ladrilho : public views::Button {
     canvas->DrawRoundRect(caixa, kRaio, flags);
     flags.setStyle(cc::PaintFlags::kStroke_Style);
     flags.setStrokeWidth(1);
-    flags.setColor(escuro ? SkColorSetARGB(0x14, 0xFF, 0xFF, 0xFF)
-                          : SkColorSetARGB(0x14, 0x00, 0x00, 0x00));
+    flags.setColor(escuro ? SkColorSetARGB(ativa_ ? 0x2E : 0x14, 0xFF, 0xFF,
+                                           0xFF)
+                          : SkColorSetARGB(ativa_ ? 0x26 : 0x14, 0x00, 0x00,
+                                           0x00));
     gfx::RectF borda = caixa;
     borda.Inset(0.5f);
     canvas->DrawRoundRect(borda, kRaio, flags);
+    // Aberto numa aba (e não é a ativa): um ponto embaixo, como num dock.
+    if (aberta_ && !ativa_) {
+      cc::PaintFlags ponto;
+      ponto.setAntiAlias(true);
+      ponto.setColor(cores->GetColor(kColorTabForegroundInactiveFrameActive));
+      canvas->DrawCircle(gfx::PointF(width() / 2.0f, height() - 4.0f), 1.5f,
+                         ponto);
+    }
   }
 
   void OnMouseEntered(const ui::MouseEvent& event) override {
@@ -604,20 +668,61 @@ class GradeDeFavoritos : public views::View {
 BEGIN_METADATA(GradeDeFavoritos)
 END_METADATA
 
-// A linha fina entre os fixados e as abas.
+// A linha entre os fixados e as abas. Com o ponteiro em cima, um "Limpar"
+// no fim dela fecha as abas do espaço (os fixados ficam), como no Dia e no
+// Zen.
 class Divisor : public views::View {
   METADATA_HEADER(Divisor, views::View)
 
  public:
-  Divisor() { SetPreferredSize(gfx::Size(0, kAlturaDivisor)); }
+  explicit Divisor(BrowserWindowInterface* browser) {
+    SetPreferredSize(gfx::Size(0, kAlturaDivisor));
+    SetNotifyEnterExitOnChild(true);
+    limpar_ = AddChildView(std::make_unique<views::LabelButton>(
+        base::BindRepeating(&espacos::FecharAbasDoEspaco,
+                            base::Unretained(browser)),
+        u"Limpar"));
+    limpar_->SetTooltipText(u"Fechar as abas deste espaço (os fixados ficam)");
+    limpar_->SetBorder(views::CreateEmptyBorder(gfx::Insets::VH(0, 4)));
+    limpar_->SetLabelStyle(views::style::STYLE_BODY_5);
+    limpar_->SetVisible(false);
+  }
+
+  void Layout(PassKey) override {
+    const gfx::Size tamanho = limpar_->GetPreferredSize();
+    limpar_->SetBounds(width() - kMargemDivisor - tamanho.width(),
+                       (height() - tamanho.height()) / 2, tamanho.width(),
+                       tamanho.height());
+  }
+
+  void OnMouseEntered(const ui::MouseEvent& event) override {
+    limpar_->SetVisible(true);
+    SchedulePaint();
+  }
+  void OnMouseExited(const ui::MouseEvent& event) override {
+    limpar_->SetVisible(false);
+    SchedulePaint();
+  }
+
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    limpar_->SetEnabledTextColors(SkColorSetA(
+        GetColorProvider()->GetColor(kColorTabForegroundInactiveFrameActive),
+        0xB3));
+  }
 
   void OnPaint(gfx::Canvas* canvas) override {
     const SkColor cor = GetColorProvider()->GetColor(
         kColorTabForegroundInactiveFrameActive);
-    canvas->FillRect(gfx::Rect(kMargemDivisor, kAlturaDivisor / 2,
-                               width() - 2 * kMargemDivisor, 1),
-                     SkColorSetA(cor, 0x33));
+    const int fim = limpar_->GetVisible() ? limpar_->x() - 4
+                                          : width() - kMargemDivisor;
+    canvas->FillRect(
+        gfx::Rect(kMargemDivisor, kAlturaDivisor / 2, fim - kMargemDivisor, 1),
+        SkColorSetA(cor, 0x33));
   }
+
+ private:
+  raw_ptr<views::LabelButton> limpar_ = nullptr;
 };
 
 BEGIN_METADATA(Divisor)
@@ -849,6 +954,7 @@ class AreaDeFixos : public views::View,
     if (site && EFavorito(Perfil(), id)) {
       content::WebContents* aba = AbaDoSite(id);
       if (aba && EnderecoDaAba(aba) != site->url) {
+        menu_->AddItem(kVoltarAoEndereco, u"Voltar ao endereço fixado");
         menu_->AddItem(kUsarEndereco, u"Usar o endereço atual");
       }
       if (aba) {
@@ -862,6 +968,7 @@ class AreaDeFixos : public views::View,
       content::WebContents* aba = AbaDoSite(id);
       menu_->AddItem(kRenomear, u"Renomear…");
       if (aba && EnderecoDaAba(aba) != site->url) {
+        menu_->AddItem(kVoltarAoEndereco, u"Voltar ao endereço fixado");
         menu_->AddItem(kUsarEndereco, u"Usar o endereço atual");
       }
       if (aba) {
@@ -948,6 +1055,17 @@ class AreaDeFixos : public views::View,
       case kUsarEndereco:
         if (content::WebContents* aba = AbaDoSite(id)) {
           TrocarEndereco(perfil, id, EnderecoDaAba(aba));
+        }
+        return;
+      case kVoltarAoEndereco:
+        // A aba ligada volta pro endereço do site (como o "Back to Pinned"
+        // do Dia), no histórico dela.
+        if (content::WebContents* aba = AbaDoSite(id)) {
+          if (std::optional<Site> fixado = SitePorId(perfil, id)) {
+            aba->GetController().LoadURL(fixado->url, content::Referrer(),
+                                         ui::PAGE_TRANSITION_AUTO_BOOKMARK,
+                                         std::string());
+          }
         }
         return;
       case kFecharAba:
@@ -1252,7 +1370,7 @@ class AreaDeFixos : public views::View,
       }
     }
     if (!entradas.empty()) {
-      AddChildView(std::make_unique<Divisor>());
+      AddChildView(std::make_unique<Divisor>(browser_));
     }
     // Sem a linha no fim, a folga de uma aba até a lista.
     SetBorder(entradas.empty() ? views::CreateEmptyBorder(gfx::Insets::TLBR(
@@ -1398,7 +1516,8 @@ class AreaDeFixos : public views::View,
       auto it = abertas.find(linha->site().id);
       content::WebContents* aba = it == abertas.end() ? nullptr : it->second;
       linha->Mostrar(aba != nullptr, aba && aba == ativa,
-                     IconeDe(linha->site(), aba));
+                     IconeDe(linha->site(), aba),
+                     aba && aba->IsCurrentlyAudible());
     }
     for (Ladrilho* ladrilho : ladrilhos_) {
       auto it = abertas.find(ladrilho->site().id);
@@ -1537,6 +1656,7 @@ class AreaDeFixos : public views::View,
   static constexpr int kFecharTodas = 11;
   static constexpr int kExcluirPasta = 12;
   static constexpr int kOcultarQuadro = 13;
+  static constexpr int kVoltarAoEndereco = 14;
   static constexpr int kPrimeiraPasta = 100;
 
   raw_ptr<BrowserWindowInterface> browser_;

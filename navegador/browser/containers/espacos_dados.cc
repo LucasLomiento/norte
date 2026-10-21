@@ -121,6 +121,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(kBotoesDaJanelaPref, BotoesPorPadrao());
   registry->RegisterIntegerPref(kMolduraPref, kMolduraPadrao);
   registry->RegisterBooleanPref(kBarraNaCorDoSitePref, true);
+  registry->RegisterBooleanPref(kAvisosDeCookiesPref, true);
   registry->RegisterBooleanPref(kBarraEscondidaPref, false);
   registry->RegisterBooleanPref(kBarraNaTelaCheiaPref, true);
   registry->RegisterIntegerPref(kFlutuanteOpacidadePref,
@@ -305,7 +306,8 @@ const std::vector<Atalho>& Atalhos() {
            "Ctrl+Shift+S"},
           // O do Dia e do Zen (o "inspecionar" do DevTools segue no
           // Ctrl+Shift+I e no F12).
-          {"copiar_endereco", u"Copiar o endereço da aba", "Ctrl+Shift+C"},
+          {"copiar_endereco", u"Copiar o endereço da aba (sem rastreio)",
+           "Ctrl+Shift+C"},
           {"proximo_espaco", u"Próximo espaço", "Ctrl+Alt+Right"},
           {"espaco_anterior", u"Espaço anterior", "Ctrl+Alt+Left"},
           {"novo_espaco", u"Novo espaço", "Ctrl+Alt+N"},
@@ -314,6 +316,18 @@ const std::vector<Atalho>& Atalhos() {
           {"espaco_3", u"Ir pro espaço 3", "Ctrl+Alt+3"},
           {"espaco_4", u"Ir pro espaço 4", "Ctrl+Alt+4"},
           {"espaco_5", u"Ir pro espaço 5", "Ctrl+Alt+5"},
+          {"espaco_6", u"Ir pro espaço 6", "Ctrl+Alt+6"},
+          {"espaco_7", u"Ir pro espaço 7", "Ctrl+Alt+7"},
+          {"espaco_8", u"Ir pro espaço 8", "Ctrl+Alt+8"},
+          {"espaco_9", u"Ir pro espaço 9", "Ctrl+Alt+9"},
+          {"fechar_espaco", u"Fechar as abas do espaço", ""},
+          // O modo compacto do Zen: a lateral e a barra juntas.
+          {"modo_foco", u"Modo foco: esconder ou mostrar a lateral e a barra",
+           "Ctrl+Alt+C"},
+          // Sem tecla de fábrica: F2 e afins são dos sites (planilhas).
+          {"renomear_aba", u"Renomear a aba", ""},
+          {"fixar_no_espaco", u"Fixar a aba no espaço (ou desafixar)", ""},
+          {"favoritar", u"Pôr a aba nos favoritos (ou tirar)", ""},
           // Divisão de tela: os do Zen.
           {"dividir_lado", u"Dividir a tela lado a lado", "Ctrl+Alt+V"},
           {"dividir_cima", u"Dividir a tela em cima e embaixo", "Ctrl+Alt+H"},

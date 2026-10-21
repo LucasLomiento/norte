@@ -55,6 +55,9 @@ inline constexpr char kBarraNaTelaCheiaPref[] =
     "navegador.janela.barra_na_tela_cheia";
 // Barra de navegação na cor do topo da página (como o Dia).
 inline constexpr char kBarraNaCorDoSitePref[] = "navegador.barra.cor_do_site";
+// Bloqueador: esconder os avisos de cookies (a EasyList Cookie).
+inline constexpr char kAvisosDeCookiesPref[] =
+    "navegador.bloqueador.avisos_de_cookies";
 // Barra de navegação escondida (Ctrl+Shift+S): o Ctrl+L mostra enquanto se
 // digita o endereço (navegador/browser/ui/barra.h).
 inline constexpr char kBarraEscondidaPref[] = "navegador.barra.escondida";

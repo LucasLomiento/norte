@@ -163,7 +163,7 @@ export default {
     bloqueador_t: 'Ad blocker built in',
     bloqueador: 'EasyList, EasyPrivacy and EasyList Portuguese come switched on and update with every release. Norte blocks ads and trackers at the network level and also hides the empty space they would leave behind. If a site breaks, you can turn it off for that site alone, from the lock icon in the address bar.',
     sem_ia_t: 'No AI, no account, no telemetry',
-    sem_ia: 'Chromium’s AI features are switched off and removed from the menus. There’s no Google sign-in and no usage data sent anywhere. The only time Norte talks to the internet on its own is to check GitHub for a new version, and you can turn that off.',
+    sem_ia: 'Chromium’s AI features are switched off and removed from the menus, including the Gemini Nano that web pages could use. There’s no Google sign-in and no usage data sent anywhere. On its own, Norte only checks GitHub for a new version (you can turn that off); the Chromium underneath still fetches its components from Google, such as Widevine for Netflix and the certificate lists.',
   },
 
   origem: {
@@ -213,7 +213,7 @@ export default {
       ['Can I bring everything over from Zen?', 'Yes. In Norte Settings (<span class="teclas"><kbd>Ctrl</kbd> <kbd>,</kbd></span>), the General tab (“Geral”) has an “Importar do Zen” button that brings over containers, spaces, pinned sites and folders, each container’s cookies (your logins), passwords, bookmarks and history. Zen can stay open while it runs.'],
       ['What about 1Password?', 'It works: the package sets up the link between the extension and the 1Password app and adds Norte to the list of browsers the app trusts. Just install the extension.'],
       ['Why no AI?', 'Because the idea is a browser that just browses. Chromium’s AI features (Gemini, “Help me write”, AI search, the tab organizer) are switched off and removed from the menus, and nothing you browse is sent to an assistant.'],
-      ['What does Norte send over the internet?', 'On its own, only a check on GitHub for a new version (you can turn it off in Norte Settings → General, “Geral” → Updates, “Atualizações”). There’s no Google account, no sync and no usage statistics.'],
+      ['What does Norte send over the internet?', 'On its own, a check on GitHub for a new version, at startup and every 6 hours (you can turn it off in Norte Settings → General, “Geral” → Updates, “Atualizações”). The Chromium underneath checks with Google now and then to update its components (Widevine for Netflix, certificate and security lists), and what you type in the address bar goes to your search engine for suggestions. There’s no Google account, no sync and no usage statistics.'],
       ['Was it called Navegador?', 'Until version 20, yes (“navegador” is Portuguese for “browser”). Anyone who already had it installed got Norte through the usual update, with their whole profile: logins, spaces, containers and extensions.'],
       ['Who makes it?', 'It’s a personal project by <a href="https://github.com/LucasLomiento">@LucasLomiento</a>, open source (BSD-3-Clause). Found a problem or have an idea? <a href="https://github.com/LucasLomiento/norte/issues">Open an issue</a>.'],
     ],

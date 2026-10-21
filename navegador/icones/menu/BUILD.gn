@@ -35,12 +35,15 @@ aggregate_vector_icons("icones_menu") {
     "rotate_cw.icon",
     "scissors.icon",
     "search.icon",
+    "shield_check.icon",
+    "shield_off.icon",
     "spell_check.icon",
     "square_arrow_out_up_right.icon",
     "square_mouse_pointer.icon",
     "text_cursor.icon",
     "tocar.icon",
     "undo_2.icon",
+    "volume_2.icon",
     "volume_x.icon",
   ]
 }

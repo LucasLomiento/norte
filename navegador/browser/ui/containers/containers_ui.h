@@ -91,15 +91,22 @@ inline constexpr char kFixarDesafixar[] = "*desafixar*";
 using FixarAba = base::RepeatingCallback<
     void(TabStripModel* tab_strip, int index, const std::string& destino)>;
 void DefinirFixarAba(FixarAba fixar);
+// O mesmo "Fixar no espaço", de fora do menu (o atalho).
+void FixarAbaNoEspaco(TabStripModel* tab_strip,
+                      int index,
+                      const std::string& destino);
 std::unique_ptr<ui::SimpleMenuModel> CriarSubmenuFixar(TabStripModel* tab_strip,
                                                        int index);
 
 // "Configurações do Navegador…" no menu do logo (o AppMenuModel também não
 // enxerga o //chrome/browser/ui:ui): espacos.cc registra quem abre.
+// `containers`: direto na página Containers ("Gerenciar containers…").
 using AbrirConfiguracoes =
-    base::RepeatingCallback<void(BrowserWindowInterface* browser)>;
+    base::RepeatingCallback<void(BrowserWindowInterface* browser,
+                                 bool containers)>;
 void DefinirAbrirConfiguracoes(AbrirConfiguracoes abrir);
-void MostrarConfiguracoes(BrowserWindowInterface* browser);
+void MostrarConfiguracoes(BrowserWindowInterface* browser,
+                          bool containers = false);
 
 // Menu de contexto de um link: "Abrir link em container". Abre o link numa
 // aba nova (em segundo plano, como "abrir link em nova aba") ao lado da aba

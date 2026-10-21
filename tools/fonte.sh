@@ -39,7 +39,8 @@ if [ "${1:-}" = "--gerar" ]; then
     case "$_nome" in ''|\#*) continue ;; esac
     excl+=(":(exclude)$destino")
   done < "$RAIZ/navegador/icones/LUGARES"
-  # Os textos com o nome do produto são gerados pelo tools/marca.py.
+  # Os textos com o nome do produto (e o "aba" no lugar de "guia") são
+  # gerados pelo tools/marca.py; os favicons, pelo tools/icones.sh.
   git diff --binary -- . ':(exclude)navegador' \
     ':(exclude)chrome/app/chromium_strings.grd' \
     ':(exclude)chrome/app/resources/chromium_strings_*.xtb' \
@@ -58,6 +59,11 @@ if [ "${1:-}" = "--gerar" ]; then
     ':(exclude)chrome/app/theme/default_*_percent/chromium/linux/*product_logo*' \
     ':(exclude)ui/webui/resources/images/chrome_logo_dark.svg' \
     ':(exclude)chrome/app/theme/default_*_percent/common/favicon_ntp.png' \
+    ':(exclude)chrome/app/theme/default_*_percent/common/favicon_settings.png' \
+    ':(exclude)chrome/app/theme/default_*_percent/common/favicon_downloads.png' \
+    ':(exclude)components/resources/default_*_percent/favicon_history.png' \
+    ':(exclude)extensions/browser/resources/default_*_percent/favicon_extensions.png' \
+    ':(exclude)ui/resources/default_*_percent/common/default_favicon*.png' \
     "${excl[@]}" > "$RAIZ/patches/9999-resto.patch"
   [ -s "$RAIZ/patches/9999-resto.patch" ] || rm -f "$RAIZ/patches/9999-resto.patch"
   ls -1 "$RAIZ/patches"

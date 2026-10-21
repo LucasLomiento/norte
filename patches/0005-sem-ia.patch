@@ -11,7 +11,7 @@ index 34da8786ae..a1085836d7 100644
      "//chrome/browser:browser_process_platform_part",
      "//chrome/browser:chrome_browser_main",
 diff --git i/chrome/browser/metrics/chrome_feature_list_creator.cc w/chrome/browser/metrics/chrome_feature_list_creator.cc
-index 90e572fe4e..ce660e7976 100644
+index 90e572fe4e..073932ff1d 100644
 --- i/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ w/chrome/browser/metrics/chrome_feature_list_creator.cc
 @@ -4,6 +4,8 @@
@@ -23,16 +23,59 @@ index 90e572fe4e..ce660e7976 100644
  #include <vector>
  
  #include "base/command_line.h"
-@@ -63,6 +65,9 @@ ChromeFeatureListCreator::~ChromeFeatureListCreator() = default;
+@@ -63,6 +65,10 @@ ChromeFeatureListCreator::~ChromeFeatureListCreator() = default;
  void ChromeFeatureListCreator::CreateFeatureList() {
    CreatePrefService();
    ConvertFlagsToSwitches();
 +  // navegador: sem as funções de IA do Google.
 +  navegador::DesligarIA(base::CommandLine::ForCurrentProcess());
-+  navegador::LigarRecursos(base::CommandLine::ForCurrentProcess());
++  navegador::LigarRecursos(base::CommandLine::ForCurrentProcess(),
++                           local_state_.get());
    CreateMetricsServices();
    SetupInitialPrefs();
    SetUpFieldTrials();
+diff --git i/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc w/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
+index bae1eb7a8a..2179aaf604 100644
+--- i/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
++++ w/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
+@@ -24,6 +24,7 @@
+ #include "components/optimization_guide/core/model_execution/manifest_broker/manifest_broker_state.h"
+ #include "components/optimization_guide/core/model_execution/manifest_broker/override_manifest_asset_manager_delegate.h"
+ #include "components/optimization_guide/core/model_execution/performance_class.h"
++#include "components/optimization_guide/core/optimization_guide_features.h"
+ #include "components/services/unzip/content/unzip_service.h"
+ #include "content/public/browser/service_process_host.h"
+ #include "mojo/public/cpp/bindings/pending_receiver.h"
+@@ -116,7 +117,11 @@ OptimizationGuideGlobalState::OptimizationGuideGlobalState(
+       .ListenForPerformanceClassAvailable(
+           base::BindOnce(&ChromeOnDeviceModelServiceController::
+                              RegisterPerformanceClassSyntheticTrial));
+-  manifest_broker_state->performance_classifier().ScheduleEvaluation();
++  // navegador: sem a IA do Google ligada (sem_ia.cc), não sobe o serviço do
++  // modelo local 3 min depois de abrir só pra medir a GPU.
++  if (optimization_guide::features::IsOnDeviceExecutionEnabled()) {
++    manifest_broker_state->performance_classifier().ScheduleEvaluation();
++  }
+ 
+   on_device_capability_ = std::move(manifest_broker_state);
+ }
+diff --git i/chrome/browser/policy/cloud/user_fm_registration_token_uploader_factory.cc w/chrome/browser/policy/cloud/user_fm_registration_token_uploader_factory.cc
+index 220db2ad86..8ad8b171ef 100644
+--- i/chrome/browser/policy/cloud/user_fm_registration_token_uploader_factory.cc
++++ w/chrome/browser/policy/cloud/user_fm_registration_token_uploader_factory.cc
+@@ -42,6 +42,12 @@ UserFmRegistrationTokenUploaderFactory::
+ std::unique_ptr<KeyedService>
+ UserFmRegistrationTokenUploaderFactory::BuildServiceInstanceForBrowserContext(
+     content::BrowserContext* context) const {
++  // navegador: sem login do Google não há política da nuvem pra avisar, e
++  // isto registrava cada perfil em dois projetos do Google pelo GCM (e
++  // mantinha a conexão com o mtalk.google.com) logo na partida.
++  if ((true)) {
++    return nullptr;
++  }
+   Profile* profile = static_cast<Profile*>(context);
+   policy::CloudPolicyManager* policy_manager = profile->GetCloudPolicyManager();
+ 
 diff --git i/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc w/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
 index a514402e94..a9746af92b 100644
 --- i/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
