@@ -121,6 +121,15 @@ class Aviso : public views::Button, public TabStripModelObserver {
     tabs::TabInterface* ativa = model_->GetActiveTab();
     views::View* conteudo = lista_ ? lista_->contents() : nullptr;
     TabView* aba = ativa && conteudo ? AchaAba(conteudo, ativa) : nullptr;
+    // Segue a própria aba: na animação de abrir e fechar abas ela anda sem
+    // a lista rolar nem mudar de tamanho, e sem isso o aviso ficava preso
+    // por cima da primeira aba (com uma aba só, a "Nova aba" saía dobrada).
+    if (aba_observada_.GetSource() != aba) {
+      aba_observada_.Reset();
+      if (aba) {
+        aba_observada_.Observe(aba);
+      }
+    }
     if (!aba || !aba->GetVisible() || !lista_->GetVisible()) {
       SetVisible(false);
       return;
@@ -128,6 +137,11 @@ class Aviso : public views::Button, public TabStripModelObserver {
     const gfx::Rect na_lista =
         views::View::ConvertRectToTarget(aba, conteudo, aba->GetLocalBounds());
     const gfx::Rect visivel = lista_->GetVisibleRect();
+    // Aba ainda sem tamanho (entrando) ou lista de uma linha só: nada.
+    if (na_lista.IsEmpty() || visivel.height() < 2 * kAltura) {
+      SetVisible(false);
+      return;
+    }
     if (na_lista.bottom() <= visivel.y()) {
       em_cima_ = true;
     } else if (na_lista.y() >= visivel.bottom()) {
@@ -156,22 +170,28 @@ class Aviso : public views::Button, public TabStripModelObserver {
     }
   }
 
-  // A lista muda de tamanho ou some (o Button já é um ViewObserver de si).
+  // A lista ou a aba ativa mudam de lugar ou somem (o Button já é um
+  // ViewObserver de si mesmo).
   class VigiaDaLista : public views::ViewObserver {
    public:
     explicit VigiaDaLista(Aviso* aviso) : aviso_(aviso) {}
-    void OnViewBoundsChanged(views::View* lista) override {
+    void OnViewBoundsChanged(views::View* vista) override {
       aviso_->Atualizar();
     }
-    void OnViewIsDeleting(views::View* lista) override {
-      aviso_->ListaApagada();
+    void OnViewIsDeleting(views::View* vista) override {
+      aviso_->Apagada(vista);
     }
 
    private:
     raw_ptr<Aviso> aviso_;
   };
 
-  void ListaApagada() {
+  void Apagada(views::View* vista) {
+    if (vista == aba_observada_.GetSource()) {
+      aba_observada_.Reset();
+      return;
+    }
+    aba_observada_.Reset();
     lista_observada_.Reset();
     rolagem_ = {};
     lista_ = nullptr;
@@ -183,6 +203,8 @@ class Aviso : public views::Button, public TabStripModelObserver {
   base::CallbackListSubscription rolagem_;
   VigiaDaLista vigia_da_lista_;
   base::ScopedObservation<views::View, views::ViewObserver> lista_observada_{
+      &vigia_da_lista_};
+  base::ScopedObservation<views::View, views::ViewObserver> aba_observada_{
       &vigia_da_lista_};
 };
 
