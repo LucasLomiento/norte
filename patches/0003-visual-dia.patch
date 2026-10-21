@@ -970,7 +970,7 @@ index a335e2d5cc..9e1616c111 100644
  #if BUILDFLAG(IS_CHROMEOS)
    // ChromeOS SystemWebApps use the OS theme all the time.
 diff --git i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-index 29dfbde914..8ca584bb8a 100644
+index 29dfbde914..510805a5a1 100644
 --- i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 @@ -4,6 +4,13 @@
@@ -1017,7 +1017,7 @@ index 29dfbde914..8ca584bb8a 100644
    return info;
  }
  
-@@ -822,6 +845,26 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -822,13 +845,33 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                                 GetVerticalTabStripContentOverlap();
        params.InsetHorizontal(inset_amount, /*leading=*/true);
  
@@ -1042,8 +1042,20 @@ index 29dfbde914..8ca584bb8a 100644
 +      }
 +
        // Let the vertical tab strip animate out over the content.
++      // navegador: não. Recolhendo ou abrindo a lateral (Ctrl+S), a página
++      // muda de largura junto com ela, a cada quadro, como ao arrastar a
++      // borda da janela. Parada no lugar de recolhida (o Chromium), com a
++      // lateral por cima, ela pulava pro lugar novo no começo de recolher e
++      // no fim de abrir.
        if (vertical_tab_strip_animation.current_motion) {
-         clip_content_for_animation =
+-        clip_content_for_animation =
+-            vertical_tab_strip_animation.current_motion ==
+-                TabStripAnimations::kExpand ||
+-            vertical_tab_strip_animation.current_motion ==
+-                TabStripAnimations::kCollapse;
+         unclipped_contents_region.Inset(gfx::Insets::TLBR(
+             0, VerticalTabStripRegionView::kCollapsedWidth, 0, 0));
+       } else {
 @@ -855,8 +898,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
    if (IsParentedTo(views().vertical_tab_strip_top_corner,
                     views().browser_view)) {

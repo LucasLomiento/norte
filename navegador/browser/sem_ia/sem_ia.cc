@@ -42,6 +42,12 @@ constexpr const char* kLigadas[] = {
     // que só aparecem rolando, como no Dia e no macOS; no lugar das cinzas
     // com setinhas, que ocupavam a borda de toda página.
     "OverlayScrollbar:mode/overlay",
+    // Recolhendo ou abrindo a lateral (Ctrl+S), a página muda de largura a
+    // cada quadro: a janela espera o quadro da página no tamanho novo antes
+    // de mostrar (no Chromium, só no Mac com ARM). Sem isso o conteúdo
+    // chegava 1 ou 2 quadros atrasado e a borda direita tremia (até 120 px
+    // numa página pesada).
+    "UseDefaultDeadlineWhenAnimatingBounds",
 };
 
 // Desligadas por padrão. Fora da "official build" o Chromium aplica a lista
