@@ -1108,6 +1108,21 @@ std::unique_ptr<views::View> PaginaPrivacidade(
                       },
                       perfil))));
 
+  Cartao* barra = pagina->Secao(u"Barra de endereço");
+  barra->Adicionar(Linha(
+      u"Sugestões do buscador",
+      u"Ligado, o que você digita na barra vai pro buscador a cada letra, pra "
+      u"ele sugerir pesquisas. Desligado, as sugestões vêm só do histórico e "
+      u"dos favoritos, e o buscador só recebe a busca no Enter.",
+      Interruptor(perfil->GetPrefs()->GetBoolean(prefs::kSearchSuggestEnabled),
+                  u"Sugestões do buscador",
+                  base::BindRepeating(
+                      [](Profile* perfil, bool ligado) {
+                        perfil->GetPrefs()->SetBoolean(
+                            prefs::kSearchSuggestEnabled, ligado);
+                      },
+                      perfil))));
+
   Cartao* cookies = pagina->Secao(u"Cookies");
   cookies->Adicionar(Linha(
       u"Bloquear cookies de terceiros",

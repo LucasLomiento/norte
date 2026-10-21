@@ -64,7 +64,7 @@ index 817cd91bda..27fafcf284 100644
      ":util",
      "//chrome/browser:browser_process",
 diff --git i/chrome/browser/prefs/browser_prefs.cc w/chrome/browser/prefs/browser_prefs.cc
-index 2653e37bec..a653710f0a 100644
+index 2653e37bec..28b5b9e0e3 100644
 --- i/chrome/browser/prefs/browser_prefs.cc
 +++ w/chrome/browser/prefs/browser_prefs.cc
 @@ -221,6 +221,8 @@
@@ -92,7 +92,18 @@ index 2653e37bec..a653710f0a 100644
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
    AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
-@@ -1961,6 +1965,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -1830,6 +1834,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+   personal_context::prefs::RegisterProfilePrefs(registry);
+   privacy_sandbox::RegisterProfilePrefs(registry);
+   Profile::RegisterProfilePrefs(registry);
++  // navegador: sem as sugestões do buscador na barra (o que se digita não vai
++  // pra ele a cada letra); liga em Configurações do Norte → Privacidade.
++  registry->SetDefaultPrefValue(prefs::kSearchSuggestEnabled,
++                                base::Value(false));
+   ProfileImpl::RegisterProfilePrefs(registry);
+   ProfileNetworkContextService::RegisterProfilePrefs(registry);
+   custom_handlers::ProtocolHandlerRegistry::RegisterProfilePrefs(registry);
+@@ -1961,6 +1969,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
    NewTabPageHandler::RegisterProfilePrefs(registry);
    NewTabPageUI::RegisterProfilePrefs(registry);
    MostVisitedPrefObserver::RegisterProfilePrefs(registry);
