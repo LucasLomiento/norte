@@ -10,7 +10,7 @@
 # com replaces/conflicts/provides=navegador.
 pkgname=navegador
 pkgver=155.0.8059.79
-pkgrel=48
+pkgrel=49
 pkgdesc="Norte: navegador em cima do Chromium, com abas na lateral, espaços e containers"
 provides=(norte)
 arch=(x86_64)
