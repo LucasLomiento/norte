@@ -641,7 +641,7 @@ index 812ea8e40e..4fe077a98d 100644
        "//chrome/browser/apps/link_capturing",
        "//chrome/browser/ui:browser_init_state",
 diff --git i/chrome/browser/ui/navigator/browser_navigator.cc w/chrome/browser/ui/navigator/browser_navigator.cc
-index 5029e26405..93a24333c7 100644
+index 5029e26405..dd12d4dfe2 100644
 --- i/chrome/browser/ui/navigator/browser_navigator.cc
 +++ w/chrome/browser/ui/navigator/browser_navigator.cc
 @@ -74,6 +74,8 @@
@@ -653,25 +653,45 @@ index 5029e26405..93a24333c7 100644
  #include "extensions/buildflags/buildflags.h"
  #include "ui/base/page_transition_types.h"
  #include "ui/base/window_open_disposition.h"
-@@ -504,8 +506,23 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
+@@ -502,10 +504,42 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
+   // subsequent navigation is cross-process (i.e. cross-SiteInstance), then it
+   // will stay in the same BrowsingInstance (creating frame proxies as needed)
    // preserving the requested opener relationship along the way.
++  // navegador: aba de janela de app (PWA) nasce no container do app (menu da
++  // janela do app, Configurações do Norte → Containers ou o da aba em que foi
++  // instalado), venha de onde vier; app sem escolha segue a regra das abas.
++  std::optional<scoped_refptr<content::SiteInstance>> site_instance_do_app;
++  if (!params.opener) {
++    if (web_app::AppBrowserController* app =
++            web_app::AppBrowserController::From(params.browser);
++        app &&
++        !web_app::AppBrowserController::IsIsolatedWebApp(params.browser)) {
++      site_instance_do_app = navegador::containers::SiteInstanceForApp(
++          params.browser->GetProfile(), app->app_id(), url);
++    }
++  }
    scoped_refptr<content::SiteInstance> initial_site_instance_for_new_contents =
-       params.opener ? params.opener->GetSiteInstance()
+-      params.opener ? params.opener->GetSiteInstance()
 -                    : tab_util::GetSiteInstanceForNewTab(
 -                          params.browser->GetProfile(), url);
-+                    : navegador::containers::SiteInstanceForNewTab(
-+                          params.browser->GetProfile(),
-+                          // Link e endereço digitado na barra da aba (Alt+Enter)
-+                          // herdam o container de quem abriu; aba em branco
-+                          // (Ctrl+T) segue o espaço.
-+                          ui::PageTransitionCoreTypeIs(
-+                              params.transition, ui::PAGE_TRANSITION_LINK) ||
-+                                  (params.transition &
-+                                   ui::PAGE_TRANSITION_FROM_ADDRESS_BAR)
-+                              ? params.source_contents.get()
-+                              : nullptr,
-+                          navegador::containers::EspacoFocado(params.browser),
-+                          url);
++      params.opener          ? params.opener->GetSiteInstance()
++      : site_instance_do_app ? *site_instance_do_app
++                             : navegador::containers::SiteInstanceForNewTab(
++                                   params.browser->GetProfile(),
++                                   // Link e endereço digitado na barra da aba
++                                   // (Alt+Enter) herdam o container de quem
++                                   // abriu; aba em branco (Ctrl+T) segue o
++                                   // espaço.
++                                   ui::PageTransitionCoreTypeIs(
++                                       params.transition,
++                                       ui::PAGE_TRANSITION_LINK) ||
++                                           (params.transition &
++                                            ui::PAGE_TRANSITION_FROM_ADDRESS_BAR)
++                                       ? params.source_contents.get()
++                                       : nullptr,
++                                   navegador::containers::EspacoFocado(
++                                       params.browser),
++                                   url);
 +  if (!initial_site_instance_for_new_contents) {
 +    initial_site_instance_for_new_contents = tab_util::GetSiteInstanceForNewTab(
 +        params.browser->GetProfile(), url);
@@ -679,7 +699,7 @@ index 5029e26405..93a24333c7 100644
  
    WebContents::CreateParams create_params(
        params.browser->GetProfile(), initial_site_instance_for_new_contents);
-@@ -640,6 +657,20 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -640,6 +674,20 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
      return nullptr;
    }
  
@@ -917,6 +937,118 @@ index 60489fb251..cc45dbdcca 100644
  };
  
  #endif  // CHROME_BROWSER_UI_VIEWS_TABS_SHARED_NEW_TAB_BUTTON_MENU_MODEL_H_
+diff --git i/chrome/browser/ui/web_applications/BUILD.gn w/chrome/browser/ui/web_applications/BUILD.gn
+index 67fdbc4ecc..3fb2d19474 100644
+--- i/chrome/browser/ui/web_applications/BUILD.gn
++++ w/chrome/browser/ui/web_applications/BUILD.gn
+@@ -166,10 +166,17 @@ source_set("impl") {
+       "web_app_ui_manager_impl.cc",
+       "web_app_ui_utils.cc",
+       "webui_web_app_navigation_throttle.cc",
++
++      # navegador: container de cada app (submenu da janela do app e lista
++      # das Configurações do Norte).
++      "//navegador/browser/ui/containers/apps.cc",
++      "//navegador/browser/ui/containers/apps.h",
+     ]
+ 
+     deps += [
+       ":launch_utils",
++      "//navegador/browser/containers",
++      "//navegador/browser/ui/containers:containers_ui",
+       "//chrome/browser:browser_process",
+       "//chrome/browser/app_mode",
+       "//chrome/browser/apps/app_service",
+diff --git i/chrome/browser/ui/web_applications/web_app_menu_model.cc w/chrome/browser/ui/web_applications/web_app_menu_model.cc
+index 5cea1332b1..1feff056fa 100644
+--- i/chrome/browser/ui/web_applications/web_app_menu_model.cc
++++ w/chrome/browser/ui/web_applications/web_app_menu_model.cc
+@@ -30,6 +30,7 @@
+ #include "components/vector_icons/vector_icons.h"
+ #include "components/webapps/browser/installable/installable_metrics.h"
+ #include "content/public/common/content_features.h"
++#include "navegador/browser/ui/containers/apps.h"
+ #include "third_party/blink/public/common/features.h"
+ #include "ui/base/accelerators/menu_label_accelerator_util.h"
+ #include "ui/base/l10n/l10n_util.h"
+@@ -212,6 +213,19 @@ void WebAppMenuModel::Build() {
+                                           : kBrowserLogoOldIcon);
+   }
+ 
++  // navegador: em que container o app abre (o atual ao lado do nome).
++  container_do_app_ = navegador::containers::CriarSubmenuDoApp(browser());
++  if (container_do_app_) {
++    AddSubMenuWithIcon(
++        kNavegadorContainersMenu, u"Container", container_do_app_.get(),
++        ui::ImageModel::FromVectorIcon(vector_icons::kWorkIcon,
++                                       ui::kColorMenuIcon, kDefaultIconSize));
++    SetMinorText(GetItemCount() - 1,
++                 navegador::containers::NomeDoContainerDoApp(
++                     browser()->GetProfile(),
++                     app_browser_controller->app_id()));
++  }
++
+ #if BUILDFLAG(IS_CHROMEOS)
+   if (chromeos::MoveToDesksMenuDelegate::ShouldShowMoveToDesksMenu()) {
+     AddSeparator(ui::NORMAL_SEPARATOR);
+diff --git i/chrome/browser/ui/web_applications/web_app_menu_model.h w/chrome/browser/ui/web_applications/web_app_menu_model.h
+index bbef1db5eb..97de31bbcd 100644
+--- i/chrome/browser/ui/web_applications/web_app_menu_model.h
++++ w/chrome/browser/ui/web_applications/web_app_menu_model.h
+@@ -5,6 +5,8 @@
+ #ifndef CHROME_BROWSER_UI_WEB_APPLICATIONS_WEB_APP_MENU_MODEL_H_
+ #define CHROME_BROWSER_UI_WEB_APPLICATIONS_WEB_APP_MENU_MODEL_H_
+ 
++#include <memory>
++
+ #include "chrome/browser/ui/toolbar/app_menu_model.h"
+ 
+ namespace chromeos {
+@@ -35,6 +37,8 @@ class WebAppMenuModel : public AppMenuModel {
+ #if BUILDFLAG(IS_CHROMEOS)
+   std::unique_ptr<chromeos::MoveToDesksMenuModel> move_to_desks_submenu_;
+ #endif
++  // navegador: submenu "Container" (navegador/browser/ui/containers/apps.h).
++  std::unique_ptr<ui::SimpleMenuModel> container_do_app_;
+ };
+ 
+ #endif  // CHROME_BROWSER_UI_WEB_APPLICATIONS_WEB_APP_MENU_MODEL_H_
+diff --git i/chrome/browser/web_applications/BUILD.gn w/chrome/browser/web_applications/BUILD.gn
+index 6afe04f5f3..34446c8d20 100644
+--- i/chrome/browser/web_applications/BUILD.gn
++++ w/chrome/browser/web_applications/BUILD.gn
+@@ -597,6 +597,8 @@ source_set("web_applications") {
+     "//components/user_manager",
+     "//components/web_package",
+     "//components/webapps/browser",
++    # navegador: o app instalado fica no container da aba (LembrarContainerDoApp).
++    "//navegador/browser/containers",
+     "//components/webapps/common",
+     "//components/webapps/common:mojo_bindings",
+     "//components/webapps/isolated_web_apps",
+diff --git i/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc w/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc
+index 030c05e125..ccf93b1a65 100644
+--- i/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc
++++ w/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc
+@@ -59,6 +59,7 @@
+ #include "content/public/browser/web_contents.h"
+ #include "content/public/browser/web_contents_observer.h"
+ #include "content/public/common/url_constants.h"
++#include "navegador/browser/containers/containers.h"
+ #include "url/origin.h"
+ 
+ #if BUILDFLAG(IS_CHROMEOS)
+@@ -711,6 +712,10 @@ void FetchManifestAndInstallCommand::OnInstallFinalizedMaybeReparentTab(
+           ->GetPrefs(),
+       app_id, install_surface_);
+ 
++  // navegador: o app fica no container da aba em que foi instalado (o login
++  // está lá); dá pra trocar no menu da janela do app.
++  navegador::containers::LembrarContainerDoApp(web_contents_.get(), app_id);
++
+   CHECK(app_lock_);
+ 
+   SCOPED_CRASH_KEY_NUMBER("PWA", "install_surface",
 diff --git i/components/permissions/permission_util.cc w/components/permissions/permission_util.cc
 index d20920174d..e73fff60e0 100644
 --- i/components/permissions/permission_util.cc

@@ -43,6 +43,9 @@ inline constexpr char kContainersPref[] = "navegador.containers";
 inline constexpr char kSessionExtraDataKey[] = "navegador_container";
 // Antigo: container por grupo de abas (hoje é do espaço, espacos_dados.h).
 inline constexpr char kEspacosPref[] = "navegador.espacos_container";
+// Container de cada app instalado (PWA): {app_id: id do container}, "" é
+// "Sem container". App fora do dicionário ainda não tem escolha.
+inline constexpr char kAppsPref[] = "navegador.apps.container";
 
 struct Container {
   std::string id;
@@ -87,6 +90,17 @@ void DefinirContainerDoEspaco(Profile* profile,
                               std::string_view espaco,
                               std::string_view container);
 
+// Container do app instalado (PWA, pelo app_id): nada se o app ainda não
+// tem escolha (abre como antes, na partição normal), "" se é "Sem container"
+// (ou se o container escolhido foi excluído).
+std::optional<std::string> ContainerDoApp(Profile* profile,
+                                          std::string_view app_id);
+// Vazio é "Sem container". As janelas abertas do app não mudam sozinhas
+// (navegador/browser/ui/containers/apps.h reabre).
+void DefinirContainerDoApp(Profile* profile,
+                           std::string_view app_id,
+                           std::string_view container);
+
 content::StoragePartitionConfig PartitionConfig(Profile* profile,
                                                 std::string_view id);
 
@@ -110,6 +124,22 @@ scoped_refptr<content::SiteInstance> SiteInstanceForNewTab(
     content::WebContents* source_contents,
     std::optional<std::string> espaco,
     const GURL& url);
+
+// browser_navigator.cc (CreateTargetContents), aba nova numa janela de app
+// (PWA), sem opener: o container escolhido pro app, venha de onde vier
+// (atalho da área de trabalho, link capturado, Ctrl+T no app com abas).
+// Nada quando o app não tem escolha (vale a regra das abas acima); nullptr
+// dentro é "Sem container" (a partição normal).
+std::optional<scoped_refptr<content::SiteInstance>> SiteInstanceForApp(
+    Profile* profile,
+    std::string_view app_id,
+    const GURL& url);
+
+// fetch_manifest_and_install_command.cc: o app instalado fica no container
+// da aba em que foi instalado, onde está o login (container temporário não
+// conta: some com os dados).
+void LembrarContainerDoApp(content::WebContents* contents,
+                           std::string_view app_id);
 
 // browser_tabrestore.cc (CreateRestoredTab): recria a aba no container que
 // estava salvo na sessão. Devolve nullptr quando não havia container ou ele

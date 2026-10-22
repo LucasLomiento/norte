@@ -521,11 +521,11 @@ void PintarIndicador(gfx::Canvas* canvas,
   canvas->DrawRoundRect(barra, 1.5f, flags);
 }
 
-void AbrirEmContainer(TabStripModel* tab_strip,
-                      const GURL& url,
-                      std::string_view id,
-                      int index,
-                      bool ativar) {
+int AbrirEmContainer(TabStripModel* tab_strip,
+                     const GURL& url,
+                     std::string_view id,
+                     int index,
+                     bool ativar) {
   Profile* profile = tab_strip->profile();
   scoped_refptr<content::SiteInstance> site_instance =
       id.empty() ? content::SiteInstance::CreateForURL(profile, url)
@@ -546,6 +546,27 @@ void AbrirEmContainer(TabStripModel* tab_strip,
   load.transition_type = ui::PAGE_TRANSITION_AUTO_TOPLEVEL;
   tab_strip->GetWebContentsAt(inserida)->GetController().LoadURLWithParams(
       load);
+  return inserida;
+}
+
+void ReabrirEmContainer(TabStripModel* tab_strip,
+                        int index,
+                        std::string_view id) {
+  content::WebContents* original = tab_strip->GetWebContentsAt(index);
+  if (!original) {
+    return;
+  }
+  const GURL url = original->GetLastCommittedURL().is_empty()
+                       ? original->GetVisibleURL()
+                       : original->GetLastCommittedURL();
+  const int nova = AbrirEmContainer(tab_strip, url, id, index,
+                                    /*ativar=*/tab_strip->active_index() ==
+                                        index);
+  if (tab_strip->IsTabPinned(index)) {
+    tab_strip->SetTabPinned(nova, true);
+  }
+  tab_strip->CloseWebContentsAt(tab_strip->GetIndexOfWebContents(original),
+                                TabCloseTypes::CLOSE_USER_GESTURE);
 }
 
 std::unique_ptr<ui::SimpleMenuModel> CriarSubmenuDaAba(TabStripModel* tab_strip,

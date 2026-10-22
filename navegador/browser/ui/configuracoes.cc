@@ -50,6 +50,7 @@
 #include "navegador/browser/ui/atualizador.h"
 #include "navegador/browser/ui/barra.h"
 #include "navegador/browser/ui/bloqueador.h"
+#include "navegador/browser/ui/containers/apps.h"
 #include "navegador/browser/ui/containers/containers_ui.h"
 #include "navegador/browser/ui/containers/gerenciador.h"
 #include "navegador/browser/ui/espacos.h"
@@ -1804,14 +1805,111 @@ END_METADATA
 
 // --- Containers --------------------------------------------------------------
 
+// Container de cada app instalado (PWA): uma linha por app, com o seletor.
+// Refeita quando os containers mudam (criados ou excluídos no painel acima)
+// e quando a escolha muda pelo menu da janela do app.
+class ContainersDosApps : public views::View {
+  METADATA_HEADER(ContainersDosApps, views::View)
+
+ public:
+  explicit ContainersDosApps(Profile* perfil) : perfil_(perfil) {
+    SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kVertical));
+    prefs_.Init(perfil_->GetPrefs());
+    for (const char* pref :
+         {containers::kContainersPref, containers::kAppsPref}) {
+      prefs_.Add(pref, base::BindRepeating(&ContainersDosApps::QuandoMudar,
+                                           base::Unretained(this)));
+    }
+    Montar();
+  }
+
+ private:
+  // O seletor que mudou ainda está na pilha: refaz depois.
+  void QuandoMudar() {
+    if (gravando_) {
+      return;
+    }
+    base::SingleThreadTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&ContainersDosApps::Montar,
+                                  weak_factory_.GetWeakPtr()));
+  }
+
+  void Montar() {
+    RemoveAllChildViews();
+    // Temporário some com os dados quando as abas dele fecham: não serve de
+    // casa pra um app.
+    containers_.clear();
+    for (containers::Container& container : containers::GetAll(perfil_)) {
+      if (!container.temporario) {
+        containers_.push_back(std::move(container));
+      }
+    }
+    const std::vector<containers::AppInstalado> apps =
+        containers::AppsInstalados(perfil_);
+    if (apps.empty()) {
+      AddChildView(Linha(u"Nenhum app instalado",
+                         u"Sites instalados como app aparecem aqui.",
+                         nullptr));
+    }
+    for (const containers::AppInstalado& app : apps) {
+      if (!children().empty()) {
+        AddChildView(std::make_unique<views::Separator>())
+            ->SetColorId(ui::kColorSeparator);
+      }
+      auto escolha =
+          std::make_unique<views::Combobox>(ModeloDeContainers(containers_));
+      escolha->SetSelectedIndex(IndiceDoContainer(
+          containers_,
+          containers::ContainerDoApp(perfil_, app.id).value_or(std::string())));
+      escolha->SetAccessibleName(u"Container de " + app.nome);
+      escolha->SetSizeToLargestLabel(true);
+      views::Combobox* ponteiro = escolha.get();
+      escolha->SetCallback(base::BindRepeating(
+          &ContainersDosApps::Trocar, base::Unretained(this), app.id,
+          base::Unretained(ponteiro)));
+      AddChildView(Linha(app.nome, app.site, std::move(escolha)));
+    }
+    PreferredSizeChanged();
+  }
+
+  void Trocar(const std::string& app_id, views::Combobox* combobox) {
+    const std::optional<size_t> escolhido = combobox->GetSelectedIndex();
+    if (!escolhido) {
+      return;
+    }
+    gravando_ = true;
+    containers::TrocarContainerDoApp(
+        perfil_, app_id,
+        *escolhido == 0 ? std::string() : containers_[*escolhido - 1].id);
+    gravando_ = false;
+  }
+
+  raw_ptr<Profile> perfil_;
+  std::vector<containers::Container> containers_;
+  PrefChangeRegistrar prefs_;
+  bool gravando_ = false;
+  base::WeakPtrFactory<ContainersDosApps> weak_factory_{this};
+};
+
+BEGIN_METADATA(ContainersDosApps)
+END_METADATA
+
 std::unique_ptr<views::View> PaginaContainers(BrowserWindowInterface* browser) {
+  Profile* perfil = browser->GetProfile()->GetOriginalProfile();
   // O painel dos containers já traz a explicação no alto.
   auto pagina = std::make_unique<Pagina>(u"Containers");
   Cartao* cartao = pagina->Secao(std::u16string());
-  cartao->Adicionar(containers::CriarPainel(browser->GetProfile()->GetOriginalProfile()));
+  cartao->Adicionar(containers::CriarPainel(perfil));
   pagina->Rodape(
       u"Histórico, favoritos e senhas continuam do perfil; o container separa "
       u"cookies, logins e dados dos sites.");
+  Cartao* apps = pagina->Secao(u"Apps instalados");
+  apps->Adicionar(std::make_unique<ContainersDosApps>(perfil));
+  pagina->Rodape(
+      u"Cada app abre sempre no container escolhido (de início, o da aba em "
+      u"que foi instalado). Trocar reabre as janelas abertas dele no "
+      u"container novo; também dá pra trocar pelo menu da janela do app.");
   return pagina;
 }
 

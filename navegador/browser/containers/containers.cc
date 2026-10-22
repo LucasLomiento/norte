@@ -96,8 +96,64 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   // Antigo (container por grupo de abas); ficou registrado pra não dar erro
   // em perfil que já tinha.
   registry->RegisterDictionaryPref(kEspacosPref);
+  registry->RegisterDictionaryPref(kAppsPref);
   espacos::RegisterProfilePrefs(registry);
   fixos::RegisterProfilePrefs(registry);
+}
+
+std::optional<std::string> ContainerDoApp(Profile* profile,
+                                          std::string_view app_id) {
+  const std::string* id = Prefs(profile)->GetDict(kAppsPref).FindString(app_id);
+  if (!id) {
+    return std::nullopt;
+  }
+  // Container excluído: o app volta pra partição normal.
+  if (!id->empty() && !Get(profile, *id)) {
+    return std::string();
+  }
+  return *id;
+}
+
+void DefinirContainerDoApp(Profile* profile,
+                           std::string_view app_id,
+                           std::string_view container) {
+  ScopedDictPrefUpdate update(Prefs(profile), kAppsPref);
+  update->Set(app_id, std::string(container));
+}
+
+void LembrarContainerDoApp(content::WebContents* contents,
+                           std::string_view app_id) {
+  Profile* profile = Profile::FromBrowserContext(contents->GetBrowserContext());
+  if (profile->IsOffTheRecord()) {
+    return;
+  }
+  const std::string id = IdForWebContents(contents).value_or(std::string());
+  // Container temporário some com os dados quando as abas dele fecham: o app
+  // fica sem escolha, como antes.
+  if (!id.empty()) {
+    std::optional<Container> container = Get(profile, id);
+    if (!container || container->temporario) {
+      return;
+    }
+  }
+  DefinirContainerDoApp(profile, app_id, id);
+}
+
+std::optional<scoped_refptr<content::SiteInstance>> SiteInstanceForApp(
+    Profile* profile,
+    std::string_view app_id,
+    const GURL& url) {
+  if (profile->IsOffTheRecord()) {
+    return std::nullopt;
+  }
+  std::optional<std::string> id = ContainerDoApp(profile, app_id);
+  if (!id) {
+    return std::nullopt;
+  }
+  if (id->empty()) {
+    return scoped_refptr<content::SiteInstance>();
+  }
+  return CreateSiteInstance(profile, url, *id);
 }
 
 std::optional<std::string> ContainerDoEspaco(Profile* profile,

@@ -38,6 +38,8 @@ constexpr const char* kPrefs[] = {
     "navegador.espacos.fixos",
     "navegador.espacos_container",
     "navegador.containers",
+    // Container de cada app (PWA): o id do app é o mesmo noutra máquina.
+    "navegador.apps.container",
     "navegador.atalhos",
     "navegador.barra.cor_do_site",
     "navegador.barra.escondida",

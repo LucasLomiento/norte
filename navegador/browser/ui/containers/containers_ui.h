@@ -57,12 +57,19 @@ void PintarIndicador(gfx::Canvas* canvas,
                      const tabs::TabInterface* tab);
 
 // Abre `url` numa aba nova no container `id` (vazio = sem container) logo
-// depois de `index`.
-void AbrirEmContainer(TabStripModel* tab_strip,
-                      const GURL& url,
-                      std::string_view id,
-                      int index,
-                      bool ativar);
+// depois de `index`. Devolve onde ela entrou.
+int AbrirEmContainer(TabStripModel* tab_strip,
+                     const GURL& url,
+                     std::string_view id,
+                     int index,
+                     bool ativar);
+
+// Troca a aba `index` por uma no container `id` (vazio = sem container), no
+// mesmo endereço e no mesmo lugar (ativa e fixada continuam), e fecha a
+// original. A janela não fecha: a nova entra antes.
+void ReabrirEmContainer(TabStripModel* tab_strip,
+                        int index,
+                        std::string_view id);
 
 // Menu de contexto da aba: "Abrir em container" com os containers do
 // perfil (e "Sem container", se a aba está em um). Reabre a aba no
