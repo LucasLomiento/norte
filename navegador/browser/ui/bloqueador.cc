@@ -36,6 +36,7 @@
 #include "mojo/public/cpp/bindings/associated_remote.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/ui/estilos.h"
+#include "navegador/browser/ui/marca_nos_sites.h"
 #include "third_party/blink/public/common/associated_interfaces/associated_interface_provider.h"
 #include "url/gurl.h"
 
@@ -439,16 +440,21 @@ class Escondedor : public content::WebContentsObserver,
       }
       js = JsDoSite(*Regras(), url.host());
     }
+    // O nome do navegador no lugar do "Chrome" nos botões da Chrome Web
+    // Store (marca_nos_sites.h): também com o bloqueador desligado, num
+    // mundo isolado.
+    std::string js_isolado = marca_nos_sites::JsDoSite(url);
     // O estilo da pessoa pro site (estilos.h): vale com o bloqueador
     // desligado também.
     std::string estilo = estilos::CssDoSite(perfil, url);
-    if (css.empty() && js.empty() && estilo.empty()) {
+    if (css.empty() && js.empty() && estilo.empty() && js_isolado.empty()) {
       return;
     }
     mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> quadro;
     destino->GetRemoteAssociatedInterfaces()->GetInterface(&quadro);
     quadro->NavegadorEsconderAnuncios(std::move(css), std::move(js),
-                                      std::move(estilo), url);
+                                      std::move(estilo), std::move(js_isolado),
+                                      url);
   }
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();

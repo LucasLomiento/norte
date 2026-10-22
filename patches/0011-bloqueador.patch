@@ -124,29 +124,70 @@ index 3b1e2e30ef..1dca8f650e 100644
  #if BUILDFLAG(ENABLE_RLZ)
    ChromeRLZTrackerWebContentsObserver::CreateForWebContentsIfNeeded(
        web_contents);
+diff --git i/chrome/common/chrome_isolated_world_ids.h w/chrome/common/chrome_isolated_world_ids.h
+index 846e4777c4..dd7568ebc7 100644
+--- i/chrome/common/chrome_isolated_world_ids.h
++++ w/chrome/common/chrome_isolated_world_ids.h
+@@ -18,6 +18,9 @@ enum ChromeIsolatedWorldIDs {
+ 
+   // Isolated world ID for internal Chrome features.
+   ISOLATED_WORLD_ID_CHROME_INTERNAL,
++  // navegador: o mundo dos scripts do Norte nas páginas (marca_nos_sites.h),
++  // com a origem da página (blink::SetIsolatedWorldInfo, como o do DevTools).
++  ISOLATED_WORLD_ID_NAVEGADOR,
+ 
+ #if BUILDFLAG(IS_MAC)
+   // Isolated world ID for AppleScript.
 diff --git i/chrome/common/chrome_render_frame.mojom w/chrome/common/chrome_render_frame.mojom
-index c5b742e2fe..6e69231d97 100644
+index c5b742e2fe..4e42119da9 100644
 --- i/chrome/common/chrome_render_frame.mojom
 +++ w/chrome/common/chrome_render_frame.mojom
-@@ -31,6 +31,13 @@ interface ChromeRenderFrame {
+@@ -31,6 +31,16 @@ interface ChromeRenderFrame {
    // Updates the window features of the main frame's render view.
    SetWindowFeatures(blink.mojom.WindowFeatures window_features);
  
 +  // navegador: regras do bloqueador pro documento que vai começar em `url`:
 +  // CSS (esconder os elementos de anúncio) e JS (constantes do "set" do
 +  // uBlock), e o estilo que a pessoa escreveu pro site (estilos.h, folha do
-+  // autor). O quadro aplica no começo desse documento.
++  // autor). O quadro aplica no começo desse documento. `js_isolado` roda num
++  // mundo isolado (mexe só no DOM; marca_nos_sites.h): o do mundo da página
++  // não roda onde o site não deixa script naquele momento (a Chrome Web
++  // Store).
 +  NavegadorEsconderAnuncios(string css, string js, string estilo,
-+                            url.mojom.Url url);
++                            string js_isolado, url.mojom.Url url);
 +
    // Reloads the image selected by the most recently opened context menu
    // (if there indeed is an image at that location).
    RequestReloadImageForContextNode();
+diff --git i/chrome/renderer/chrome_content_renderer_client.cc w/chrome/renderer/chrome_content_renderer_client.cc
+index 3b030af0de..5f0023ee9e 100644
+--- i/chrome/renderer/chrome_content_renderer_client.cc
++++ w/chrome/renderer/chrome_content_renderer_client.cc
+@@ -1451,6 +1451,11 @@ ChromeContentRendererClient::CreateSpeechRecognitionClient(
+ 
+ void ChromeContentRendererClient::RunScriptsAtDocumentStart(
+     content::RenderFrame* render_frame) {
++  // navegador: os scripts das regras do bloqueador, antes dos das extensões.
++  if (ChromeRenderFrameObserver* observador =
++          ChromeRenderFrameObserver::Get(render_frame)) {
++    observador->NavegadorNoComecoDoDocumento();
++  }
+ #if BUILDFLAG(ENABLE_EXTENSIONS_CORE)
+   extensions::ExtensionsRendererClient::Get()->RunScriptsAtDocumentStart(
+       render_frame);
 diff --git i/chrome/renderer/chrome_render_frame_observer.cc w/chrome/renderer/chrome_render_frame_observer.cc
-index 6f3034c426..e33de8fa1a 100644
+index 6f3034c426..ab409a4465 100644
 --- i/chrome/renderer/chrome_render_frame_observer.cc
 +++ w/chrome/renderer/chrome_render_frame_observer.cc
-@@ -77,6 +77,8 @@
+@@ -27,6 +27,7 @@
+ #include "chrome/common/chrome_constants.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/chrome_isolated_world_ids.h"
++#include "third_party/blink/public/platform/web_isolated_world_info.h"
+ #include "chrome/common/chrome_switches.h"
+ #include "chrome/common/open_search_description_document_handler.mojom.h"
+ #include "chrome/common/webui_url_constants.h"
+@@ -77,6 +78,8 @@
  #include "third_party/blink/public/web/web_node.h"
  #include "third_party/blink/public/web/web_security_policy.h"
  #include "third_party/blink/public/web/web_view.h"
@@ -155,7 +196,16 @@ index 6f3034c426..e33de8fa1a 100644
  #include "third_party/libwebp/src/src/webp/decode.h"
  #include "third_party/skia/include/core/SkBitmap.h"
  #include "ui/base/page_transition_types.h"
-@@ -357,6 +359,7 @@ void ChromeRenderFrameObserver::DidCreateNewDocument() {
+@@ -217,6 +220,8 @@ ChromeRenderFrameObserver::ChromeRenderFrameObserver(
+     content::RenderFrame* render_frame,
+     web_cache::WebCacheImpl* web_cache_impl)
+     : content::RenderFrameObserver(render_frame),
++      content::RenderFrameObserverTracker<ChromeRenderFrameObserver>(
++          render_frame),
+       translate_agent_(nullptr),
+       page_text_agent_(new optimization_guide::PageTextAgent(render_frame)),
+       actor_journal_(std::make_unique<actor::Journal>()),
+@@ -357,6 +362,7 @@ void ChromeRenderFrameObserver::DidCreateNewDocument() {
  
  void ChromeRenderFrameObserver::DidCommitProvisionalLoad(
      ui::PageTransition transition) {
@@ -163,7 +213,7 @@ index 6f3034c426..e33de8fa1a 100644
    // Update crash keys on any frame transition, not just the main frame.
    UpdateLoadedOriginCrashKeys();
  
-@@ -674,6 +677,68 @@ void ChromeRenderFrameObserver::LoadBlockedPlugins(
+@@ -674,6 +680,108 @@ void ChromeRenderFrameObserver::LoadBlockedPlugins(
  #endif  // BUILDFLAG(ENABLE_PLUGINS)
  }
  
@@ -175,20 +225,26 @@ index 6f3034c426..e33de8fa1a 100644
 +    const std::string& css,
 +    const std::string& js,
 +    const std::string& estilo,
++    const std::string& js_isolado,
 +    const GURL& url) {
-+  NavegadorRegras regras{url, css, js, estilo};
++  NavegadorRegras regras{url, css, js, estilo, js_isolado};
 +  blink::WebLocalFrame* quadro = render_frame()->GetWebFrame();
 +  if (!navegador_aplicado_ && !quadro->IsProvisional() &&
 +      !quadro->GetDocument().IsNull() &&
 +      !quadro->GetDocument().DocumentElement().IsNull() &&
 +      url::Origin::Create(GURL(quadro->GetDocument().Url())) ==
 +          url::Origin::Create(url)) {
++    // Fora do parser: o script pode rodar já.
 +    NavegadorAplicar(regras);
++    NavegadorRodarScripts(regras);
 +    return;
 +  }
 +  navegador_pendente_ = std::move(regras);
 +}
 +
++// Só o CSS: aqui (FrameLoader::DispatchDocumentElementAvailable) o Blink não
++// deixa rodar script (ScriptForbiddenScope) e o ExecuteScript era descartado
++// sem erro. O JS fica pro NavegadorNoComecoDoDocumento, logo em seguida.
 +void ChromeRenderFrameObserver::DidCreateDocumentElement() {
 +  if (!navegador_pendente_ || navegador_aplicado_) {
 +    return;
@@ -202,19 +258,31 @@ index 6f3034c426..e33de8fa1a 100644
 +  NavegadorRegras regras = std::move(*navegador_pendente_);
 +  navegador_pendente_.reset();
 +  NavegadorAplicar(regras);
++  navegador_scripts_ = std::move(regras);
++}
++
++// ChromeContentRendererClient::RunScriptsAtDocumentStart: o começo do
++// documento em que script pode rodar (o "document_start" das extensões),
++// antes dos scripts da página.
++void ChromeRenderFrameObserver::NavegadorNoComecoDoDocumento() {
++  if (!navegador_scripts_) {
++    return;
++  }
++  NavegadorRegras regras = std::move(*navegador_scripts_);
++  navegador_scripts_.reset();
++  if (url::Origin::Create(
++          GURL(render_frame()->GetWebFrame()->GetDocument().Url())) ==
++      url::Origin::Create(regras.url)) {
++    NavegadorRodarScripts(regras);
++  }
 +}
 +
 +// CSS como folha de origem do usuário (fora do DOM: a página não vê nem
-+// sobrescreve, nem com !important); JS no mundo da página, antes dos
-+// scripts dela.
++// sobrescreve, nem com !important).
 +void ChromeRenderFrameObserver::NavegadorAplicar(
 +    const NavegadorRegras& regras) {
 +  navegador_aplicado_ = true;
 +  blink::WebLocalFrame* quadro = render_frame()->GetWebFrame();
-+  if (!regras.js.empty()) {
-+    quadro->ExecuteScript(
-+        blink::WebScriptSource(blink::WebString::FromUtf8(regras.js)));
-+  }
 +  if (!regras.css.empty()) {
 +    quadro->GetDocument().InsertStyleSheet(
 +        blink::WebString::FromUtf8(regras.css), nullptr,
@@ -229,11 +297,33 @@ index 6f3034c426..e33de8fa1a 100644
 +  }
 +}
 +
++// JS no mundo da página (as constantes do "set"), antes dos scripts dela; o
++// js_isolado no mundo do Norte, com a origem da página (como o mundo isolado
++// do DevTools): mexe só no DOM (marca_nos_sites.h) e não depende do site.
++void ChromeRenderFrameObserver::NavegadorRodarScripts(
++    const NavegadorRegras& regras) {
++  blink::WebLocalFrame* quadro = render_frame()->GetWebFrame();
++  if (!regras.js.empty()) {
++    quadro->ExecuteScript(
++        blink::WebScriptSource(blink::WebString::FromUtf8(regras.js)));
++  }
++  if (!regras.js_isolado.empty()) {
++    blink::WebIsolatedWorldInfo info;
++    info.security_origin = quadro->GetDocument().GetSecurityOrigin();
++    info.human_readable_name = blink::WebString::FromUtf8("Norte");
++    blink::SetIsolatedWorldInfo(ISOLATED_WORLD_ID_NAVEGADOR, info);
++    quadro->ExecuteScriptInIsolatedWorld(
++        ISOLATED_WORLD_ID_NAVEGADOR,
++        blink::WebScriptSource(blink::WebString::FromUtf8(regras.js_isolado)),
++        blink::BackForwardCacheAware::kAllow);
++  }
++}
++
  void ChromeRenderFrameObserver::SetShouldDeferMediaLoad(bool should_defer) {
    prerender::SetShouldDeferMediaLoad(render_frame(), should_defer);
  }
 diff --git i/chrome/renderer/chrome_render_frame_observer.h w/chrome/renderer/chrome_render_frame_observer.h
-index 80e224f9bc..2288cb12e0 100644
+index 80e224f9bc..1206f6fc87 100644
 --- i/chrome/renderer/chrome_render_frame_observer.h
 +++ w/chrome/renderer/chrome_render_frame_observer.h
 @@ -6,6 +6,7 @@
@@ -244,7 +334,34 @@ index 80e224f9bc..2288cb12e0 100644
  #include <string>
  #include <vector>
  
-@@ -102,6 +103,7 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+@@ -19,6 +20,7 @@
+ #include "components/page_content_annotations/content/mojom/page_stability.mojom.h"
+ #include "components/safe_browsing/buildflags.h"
+ #include "content/public/renderer/render_frame_observer.h"
++#include "content/public/renderer/render_frame_observer_tracker.h"
+ #include "mojo/public/cpp/bindings/associated_receiver_set.h"
+ #include "mojo/public/cpp/bindings/pending_associated_receiver.h"
+ #include "pdf/buildflags.h"
+@@ -58,9 +60,16 @@ class WebCacheImpl;
+ 
+ // This class holds the Chrome specific parts of RenderFrame, and has the same
+ // lifetime.
+-class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+-                                  public chrome::mojom::ChromeRenderFrame {
++class ChromeRenderFrameObserver
++    : public content::RenderFrameObserver,
++      // navegador: pro ChromeContentRendererClient achar o do quadro.
++      public content::RenderFrameObserverTracker<ChromeRenderFrameObserver>,
++      public chrome::mojom::ChromeRenderFrame {
+  public:
++  // navegador: os scripts das regras do bloqueador no começo do documento
++  // (ChromeContentRendererClient::RunScriptsAtDocumentStart).
++  void NavegadorNoComecoDoDocumento();
++
+   ChromeRenderFrameObserver(content::RenderFrame* render_frame,
+                             web_cache::WebCacheImpl* web_cache_impl);
+ 
+@@ -102,6 +111,7 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
    void DidCreateNewDocument() override;
    void DidCommitProvisionalLoad(ui::PageTransition transition) override;
    void DidClearWindowObject() override;
@@ -252,18 +369,19 @@ index 80e224f9bc..2288cb12e0 100644
    void DidCreateScriptContext(v8::Local<v8::Context> context,
                                int32_t world_id) override;
    void DidMeaningfulLayout(blink::WebMeaningfulLayout layout_type) override;
-@@ -109,6 +111,10 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+@@ -109,6 +119,11 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
    void WillDetach(blink::DetachReason detach_reason) override;
  
    // chrome::mojom::ChromeRenderFrame:
 +  void NavegadorEsconderAnuncios(const std::string& css,
 +                                 const std::string& js,
 +                                 const std::string& estilo,
++                                 const std::string& js_isolado,
 +                                 const GURL& url) override;
    void SetWindowFeatures(
        blink::mojom::WindowFeaturesPtr window_features) override;
    void ExecuteWebUIJavaScript(const std::u16string& javascript) override;
-@@ -230,6 +236,18 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+@@ -230,6 +245,23 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
  
    mojo::AssociatedReceiverSet<chrome::mojom::ChromeRenderFrame> receivers_;
  
@@ -274,10 +392,15 @@ index 80e224f9bc..2288cb12e0 100644
 +    std::string css;
 +    std::string js;
 +    std::string estilo;
++    std::string js_isolado;
 +  };
 +  void NavegadorAplicar(const NavegadorRegras& regras);
++  void NavegadorRodarScripts(const NavegadorRegras& regras);
 +  std::optional<NavegadorRegras> navegador_pendente_;
 +  bool navegador_aplicado_ = false;
++  // Os scripts do documento que acabou de começar, esperando o
++  // NavegadorNoComecoDoDocumento (no DidCreateDocumentElement não roda).
++  std::optional<NavegadorRegras> navegador_scripts_;
 +
    service_manager::BinderRegistry registry_;
    blink::AssociatedInterfaceRegistry associated_interfaces_;

@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/ui/BUILD.gn w/chrome/browser/ui/BUILD.gn
-index 82f397571f..5fb19d5dd5 100644
+index 82f397571f..d2a8912876 100644
 --- i/chrome/browser/ui/BUILD.gn
 +++ w/chrome/browser/ui/BUILD.gn
 @@ -144,6 +144,8 @@ if (!is_android) {
@@ -19,7 +19,7 @@ index 82f397571f..5fb19d5dd5 100644
        ":tab_ui_helper",
        "//base",
        "//chrome/browser/apps/app_service",
-@@ -1522,6 +1525,64 @@ static_library("ui") {
+@@ -1522,6 +1525,66 @@ static_library("ui") {
        "browser_commands.cc",
        "browser_commands.h",
        "browser_live_tab_context.cc",
@@ -63,6 +63,8 @@ index 82f397571f..5fb19d5dd5 100644
 +      "//navegador/browser/ui/importar_zen.h",
 +      "//navegador/browser/ui/links.cc",
 +      "//navegador/browser/ui/links.h",
++      "//navegador/browser/ui/marca_nos_sites.cc",
++      "//navegador/browser/ui/marca_nos_sites.h",
 +      "//navegador/browser/ui/menu_da_pagina.cc",
 +      "//navegador/browser/ui/menu_da_pagina.h",
 +      "//navegador/browser/ui/menu_do_logo.cc",
@@ -84,7 +86,7 @@ index 82f397571f..5fb19d5dd5 100644
        "browser_manager_service.cc",
        "browser_manager_service.h",
        "browser_manager_service_factory.cc",
-@@ -1558,6 +1619,14 @@ static_library("ui") {
+@@ -1558,6 +1621,14 @@ static_library("ui") {
  
      # Non-android deps for "ui" target.
      deps += [
@@ -99,7 +101,7 @@ index 82f397571f..5fb19d5dd5 100644
        ":accelerator_table",
        ":browser_actions",
        ":browser_select_file_dialog_controller",
-@@ -3877,6 +3946,10 @@ source_set("layout_constants") {
+@@ -3877,6 +3948,10 @@ source_set("layout_constants") {
    sources = [
      "layout_constants.cc",
      "layout_constants.h",
