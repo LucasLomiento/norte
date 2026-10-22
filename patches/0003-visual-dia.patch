@@ -1557,7 +1557,7 @@ index 92fc80d903..814dfc1d93 100644
  
  #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_SHADOW_FRAME_VIEW_H_
 diff --git i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-index b7cdb8f557..7a14a946ed 100644
+index b7cdb8f557..f1105beb1e 100644
 --- i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 @@ -4,6 +4,18 @@
@@ -1751,7 +1751,7 @@ index b7cdb8f557..7a14a946ed 100644
    if (mouse_exit_timer_.IsRunning()) {
      mouse_exit_timer_.Stop();
    }
-@@ -491,9 +583,184 @@ void VerticalTabStripRegionView::HandleMouseExited() {
+@@ -491,9 +583,201 @@ void VerticalTabStripRegionView::HandleMouseExited() {
      return;
    }
  #endif
@@ -1897,6 +1897,23 @@ index b7cdb8f557..7a14a946ed 100644
 +  segurar_ate_ = base::TimeTicks::Now() + mouse_exit_timer_.GetCurrentDelay();
 +}
 +
++// IsMouseHovered, mas só com o ponteiro nesta janela. No Wayland o Chromium
++// não sabe onde as janelas estão (todas em 0,0) e a posição do ponteiro é a
++// da janela em que ele está: indo de uma janela pra borda esquerda de outra
++// (x perto de 0), a lateral da primeira se achava com o ponteiro em cima e
++// abria junto quando a janela perdia o foco (que reavalia a lateral).
++bool VerticalTabStripRegionView::PonteiroEmCima() const {
++  if (!IsMouseHovered()) {
++    return false;
++  }
++  display::Screen* tela = display::Screen::Get();
++  gfx::NativeWindow sob =
++      tela->GetWindowAtScreenPoint(tela->GetCursorScreenPoint());
++  return sob && GetWidget() && GetWidget()->GetNativeWindow() &&
++         sob->GetRootWindow() ==
++             GetWidget()->GetNativeWindow()->GetRootWindow();
++}
++
 +bool VerticalTabStripRegionView::HaTelaAEsquerda() const {
 +  display::Screen* tela = display::Screen::Get();
 +  if (!tela || !GetWidget()) {
@@ -1936,7 +1953,7 @@ index b7cdb8f557..7a14a946ed 100644
  std::unique_ptr<ExpandOnHoverLock>
  VerticalTabStripRegionView::GetExpandOnHoverLock(
      ExpandOnHoverLockType lock_type) {
-@@ -744,6 +1011,10 @@ void VerticalTabStripRegionView::OnTabStripViewSet() {
+@@ -744,6 +1028,10 @@ void VerticalTabStripRegionView::OnTabStripViewSet() {
    CHECK(separator_index.has_value());
    ReorderChildView(tab_strip_view(), separator_index.value() + 1);
  
@@ -1947,7 +1964,7 @@ index b7cdb8f557..7a14a946ed 100644
    OnCollapseStateChanged(state_controller_->GetCollapseState());
  }
  
-@@ -768,8 +1039,11 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+@@ -768,8 +1056,11 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
  
    resize_area_width_ = collapsed ? kCollapsedResizeAreaWidth : kResizeAreaWidth;
  
@@ -1960,7 +1977,7 @@ index b7cdb8f557..7a14a946ed 100644
    }
  
    if ((state == tabs::VerticalTabStripCollapseState::kCollapsing) ||
-@@ -875,8 +1149,27 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+@@ -875,8 +1166,27 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
    // hover state or exit it if already expanded. We evaluate this after the
    // locks because IsFrameActive can also return false when a WebUI bubble is
    // open.
@@ -1969,7 +1986,7 @@ index b7cdb8f557..7a14a946ed 100644
 +  // fica ativa com um clique, e no Hyprland o foco chega depois do ponteiro:
 +  // fora de foco, encostar na borda não abria.
 +  const bool ponteiro_em_cima = navegador::espacos::MostrarNaBorda(Perfil()) &&
-+                                hovered.value_or(IsMouseHovered());
++                                hovered.value_or(PonteiroEmCima());
 +  if (!IsFrameActive() && !ponteiro_em_cima) {
      if (is_expanded_on_hover_) {
 +      // navegador: no Hyprland o foco vai com o ponteiro pra outra janela;
@@ -1989,7 +2006,13 @@ index b7cdb8f557..7a14a946ed 100644
        AnimateExpandOnHover(/*expand=*/false);
      }
      return;
-@@ -890,6 +1183,16 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+@@ -885,11 +1195,21 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+   const bool should_expand =
+       !suppress_expand_on_hover_ &&
+       state_controller_->IsExpandOnHoverEnabled() &&
+-      (hovered.value_or(IsMouseHovered()) ||
++      (hovered.value_or(PonteiroEmCima()) ||
+        (GetFocusManager() && Contains(GetFocusManager()->GetFocusedView())));
  
    if (!should_expand) {
      if (is_expanded_on_hover_ && keep_current_state_lock_count_ == 0) {
@@ -2006,7 +2029,7 @@ index b7cdb8f557..7a14a946ed 100644
        AnimateExpandOnHover(/*expand=*/false);
      } else {
        ResetExpandOnHoverTimers();
-@@ -907,6 +1210,13 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+@@ -907,6 +1227,13 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
          hover_card_controller()->GetHoverCardHideLock();
    }
  
@@ -2020,7 +2043,16 @@ index b7cdb8f557..7a14a946ed 100644
    if (tabs::kVerticalTabsExpandOnHoverUseVelocityHeuristic.Get()) {
      CalculateMouseVelocityForExpandOnHover();
    } else if (expand_on_hover_timer_.IsRunning()) {
-@@ -1027,8 +1337,16 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
+@@ -939,7 +1266,7 @@ void VerticalTabStripRegionView::RestartExpandOnHoverTimer(
+ void VerticalTabStripRegionView::OnMouseVelocityHeuristicInterval() {
+   const bool should_expand =
+       state_controller_->IsExpandOnHoverEnabled() &&
+-      (IsMouseHovered() ||
++      (PonteiroEmCima() ||
+        (GetFocusManager() && Contains(GetFocusManager()->GetFocusedView())));
+ 
+   if (!should_expand || is_expanded_on_hover_) {
+@@ -1027,8 +1354,16 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
  void VerticalTabStripRegionView::AnimateExpandOnHover(bool expand) {
    is_expanded_on_hover_ = expand;
    ResetExpandOnHoverTimers();
@@ -2038,7 +2070,7 @@ index b7cdb8f557..7a14a946ed 100644
      base::RecordAction(
          base::UserMetricsAction("VerticalTabs_ExpandOnHover_Show"));
 diff --git i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-index 76f8e997d6..30e5599386 100644
+index 76f8e997d6..f31d219768 100644
 --- i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 @@ -7,6 +7,8 @@
@@ -2085,7 +2117,7 @@ index 76f8e997d6..30e5599386 100644
    raw_ptr<views::FlexLayout> flex_layout_ = nullptr;
  
    const raw_ptr<tabs::VerticalTabStripStateController> state_controller_;
-@@ -304,6 +318,40 @@ class VerticalTabStripRegionView final
+@@ -304,6 +318,41 @@ class VerticalTabStripRegionView final
    // The mouse exit event debounce timer.
    base::OneShotTimer mouse_exit_timer_;
  
@@ -2101,6 +2133,7 @@ index 76f8e997d6..30e5599386 100644
 +  // ainda tiver o foco (ver o .cc).
 +  void AbrirPelaSaida();
 +  bool HaTelaAEsquerda() const;
++  bool PonteiroEmCima() const;
 +  base::OneShotTimer saida_pela_esquerda_;
 +  Profile* Perfil() const;
 +  // O ponteiro saindo da janela (pra o canto da tela, além da borda da
