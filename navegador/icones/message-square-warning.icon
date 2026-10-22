@@ -1,0 +1,29 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "message-square-warning" do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.1f,
+MOVE_TO, 22, 17,
+ARC_TO, 2, 2, 0, 0, 1, 20, 19,
+LINE_TO, 6.828f, 19,
+ARC_TO, 2, 2, 0, 0, 0, 5.414f, 19.586f,
+LINE_TO, 3.212f, 21.788f,
+ARC_TO, 0.71f, 0.71f, 0, 0, 1, 2, 21.286f,
+LINE_TO, 2, 5,
+ARC_TO, 2, 2, 0, 0, 1, 4, 3,
+LINE_TO, 20, 3,
+ARC_TO, 2, 2, 0, 0, 1, 22, 5,
+CLOSE,
+NEW_PATH,
+STROKE, 2.1f,
+MOVE_TO, 12, 15,
+LINE_TO, 12.01f, 15,
+NEW_PATH,
+STROKE, 2.1f,
+MOVE_TO, 12, 7,
+LINE_TO, 12, 11,
+

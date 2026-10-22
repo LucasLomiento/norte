@@ -1,0 +1,22 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "star-half" do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.1f,
+MOVE_TO, 12, 18.338f,
+ARC_TO, 2.1f, 2.1f, 0, 0, 0, 11.013f, 18.582f,
+LINE_TO, 6.396f, 21.01f,
+ARC_TO, 0.53f, 0.53f, 0, 0, 1, 5.626f, 20.45f,
+LINE_TO, 6.507f, 15.311f,
+ARC_TO, 2.12f, 2.12f, 0, 0, 0, 5.896f, 13.432f,
+LINE_TO, 2.16f, 9.795f,
+ARC_TO, 0.53f, 0.53f, 0, 0, 1, 2.454f, 8.889f,
+LINE_TO, 7.619f, 8.134f,
+ARC_TO, 2.12f, 2.12f, 0, 0, 0, 9.216f, 6.974f,
+LINE_TO, 11.525f, 2.295f,
+ARC_TO, 0.53f, 0.53f, 0, 0, 1, 12, 2,
+

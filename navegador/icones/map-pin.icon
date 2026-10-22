@@ -1,0 +1,18 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "map-pin" do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.1f,
+MOVE_TO, 20, 10,
+CUBIC_TO, 20, 14.993f, 14.461f, 20.193f, 12.601f, 21.799f,
+ARC_TO, 1, 1, 0, 0, 1, 11.399f, 21.799f,
+CUBIC_TO, 9.539f, 20.193f, 4, 14.993f, 4, 10,
+ARC_TO, 8, 8, 0, 0, 1, 20, 10,
+NEW_PATH,
+STROKE, 2.1f,
+CIRCLE, 12, 10, 3,
+

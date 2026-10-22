@@ -1,0 +1,28 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "flask-conical" do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.1f,
+MOVE_TO, 14, 2,
+LINE_TO, 14, 8,
+ARC_TO, 2, 2, 0, 0, 0, 14.245f, 8.96f,
+LINE_TO, 19.755f, 19.04f,
+ARC_TO, 2, 2, 0, 0, 1, 18, 22,
+LINE_TO, 6, 22,
+ARC_TO, 2, 2, 0, 0, 1, 4.245f, 19.04f,
+LINE_TO, 9.755f, 8.96f,
+ARC_TO, 2, 2, 0, 0, 0, 10, 8,
+LINE_TO, 10, 2,
+NEW_PATH,
+STROKE, 2.1f,
+MOVE_TO, 6.453f, 15,
+LINE_TO, 17.547f, 15,
+NEW_PATH,
+STROKE, 2.1f,
+MOVE_TO, 8.5f, 2,
+LINE_TO, 15.5f, 2,
+

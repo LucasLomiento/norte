@@ -1,0 +1,16 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: o logo do navegador (agulha de bússola), monocromático; no lugar
+// do logo do Chromium onde ele aparece como ícone (navegador/icones/MAPA).
+CANVAS_DIMENSIONS, 20,
+MOVE_TO, 14.95f, 5.05f,
+LINE_TO, 11.84f, 11.84f,
+LINE_TO, 8.16f, 8.16f,
+NEW_PATH,
+PATH_COLOR_ALPHA, 0x80,
+MOVE_TO, 5.05f, 14.95f,
+LINE_TO, 8.16f, 8.16f,
+LINE_TO, 11.84f, 11.84f,
+CLOSE

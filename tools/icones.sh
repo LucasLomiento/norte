@@ -80,4 +80,6 @@ while read -r nome destino; do
   cp "$RAIZ/navegador/icones/$nome.icon" "$TMP"
   por "$SRC/$destino"
 done < "$RAIZ/navegador/icones/LUGARES"
+# Os das páginas internas (navegador/icones/WEBUI).
+NAVEGADOR_SRC="$SRC" python3 -I "$RAIZ/tools/icones_webui.py"
 echo "icones: ok"

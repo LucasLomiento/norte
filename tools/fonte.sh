@@ -39,6 +39,12 @@ if [ "${1:-}" = "--gerar" ]; then
     case "$_nome" in ''|\#*) continue ;; esac
     excl+=(":(exclude)$destino")
   done < "$RAIZ/navegador/icones/LUGARES"
+  # E os .svg inteiros das páginas internas (tools/icones_webui.py), com o
+  # "_old" do lado.
+  while read -r alvo _nome; do
+    case "$alvo" in ''|\#*|*'#'*) continue ;; esac
+    excl+=(":(exclude)$alvo" ":(exclude)${alvo%.svg}_old.svg")
+  done < "$RAIZ/navegador/icones/WEBUI"
   # Os textos com o nome do produto (e o "aba" no lugar de "guia") são
   # gerados pelo tools/marca.py; os favicons, pelo tools/icones.sh.
   git diff --binary -- . ':(exclude)navegador' \

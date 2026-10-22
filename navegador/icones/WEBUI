@@ -1,0 +1,120 @@
+# Ícones das páginas internas (WebUI) -> Lucide: "<arquivo no src>[#id] <ícone do Lucide>[:cheio]".
+# tools/icones_webui.py (rodado pelo tools/icones.sh): com "#id", troca o
+# <g id="id"> do conjunto de ícones (todas as ocorrências no arquivo: versão
+# arredondada e antiga, tamanhos 20 e 24) por um <g> com o desenho do Lucide
+# em traço; sem "#", troca o .svg inteiro (e o "_old" do lado, se houver).
+# Esses .svg são máscaras (a cor vem do tema), então o traço é preto.
+# Fora de propósito: chrome-product (é a agulha, à mão no patch 0004),
+# family-link, os do Google Drive/Agentspace e os de IA (spark).
+
+# Conjunto compartilhado "cr" (todas as páginas internas)
+ui/webui/resources/cr_elements/icons.html.ts#add plus
+ui/webui/resources/cr_elements/icons.html.ts#arrow-back arrow-left
+ui/webui/resources/cr_elements/icons.html.ts#arrow-drop-down chevron-down
+ui/webui/resources/cr_elements/icons.html.ts#arrow-drop-up chevron-up
+ui/webui/resources/cr_elements/icons.html.ts#arrow-forward arrow-right
+ui/webui/resources/cr_elements/icons.html.ts#arrow-right chevron-right
+ui/webui/resources/cr_elements/icons.html.ts#block ban
+ui/webui/resources/cr_elements/icons.html.ts#cancel-filled circle-x
+ui/webui/resources/cr_elements/icons.html.ts#check check
+ui/webui/resources/cr_elements/icons.html.ts#check-circle circle-check
+ui/webui/resources/cr_elements/icons.html.ts#chevron-left chevron-left
+ui/webui/resources/cr_elements/icons.html.ts#chevron-right chevron-right
+ui/webui/resources/cr_elements/icons.html.ts#chrome-extension-filled puzzle
+ui/webui/resources/cr_elements/icons.html.ts#close x
+ui/webui/resources/cr_elements/icons.html.ts#cloud-off cloud-off
+ui/webui/resources/cr_elements/icons.html.ts#computer monitor
+ui/webui/resources/cr_elements/icons.html.ts#delete trash
+ui/webui/resources/cr_elements/icons.html.ts#devices monitor-smartphone
+ui/webui/resources/cr_elements/icons.html.ts#domain building
+ui/webui/resources/cr_elements/icons.html.ts#download download
+ui/webui/resources/cr_elements/icons.html.ts#draft-filled file
+ui/webui/resources/cr_elements/icons.html.ts#edit-filled pencil
+ui/webui/resources/cr_elements/icons.html.ts#error circle-alert
+ui/webui/resources/cr_elements/icons.html.ts#error-filled circle-alert
+ui/webui/resources/cr_elements/icons.html.ts#fullscreen maximize
+ui/webui/resources/cr_elements/icons.html.ts#group-filled users
+ui/webui/resources/cr_elements/icons.html.ts#help circle-question-mark
+ui/webui/resources/cr_elements/icons.html.ts#history rotate-ccw-clock
+ui/webui/resources/cr_elements/icons.html.ts#info info
+ui/webui/resources/cr_elements/icons.html.ts#info-filled info
+ui/webui/resources/cr_elements/icons.html.ts#insert-drive-file file
+ui/webui/resources/cr_elements/icons.html.ts#keyboard-arrow-down chevron-down
+ui/webui/resources/cr_elements/icons.html.ts#keyboard-arrow-up chevron-up
+ui/webui/resources/cr_elements/icons.html.ts#location-on-filled map-pin
+ui/webui/resources/cr_elements/icons.html.ts#menu menu
+ui/webui/resources/cr_elements/icons.html.ts#mic-filled mic
+ui/webui/resources/cr_elements/icons.html.ts#more-vert ellipsis-vertical
+ui/webui/resources/cr_elements/icons.html.ts#open-in-new external-link
+ui/webui/resources/cr_elements/icons.html.ts#password-manager key-round
+ui/webui/resources/cr_elements/icons.html.ts#person user-round
+ui/webui/resources/cr_elements/icons.html.ts#person-filled user-round
+ui/webui/resources/cr_elements/icons.html.ts#print-filled printer
+ui/webui/resources/cr_elements/icons.html.ts#schedule clock
+ui/webui/resources/cr_elements/icons.html.ts#search search
+ui/webui/resources/cr_elements/icons.html.ts#security shield
+ui/webui/resources/cr_elements/icons.html.ts#settings-filled settings
+ui/webui/resources/cr_elements/icons.html.ts#star-filled star:cheio
+ui/webui/resources/cr_elements/icons.html.ts#sync refresh-cw
+ui/webui/resources/cr_elements/icons.html.ts#thumb-down thumbs-down
+ui/webui/resources/cr_elements/icons.html.ts#thumb-down-filled thumbs-down:cheio
+ui/webui/resources/cr_elements/icons.html.ts#thumb-up thumbs-up
+ui/webui/resources/cr_elements/icons.html.ts#thumb-up-filled thumbs-up:cheio
+ui/webui/resources/cr_elements/icons.html.ts#videocam video
+ui/webui/resources/cr_elements/icons.html.ts#warning triangle-alert
+ui/webui/resources/cr_elements/icons.html.ts#warning-filled triangle-alert
+
+# Imagens dos botões (cr-icon-button, máscara pelo --cr-icon-image)
+ui/webui/resources/images/icon_arrow_back.svg arrow-left
+ui/webui/resources/images/icon_arrow_drop_down_cr23.svg chevron-down
+ui/webui/resources/images/icon_arrow_dropdown.svg chevron-down
+ui/webui/resources/images/icon_arrow_drop_up_cr23.svg chevron-up
+ui/webui/resources/images/icon_arrow_forward.svg arrow-right
+ui/webui/resources/images/icon_arrow_upward.svg arrow-up
+ui/webui/resources/images/icon_bookmark.svg star
+ui/webui/resources/images/icon_cancel.svg circle-x
+ui/webui/resources/images/icon_clear.svg x
+ui/webui/resources/images/icon_clock.svg clock
+ui/webui/resources/images/icon_copy_content.svg copy
+ui/webui/resources/images/icon_delete_gray.svg trash
+ui/webui/resources/images/icon_edit.svg pencil
+ui/webui/resources/images/icon_expand_less.svg chevron-up
+ui/webui/resources/images/icon_expand_more.svg chevron-down
+ui/webui/resources/images/icon_filetype_generic.svg file
+ui/webui/resources/images/icon_folder_open.svg folder-open
+ui/webui/resources/images/icon_history.svg rotate-ccw-clock
+ui/webui/resources/images/icon_more_vert.svg ellipsis-vertical
+ui/webui/resources/images/icon_picture_delete.svg image-minus
+ui/webui/resources/images/icon_refresh.svg rotate-cw
+ui/webui/resources/images/icon_search.svg search
+ui/webui/resources/images/icon_settings.svg settings
+ui/webui/resources/images/icon_tab.svg app-window
+ui/webui/resources/images/icon_visibility.svg eye
+ui/webui/resources/images/icon_visibility_off.svg eye-off
+
+# Sugestões da barra de endereço (searchbox, máscara)
+ui/webui/resources/cr_components/searchbox/icons/account_circle.svg circle-user-round
+ui/webui/resources/cr_components/searchbox/icons/arrow_forward.svg arrow-right
+ui/webui/resources/cr_components/searchbox/icons/bookmark_cr23.svg star
+ui/webui/resources/cr_components/searchbox/icons/calculator_cr23.svg calculator
+ui/webui/resources/cr_components/searchbox/icons/calendar.svg calendar
+ui/webui/resources/cr_components/searchbox/icons/clock_cr23.svg clock
+ui/webui/resources/cr_components/searchbox/icons/currency_cr23.svg circle-dollar-sign
+ui/webui/resources/cr_components/searchbox/icons/default.svg search
+ui/webui/resources/cr_components/searchbox/icons/definition_cr23.svg book-open
+ui/webui/resources/cr_components/searchbox/icons/enterprise.svg building
+ui/webui/resources/cr_components/searchbox/icons/extension_app.svg layout-grid
+ui/webui/resources/cr_components/searchbox/icons/finance_cr23.svg chart-line
+ui/webui/resources/cr_components/searchbox/icons/history_cr23.svg rotate-ccw-clock
+ui/webui/resources/cr_components/searchbox/icons/incognito_cr23.svg hat-glasses
+ui/webui/resources/cr_components/searchbox/icons/mic.svg mic
+ui/webui/resources/cr_components/searchbox/icons/note.svg notebook-pen
+ui/webui/resources/cr_components/searchbox/icons/page_cr23.svg globe
+ui/webui/resources/cr_components/searchbox/icons/search_cr23.svg search
+ui/webui/resources/cr_components/searchbox/icons/share_cr23.svg share-2
+ui/webui/resources/cr_components/searchbox/icons/star_active.svg star:cheio
+ui/webui/resources/cr_components/searchbox/icons/subdirectory_arrow_right.svg corner-down-right
+ui/webui/resources/cr_components/searchbox/icons/sunrise_cr23.svg sunrise
+ui/webui/resources/cr_components/searchbox/icons/tab_cr23.svg app-window
+ui/webui/resources/cr_components/searchbox/icons/translation_cr23.svg languages
+ui/webui/resources/cr_components/searchbox/icons/trending_up_cr23.svg trending-up

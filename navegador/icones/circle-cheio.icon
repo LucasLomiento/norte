@@ -1,0 +1,13 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "circle" preenchido do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+CIRCLE, 12, 12, 10,
+NEW_PATH,
+STROKE, 2.1f,
+CIRCLE, 12, 12, 10,
+

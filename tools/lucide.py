@@ -2,6 +2,8 @@
 .icon do Chromium (ui/gfx/vector_icon_types.h).
 
     python3 -I tools/lucide.py <pasta dos ícones> <nome> [traço] > arquivo.icon
+    python3 -I tools/lucide.py --cheio <pasta dos ícones> <nome> [traço] > arquivo.icon
+        (preenchido e com o contorno: estrela de favorito, fixado, curtido)
     python3 -I tools/lucide.py --svg <cor> <pasta dos ícones> <nome> > arquivo.svg
         (o SVG, pra virar PNG com o rsvg-convert: favicons das páginas
         internas, tools/icones.sh)
@@ -200,20 +202,28 @@ def main():
     if sys.argv[1] == "--svg":
         print(svg(sys.argv[3], sys.argv[4], sys.argv[2]))
         return
-    pasta, nome = sys.argv[1], sys.argv[2]
-    traco = float(sys.argv[3]) if len(sys.argv) > 3 else 2.1
+    cheio = sys.argv[1] == "--cheio"
+    args = sys.argv[2:] if cheio else sys.argv[1:]
+    pasta, nome = args[0], args[1]
+    traco = float(args[2]) if len(args) > 2 else 2.1
     linhas = [
         "// Copyright 2026 The Chromium Authors",
         "// Use of this source code is governed by a BSD-style license that can be",
         "// found in the LICENSE file.",
         "",
-        f"// navegador: \"{nome}\" do Lucide (https://lucide.dev, licença ISC),",
+        f"// navegador: \"{nome}\"{' preenchido' if cheio else ''} do Lucide "
+        "(https://lucide.dev, licença ISC),",
         "// convertido por tools/lucide.py.",
         "",
         "CANVAS_DIMENSIONS, 24,",
     ]
     for n, (tipo, attrs) in enumerate(ler_icone(pasta, nome)):
         if n:
+            linhas.append("NEW_PATH,")
+        # Preenchido: o mesmo desenho sem traço (o .icon preenche por padrão)
+        # e o contorno por cima, pra manter os cantos redondos do Lucide.
+        if cheio:
+            linhas += [c + "," for c in elemento(tipo, attrs)]
             linhas.append("NEW_PATH,")
         linhas.append(f"STROKE, {fmt(traco)},")
         linhas += [c + "," for c in elemento(tipo, attrs)]
