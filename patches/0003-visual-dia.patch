@@ -1029,7 +1029,7 @@ index a335e2d5cc..9e1616c111 100644
  #if BUILDFLAG(IS_CHROMEOS)
    // ChromeOS SystemWebApps use the OS theme all the time.
 diff --git i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-index 29dfbde914..f1ca4a5cfa 100644
+index 29dfbde914..3e288d81b6 100644
 --- i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 @@ -4,6 +4,13 @@
@@ -1076,7 +1076,7 @@ index 29dfbde914..f1ca4a5cfa 100644
    return info;
  }
  
-@@ -822,13 +845,33 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -822,13 +845,38 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                                 GetVerticalTabStripContentOverlap();
        params.InsetHorizontal(inset_amount, /*leading=*/true);
  
@@ -1091,12 +1091,17 @@ index 29dfbde914..f1ca4a5cfa 100644
 +                               browser_view->browser()->GetProfile())
 +                         : navegador::espacos::kMolduraPadrao;
 +        // Com a lateral escondida, a borda dela (onde encosta o ponteiro)
-+        // faz parte da moldura da esquerda: completa até a mesma espessura.
++        // fica por cima do cartão, transparente, e a esquerda tem a mesma
++        // moldura dos outros lados. Com a moldura mais fina que a borda,
++        // sobrava uma faixa da cor da moldura na beira da página. Recolhendo
++        // ou abrindo (Ctrl+S), vai junto com a largura da lateral (o
++        // `tab_strip_width` da animação: 1 aberta, 0 só a borda), sem pulo.
++        const double recolhida =
++            1.0 - vertical_tab_strip_animation.tab_strip_width;
 +        const int esquerda =
 +            GetVerticalTabStripContentOverlap() +
-+            (delegate().IsVerticalTabStripCollapsed()
-+                 ? std::max(0, moldura - navegador::visual::kLateralRecolhida)
-+                 : 0);
++            base::ClampRound(
++                (moldura - navegador::visual::kLateralRecolhida) * recolhida);
 +        params.Inset(gfx::Insets::TLBR(moldura, esquerda, moldura, moldura));
 +      }
 +
@@ -1115,7 +1120,7 @@ index 29dfbde914..f1ca4a5cfa 100644
          unclipped_contents_region.Inset(gfx::Insets::TLBR(
              0, VerticalTabStripRegionView::kCollapsedWidth, 0, 0));
        } else {
-@@ -855,8 +898,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -855,8 +903,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
    if (IsParentedTo(views().vertical_tab_strip_top_corner,
                     views().browser_view)) {
      gfx::Rect corner_bounds;
@@ -1126,7 +1131,7 @@ index 29dfbde914..f1ca4a5cfa 100644
          vertical_tab_strip_animation.top_corner > 0.0;
  
      // The top corner is drawn when the tabstrip goes all the way to the top.
-@@ -878,8 +923,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -878,8 +928,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
    if (IsParentedTo(views().vertical_tab_strip_bottom_corner,
                     views().browser_view)) {
      gfx::Rect corner_bounds;
@@ -1137,7 +1142,7 @@ index 29dfbde914..f1ca4a5cfa 100644
          vertical_tab_strip_animation.bottom_corner > 0.0;
      if (bottom_corner_visible) {
        auto preferred =
-@@ -932,6 +979,33 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -932,6 +984,33 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                      visible_width > 0);
    }
  
@@ -1171,7 +1176,7 @@ index 29dfbde914..f1ca4a5cfa 100644
    // When the tabstrip isn't at the top or in constrained widths, the top
    // container is laid out before all side panels.
    if (horizontal_layout.force_top_container_to_top &&
-@@ -947,7 +1021,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -947,7 +1026,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
          top_container_layout, top_container_params, needs_exclusion);
      top_container_layout.bounds =
          GetTopContainerBoundsInParent(top_container_local_bounds, params);
@@ -1182,7 +1187,7 @@ index 29dfbde914..f1ca4a5cfa 100644
  
      // Possibly bump the leading margin of the top container out to cover the
      // caption buttons, leaving all of the child views in the same absolute
-@@ -968,7 +1044,14 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -968,7 +1049,14 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
    ProposedLayout* main_background_layout = nullptr;
    if (IsParentedTo(views().main_background_region, views().browser_view)) {
      gfx::Rect main_background_bounds;
@@ -1198,7 +1203,7 @@ index 29dfbde914..f1ca4a5cfa 100644
        // In the future this should just be a 1px shim to avoid covering
        // transparency in the frame/tab strip, instead of extending the entire
        // background to the window edge.
-@@ -1079,7 +1162,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1079,7 +1167,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
          params.InLocalCoordinates(params.visual_client_area), needs_exclusion);
      top_container_layout.bounds =
          GetTopContainerBoundsInParent(top_container_local_bounds, params);
@@ -1209,7 +1214,7 @@ index 29dfbde914..f1ca4a5cfa 100644
    }
  
    // Lay out infobar container.
-@@ -1174,6 +1259,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1174,6 +1264,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                                  params.visual_client_area.height()));
  
    // Maybe expand and clip the web contents to avoid issues during animation.
@@ -1218,7 +1223,7 @@ index 29dfbde914..f1ca4a5cfa 100644
    if (features::UseSidePanelFlyoverAnimation()) {
      if (clip_content_for_animation) {
        // Vertical span is whatever it is, minus any shadow overlay insets.
-@@ -1195,6 +1282,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1195,6 +1287,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        // Avoid cases where these areas are somehow misaligned (shouldn't happen,
        // but want to avoid visual artifacts if they are).
        contents_layout.bounds.Intersect(unclipped_contents_region);
@@ -1232,7 +1237,7 @@ index 29dfbde914..f1ca4a5cfa 100644
        const auto clip_insets =
            unclipped_contents_region.InsetsFrom(contents_layout.bounds);
  
-@@ -1231,6 +1325,20 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1231,6 +1330,20 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        }
      }
      views().multi_contents_view->SetBackgroundRadii(content_corners);
@@ -1253,7 +1258,7 @@ index 29dfbde914..f1ca4a5cfa 100644
    }
  
    // Make final visual adjustments required for child views to paint.
-@@ -1253,6 +1361,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1253,6 +1366,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        // aligned with the tabstrip (which can happen in collapsed mode with
        // leading caption buttons).
        toolbar_height = toolbar_bounds->bottom() - tabstrip_bounds->y();
@@ -1271,7 +1276,7 @@ index 29dfbde914..f1ca4a5cfa 100644
  
        caption_button_width =
            base::ClampCeil(browser_params.leading_exclusion.content.width()) -
-@@ -1427,9 +1546,16 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
+@@ -1427,9 +1551,16 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
    // By default, this is just a flat background.
    CustomCornersBackground::Corners corners;
  
@@ -1290,7 +1295,7 @@ index 29dfbde914..f1ca4a5cfa 100644
        layout_data_->window_state == WindowState::kNormal) {
      corners[CornerOrientation::kTopTrailing] =
          background->GetWindowCorner(/*upper=*/true);
-@@ -1524,6 +1650,29 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1524,6 +1655,39 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
            (1.0 - animation.expand_on_hover_opacity) * frame_color.opacity +
            animation.expand_on_hover_opacity * expand_on_hover_opacity);
        vertical_tabs_background->SetPrimaryColor(vertical_tabs_background_color);
@@ -1317,10 +1322,20 @@ index 29dfbde914..f1ca4a5cfa 100644
 +      vertical_tabs_background_color.opacity =
 +          static_cast<float>(animation.expand_on_hover_opacity) * opacidade;
 +      vertical_tabs_background->SetPrimaryColor(vertical_tabs_background_color);
++    } else if (!is_fullscreen(layout_data_->window_state)) {
++      // navegador: sem o vidro, igual. Escondida, a borda da lateral fica
++      // transparente por cima do cartão (ver a moldura da esquerda no
++      // CalculateProposedLayout); recolhendo, o fundo some junto com a
++      // largura. Atrás dela a moldura pinta a mesma cor
++      // (OpaqueBrowserFrameView::OnPaint); na tela cheia não pinta nada.
++      auto vertical_tabs_background_color = frame_color;
++      vertical_tabs_background_color.opacity = static_cast<float>(std::max(
++          animation.tab_strip_width, animation.expand_on_hover_opacity));
++      vertical_tabs_background->SetPrimaryColor(vertical_tabs_background_color);
      } else {
        vertical_tabs_background->SetPrimaryColor(frame_color);
      }
-@@ -1707,6 +1856,16 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1707,6 +1871,16 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
        break;
      }
      case TabStripType::kVertical: {
