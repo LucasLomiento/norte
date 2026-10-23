@@ -2160,20 +2160,23 @@ index 76f8e997d6..f31d219768 100644
  };
  
 diff --git i/chrome/browser/ui/views/location_bar/location_bar_view.cc w/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 9251f8590b..416626dbc1 100644
+index 9251f8590b..8f4403d28d 100644
 --- i/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ w/chrome/browser/ui/views/location_bar/location_bar_view.cc
-@@ -4,6 +4,9 @@
+@@ -4,6 +4,12 @@
  
  #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
  
 +#include "base/strings/escape.h"
 +#include "components/url_formatter/url_formatter.h"
++#include "ui/compositor/scoped_layer_animation_settings.h"
++#include "ui/gfx/animation/animation.h"
++#include "ui/gfx/animation/tween.h"
 +
  #include <algorithm>
  #include <memory>
  #include <ranges>
-@@ -80,6 +83,7 @@
+@@ -80,6 +86,7 @@
  #include "chrome/browser/ui/views/omnibox/omnibox_popup_webui_content.h"
  #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
  #include "chrome/browser/ui/views/page_action/page_action_container_view.h"
@@ -2181,7 +2184,7 @@ index 9251f8590b..416626dbc1 100644
  #include "chrome/browser/ui/views/page_action/page_action_view_params.h"
  #include "chrome/browser/ui/views/page_info/page_info_bubble_specification.h"
  #include "chrome/browser/ui/views/page_info/page_info_bubble_view.h"
-@@ -120,6 +124,7 @@
+@@ -120,6 +127,7 @@
  #include "content/public/browser/render_widget_host_view.h"
  #include "content/public/browser/web_contents.h"
  #include "content/public/browser/web_contents_observer.h"
@@ -2189,7 +2192,22 @@ index 9251f8590b..416626dbc1 100644
  #include "services/device/public/cpp/device_features.h"
  #include "third_party/metrics_proto/omnibox_event.pb.h"
  #include "third_party/skia/include/core/SkColor.h"
-@@ -274,6 +279,10 @@ LocationBarView::~LocationBarView() {
+@@ -179,6 +187,14 @@ int IncrementalMinimumWidth(const views::View* view) {
+ // The padding between the content setting icons and other trailing decorations.
+ constexpr int kContentSettingIntraItemPadding = 8;
+ 
++// navegador: recuo a mais do ícone da barra com foco, pra ficar na coluna dos
++// ícones das sugestões (pop-up rente à barra + margem de 6 das linhas).
++constexpr int kRecuoDasSugestoes = 12;
++
++// navegador: tempo do ícone do site aparecendo no lado novo (ele troca de
++// lado com o foco).
++constexpr base::TimeDelta kIconeTrocandoDeLado = base::Milliseconds(150);
++
+ // Capsule dimensions and padding for the elevated page action toolbar.
+ constexpr int kPageActionCapsuleEdgePadding = 2;
+ constexpr int kPageActionCapsuleVerticalPadding = 2;
+@@ -274,6 +290,10 @@ LocationBarView::~LocationBarView() {
  }
  
  void LocationBarView::Init() {
@@ -2200,7 +2218,30 @@ index 9251f8590b..416626dbc1 100644
    TRACE_EVENT0("omnibox", "LocationBarView::Init");
    static bool has_logged_startup_to_init = false;
    if (!has_logged_startup_to_init) {
-@@ -853,6 +862,7 @@ void LocationBarView::Layout(PassKey) {
+@@ -785,7 +805,11 @@ void LocationBarView::Layout(PassKey) {
+   //  - The popup is open.
+   //  - The location icon view does *not* display a label.
+   //  - The selected keyword view is *not* visible.
++  // navegador: com foco o ícone e o texto já vão pro lugar de quando as
++  // sugestões abrem. Antes andavam duas vezes: ao apertar o clique (foco) e
++  // de novo ao soltar (sugestões).
+   const bool should_indent = (omnibox_controller_->IsPopupOpen() ||
++                              omnibox_view_->HasFocus() ||
+                               omnibox_feature_configs::AdjustOmniboxIndent()
+                                   .Get()
+                                   .indent_input_when_popup_closed) &&
+@@ -793,6 +817,10 @@ void LocationBarView::Layout(PassKey) {
+                              !ShouldShowKeywordBubble();
+   if (should_indent) {
+     icon_left += 7 /*icon_indent*/;
++    // navegador: o pop-up fica rente à barra (sem os 6 px de cada lado do
++    // Chromium) e as linhas têm margem de 6: o ícone acompanha os das
++    // sugestões.
++    icon_left += kRecuoDasSugestoes;
+     icon_left += omnibox_feature_configs::AdjustOmniboxIndent()
+                      .Get()
+                      .input_icon_indent_offset;
+@@ -853,6 +881,7 @@ void LocationBarView::Layout(PassKey) {
      }
    }
  
@@ -2208,7 +2249,7 @@ index 9251f8590b..416626dbc1 100644
    if (ShouldShowKeywordBubble()) {
      location_icon_view_->SetVisible(false);
      leading_decorations.AddDecoration(
-@@ -862,14 +872,25 @@ void LocationBarView::Layout(PassKey) {
+@@ -862,14 +891,25 @@ void LocationBarView::Layout(PassKey) {
    } else if (location_icon_view_->GetShowText() &&
               !ShouldChipOverrideLocationIcon()) {
      location_icon_view_->SetVisible(true);
@@ -2237,7 +2278,7 @@ index 9251f8590b..416626dbc1 100644
    } else {
      location_icon_view_->SetVisible(false);
    }
-@@ -882,6 +903,10 @@ void LocationBarView::Layout(PassKey) {
+@@ -882,6 +922,26 @@ void LocationBarView::Layout(PassKey) {
            /*max_fraction=*/0, intra_item_padding, edge_padding, view);
      }
    };
@@ -2245,10 +2286,26 @@ index 9251f8590b..416626dbc1 100644
 +    add_trailing_decoration(location_icon_view_, /*intra_item_padding=*/0,
 +                            /*edge_padding=*/trailing_decorations_edge_padding);
 +  }
++  // navegador: trocando de lado, o ícone aparece no lugar novo esmaecendo, em
++  // vez de pular de uma ponta à outra da caixa. A opacidade de destino é a
++  // do RefreshBackground (acesa com foco, só no hover sem).
++  if (icone_do_site_no_fim != icone_no_fim_) {
++    icone_no_fim_ = icone_do_site_no_fim;
++    ui::Layer* const camada = location_icon_view_->layer();
++    if (camada && location_icon_view_->GetVisible() && GetWidget() &&
++        GetWidget()->IsVisible() && !gfx::Animation::PrefersReducedMotion()) {
++      const float alvo = camada->GetTargetOpacity();
++      camada->SetOpacity(0.0f);
++      ui::ScopedLayerAnimationSettings esmaecer(camada->GetAnimator());
++      esmaecer.SetTransitionDuration(kIconeTrocandoDeLado);
++      esmaecer.SetTweenType(gfx::Tween::EASE_OUT);
++      camada->SetOpacity(alvo);
++    }
++  }
  
    if (features::IsPageActionsElevatedToolbarEnabled()) {
      if (page_action_container_ && page_action_container_->GetVisible()) {
-@@ -1066,6 +1091,12 @@ void LocationBarView::Update(WebContents* contents) {
+@@ -1066,6 +1126,12 @@ void LocationBarView::Update(WebContents* contents) {
    } else {
      omnibox_view_->Update();
    }
@@ -2261,19 +2318,24 @@ index 9251f8590b..416626dbc1 100644
  
    // Ensures that the page action updates is performed after the omnibox update.
    // So we can determine whether page actions should be hidden or not.
-@@ -1417,7 +1448,10 @@ void LocationBarView::RefreshBackground() {
+@@ -1417,8 +1483,16 @@ void LocationBarView::RefreshBackground() {
      border_color = color_provider->GetColor(kColorLocationBarBorderOnMismatch);
    }
  
--  if (is_popup_mode_) {
-+  // navegador: com as sugestões abertas, fundo reto: os cantos ficam
-+  // embaixo do pop-up, e a pílula com antisserrilhado deixava um arco de
-+  // pixels da cor da página nas pontas do campo.
-+  if (is_popup_mode_ || GetOmniboxController()->IsPopupOpen()) {
++  // navegador: com as sugestões abertas, cantos de baixo retos (a pílula com
++  // antisserrilhado deixava um arco de pixels da cor da página nas pontas do
++  // campo) e os de cima redondos: o pop-up fica rente à barra e os cantos
++  // de cima dele são os da barra.
+   if (is_popup_mode_) {
      SetBackground(views::CreateSolidBackground(background_color_));
++  } else if (GetOmniboxController()->IsPopupOpen()) {
++    SetBackground(views::CreateRoundedRectBackground(
++        background_color_, /*top_radius=*/GetBorderRadius(),
++        /*bottom_radius=*/0));
    } else {
      SetBackground(CreateRoundRectBackground(
-@@ -1437,6 +1471,38 @@ void LocationBarView::RefreshBackground() {
+         background_color_, border_color, size(),
+@@ -1437,6 +1511,43 @@ void LocationBarView::RefreshBackground() {
      permission_dashboard_view_->SetDividerBackgroundColor(background_color_);
    }
  
@@ -2305,14 +2367,19 @@ index 9251f8590b..416626dbc1 100644
 +      const bool sempre_acesa =
 +          (icone == site && location_icon_view_->GetShowText()) ||
 +          (acao && acao->GetActionId() == kActionZoomNormal);
-+      icone->layer()->SetOpacity(sempre_acesa ? 1.0f : acesos);
++      // Pelo destino: sem cortar o esmaecer do ícone trocando de lado
++      // (Layout), que já vai pra este valor.
++      const float valor = sempre_acesa ? 1.0f : acesos;
++      if (icone->layer()->GetTargetOpacity() != valor) {
++        icone->layer()->SetOpacity(valor);
++      }
 +    }
 +  }
 +
    SchedulePaint();
  }
  
-@@ -1581,6 +1647,13 @@ void LocationBarView::OnPageInfoBubbleClosed(
+@@ -1581,6 +1692,13 @@ void LocationBarView::OnPageInfoBubbleClosed(
  }
  
  void LocationBarView::FocusSearch() {
@@ -2326,7 +2393,7 @@ index 9251f8590b..416626dbc1 100644
    // This is called by keyboard accelerator, so it's user-initiated.
    FocusLocation(/*is_user_initiated=*/true, /*clear_focus_if_failed=*/false);
    omnibox_view_->EnterKeywordModeForDefaultSearchProvider();
-@@ -2041,6 +2114,10 @@ void LocationBarView::OnOmniboxFocused() {
+@@ -2041,6 +2159,10 @@ void LocationBarView::OnOmniboxFocused() {
    // the omnibox is intentional, snapping is better than transitioning here.
    hover_animation_.Reset();
    RefreshBackground();
@@ -2337,7 +2404,7 @@ index 9251f8590b..416626dbc1 100644
  
    // The AI mode page action should only be visible when the omnibox
    // is focused, so if there is a change in focus, refresh the icon.
-@@ -2067,6 +2144,8 @@ void LocationBarView::OnOmniboxBlurred() {
+@@ -2067,6 +2189,8 @@ void LocationBarView::OnOmniboxBlurred() {
    RefreshAiModePageAction();
  
    location_icon_view_->Update(false, false);
@@ -2346,7 +2413,7 @@ index 9251f8590b..416626dbc1 100644
  }
  
  bool LocationBarView::IsFullWebUiOmniboxReady() const {
-@@ -2075,6 +2154,13 @@ bool LocationBarView::IsFullWebUiOmniboxReady() const {
+@@ -2075,6 +2199,13 @@ bool LocationBarView::IsFullWebUiOmniboxReady() const {
  }
  
  void LocationBarView::OnOmniboxHovered(bool is_hovering) {
@@ -2360,7 +2427,7 @@ index 9251f8590b..416626dbc1 100644
    if (is_hovering) {
      // Only show the hover animation when omnibox is in unfocused steady state.
      if (!omnibox_view_->HasFocus()) {
-@@ -2083,6 +2169,33 @@ void LocationBarView::OnOmniboxHovered(bool is_hovering) {
+@@ -2083,6 +2214,33 @@ void LocationBarView::OnOmniboxHovered(bool is_hovering) {
    } else {
      hover_animation_.Hide();
    }
@@ -2395,7 +2462,7 @@ index 9251f8590b..416626dbc1 100644
  
  void LocationBarView::OnTouchUiChanged() {
 diff --git i/chrome/browser/ui/views/location_bar/location_bar_view.h w/chrome/browser/ui/views/location_bar/location_bar_view.h
-index dc2ea8c236..697f25495d 100644
+index dc2ea8c236..fe6a1bd25b 100644
 --- i/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ w/chrome/browser/ui/views/location_bar/location_bar_view.h
 @@ -288,6 +288,10 @@ class LocationBarView
@@ -2409,7 +2476,7 @@ index dc2ea8c236..697f25495d 100644
    // LocationBar:
    void SetPermissionPromptShowing(bool showing) override;
    void UpdateFocusBehavior(bool toolbar_visible) override;
-@@ -607,6 +611,10 @@ class LocationBarView
+@@ -607,6 +611,14 @@ class LocationBarView
  
    bool is_initialized_ = false;
  
@@ -2417,14 +2484,53 @@ index dc2ea8c236..697f25495d 100644
 +  // MostrarEnderecoInteiro).
 +  bool endereco_inteiro_ = false;
 +
++  // navegador: o ícone do site está no fim da caixa (sem foco); muda com o
++  // foco e o Layout esmaece a troca.
++  bool icone_no_fim_ = true;
++
    SkColor background_color_ = gfx::kPlaceholderColor;
  
    // The focus manager associated with this view. The focus manager is expected
+diff --git i/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc w/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
+index a9a27b7c5f..c0275f48bc 100644
+--- i/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
++++ w/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
+@@ -110,6 +110,14 @@ bool ShouldShowPlaceholderText(LocationBar* location_bar,
+     return true;
+   }
+ 
++  // navegador: com foco e sem o botão de IA, o texto de exemplo do buscador
++  // fica (só some ao digitar). Sumir no clique era mais uma coisa mudando
++  // na barra junto com o ícone. Antes da trava da transição abaixo, que é do
++  // pop-up da IA e apagava o texto por 100 ms ao abrir as sugestões.
++  if (controller->edit_model()->is_caret_visible() && !aim_button_visible) {
++    return !controller->edit_model()->is_keyword_selected();
++  }
++
+   if (base::FeatureList::IsEnabled(
+           omnibox::kOmniboxAimDeferShowUntilVisualStateReady)) {
+     // Suppress the hint text while the AIM popup is displayed or in deferred
 diff --git i/chrome/browser/ui/views/omnibox/omnibox_view_views.cc w/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
-index 58337c04cc..564a14775f 100644
+index 58337c04cc..7fba3353f4 100644
 --- i/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
 +++ w/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
-@@ -2527,10 +2527,10 @@ void OmniboxViewViews::PerformDrop(
+@@ -1516,6 +1516,15 @@ bool OmniboxViewViews::OnMouseDragged(const ui::MouseEvent& event) {
+     return true;
+   }
+ 
++  // navegador: no clique que dá o foco o texto anda (o ícone do site troca
++  // de lado e as sugestões abrem no aperto); um tremido do mouse antes de
++  // soltar selecionava um pedaço do endereço em vez dele inteiro.
++  if (select_all_on_mouse_release_ &&
++      !ExceededDragThreshold(event.root_location() -
++                             GetLastClickRootLocation())) {
++    return true;
++  }
++
+   if (HasTextBeingDragged()) {
+     if (auto* popup_closer = controller()->client()->GetOmniboxPopupCloser()) {
+       popup_closer->CloseWithReason(omnibox::PopupCloseReason::kTextDrag);
+@@ -2527,10 +2536,10 @@ void OmniboxViewViews::PerformDrop(
  }
  
  void OmniboxViewViews::UpdatePlaceholderTextColor() {
@@ -2439,6 +2545,22 @@ index 58337c04cc..564a14775f 100644
  }
  
  BEGIN_METADATA(OmniboxViewViews)
+diff --git i/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc w/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
+index debac67f17..894350686c 100644
+--- i/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
++++ w/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
+@@ -327,7 +327,10 @@ gfx::Insets RoundedOmniboxResultsFrame::GetLocationBarAlignmentInsets() {
+   }
+   return gfx::Insets::VH(5, 6);
+ #else
+-  return gfx::Insets::VH(5, 6);
++  // navegador: o pop-up rente à barra em cima e dos lados (o Chromium deixa
++  // 5 e 6 de folga): ao abrir as sugestões a caixa não cresce, só desce.
++  // Embaixo fica a folga entre a barra e a primeira sugestão.
++  return gfx::Insets::TLBR(0, 0, 5, 0);
+ #endif
+ }
+ 
 diff --git i/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc w/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 index c7c218422c..cd2172eca5 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc

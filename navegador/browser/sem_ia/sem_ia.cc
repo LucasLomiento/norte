@@ -203,6 +203,10 @@ constexpr const char* kDesligadas[] = {
     "TransientKeepAlivePolicy",
     "PreferWarmRendererProcess",
     "CollectWebGPUSupportMetrics",
+    // Sugestões abrindo só ao soltar o clique na barra: a barra mudava duas
+    // vezes (foco ao apertar, sugestões ao soltar). Desligado, abrem no
+    // aperto, como no Chromium até 2024.
+    "OmniboxShowPopupOnMouseReleased",
 };
 
 // Os nomes dos recursos de uma lista do --enable-features ou do
