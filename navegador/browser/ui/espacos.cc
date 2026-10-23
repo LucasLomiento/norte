@@ -1680,6 +1680,47 @@ class FaixaDeEspacos : public views::View,
 
   // Regras da janela: todo grupo é de um espaço, toda aba solta (não fixada)
   // entra no espaço atual e sempre tem um espaço focado.
+  // Move as abas pro grupo `destino`, uma de cada vez. O AddToExistingGroup
+  // do Chromium dá CHECK se o destino ou o grupo em que a aba está não existe
+  // no modelo, e mover uma aba pode fechar o grupo de onde ela saiu e mudar a
+  // posição das outras: a posição é recalculada a cada aba, e a que está num
+  // grupo que o modelo não tem fica onde está. Em 23/10/2026 (KDE, com uma
+  // janela nova nascendo de um arrasto) o navegador caiu nesse CHECK no meio
+  // do Garantir, levando as abas que chegaram de outra janela.
+  void MoverParaGrupo(const std::vector<tabs::TabHandle>& abas,
+                      const tab_groups::TabGroupId& destino,
+                      bool no_fim) {
+    for (const tabs::TabHandle& handle : abas) {
+      TabGroupModel* grupos = model_->group_model();
+      if (!grupos || !grupos->ContainsTabGroup(destino)) {
+        return;
+      }
+      tabs::TabInterface* aba = handle.Get();
+      const int index =
+          aba ? model_->GetIndexOfTab(aba) : TabStripModel::kNoTab;
+      if (index == TabStripModel::kNoTab || model_->IsTabPinned(index)) {
+        continue;
+      }
+      const std::optional<tab_groups::TabGroupId> atual = aba->GetGroup();
+      if (atual == destino ||
+          (atual && !grupos->ContainsTabGroup(*atual)) ||
+          model_->GetTabGroupForTab(index) != atual) {
+        continue;
+      }
+      model_->AddToExistingGroup({index}, destino, no_fim);
+    }
+  }
+
+  std::vector<tabs::TabHandle> Abas(const std::vector<int>& indices) const {
+    std::vector<tabs::TabHandle> abas;
+    for (int index : indices) {
+      if (tabs::TabInterface* aba = model_->GetTabAtIndex(index)) {
+        abas.push_back(aba->GetHandle());
+      }
+    }
+    return abas;
+  }
+
   void Garantir() {
     garantia_pendente_ = false;
     // Com uma aba sendo arrastada (pra fora, pra outra janela), mexer nos
@@ -1767,7 +1808,7 @@ class FaixaDeEspacos : public views::View,
               abas.push_back(i);
             }
           }
-          model_->AddToExistingGroup(abas, *existente, /*add_to_end=*/true);
+          MoverParaGrupo(Abas(abas), *existente, /*no_fim=*/true);
           GarantirDepois();
           continue;
         }
@@ -1793,7 +1834,7 @@ class FaixaDeEspacos : public views::View,
       const std::vector<tabs::TabHandle> chegaram = std::move(chegaram_);
       chegaram_.clear();
       std::vector<int> mover;
-      tabs::TabInterface* ativa = nullptr;
+      tabs::TabHandle ativa;
       for (const tabs::TabHandle& handle : chegaram) {
         tabs::TabInterface* aba = handle.Get();
         const int index =
@@ -1809,7 +1850,7 @@ class FaixaDeEspacos : public views::View,
         }
         mover.push_back(index);
         if (aba == model_->GetActiveTab()) {
-          ativa = aba;
+          ativa = aba->GetHandle();
         }
       }
       if (!mover.empty()) {
@@ -1818,16 +1859,20 @@ class FaixaDeEspacos : public views::View,
                 GrupoDoEspaco(espaco_visivel_)) {
           // Foco antes: o grupo de onde elas saem some, e sumir o grupo
           // focado reabria o espaço dele (espaco_a_manter_).
+          const std::vector<tabs::TabHandle> abas = Abas(mover);
           model_->SetFocusedGroup(*destino);
-          model_->AddToExistingGroup(mover, *destino);
+          MoverParaGrupo(abas, *destino, /*no_fim=*/false);
         } else {
           const tab_groups::TabGroupId novo = model_->AddToNewGroup(mover);
           Ligar(novo, espaco_visivel_);
           model_->SetFocusedGroup(novo);
         }
         espaco_a_manter_.clear();
-        if (ativa) {
-          model_->ActivateTabAt(model_->GetIndexOfTab(ativa));
+        if (tabs::TabInterface* aba = ativa.Get()) {
+          if (const int index = model_->GetIndexOfTab(aba);
+              index != TabStripModel::kNoTab) {
+            model_->ActivateTabAt(index);
+          }
         }
       }
     }
@@ -1873,7 +1918,7 @@ class FaixaDeEspacos : public views::View,
         for (size_t i = faixa.start(); i < faixa.end(); ++i) {
           abas.push_back(static_cast<int>(i));
         }
-        model_->AddToExistingGroup(abas, fica);
+        MoverParaGrupo(Abas(abas), fica, /*no_fim=*/false);
       }
       if (focado && std::ranges::find(grupos, *focado) != grupos.end()) {
         model_->SetFocusedGroup(fica);
@@ -1892,8 +1937,11 @@ class FaixaDeEspacos : public views::View,
       if (!alvo) {
         alvo = GrupoDoEspaco(EspacoDaJanela());
       }
+      if (alvo && !model_->group_model()->ContainsTabGroup(*alvo)) {
+        alvo.reset();
+      }
       if (alvo) {
-        model_->AddToExistingGroup(soltas, *alvo, /*add_to_end=*/true);
+        MoverParaGrupo(Abas(soltas), *alvo, /*no_fim=*/true);
       } else {
         const tab_groups::TabGroupId novo = model_->AddToNewGroup(soltas);
         Ligar(novo, EspacoDaJanela());

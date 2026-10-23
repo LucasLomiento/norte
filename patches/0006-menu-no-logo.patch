@@ -41,6 +41,26 @@ index 3741ba7671..efb91b1122 100644
      }
    }
  }
+diff --git i/chrome/browser/ui/views/frame/app_menu_button.cc w/chrome/browser/ui/views/frame/app_menu_button.cc
+index e0d817653b..44eb263481 100644
+--- i/chrome/browser/ui/views/frame/app_menu_button.cc
++++ w/chrome/browser/ui/views/frame/app_menu_button.cc
+@@ -57,7 +57,14 @@ views::BubbleAnchor AppMenuButton::GetAnchor() {
+   auto* const elements = BrowserElementsViews::From(this);
+   CHECK(elements);
+   auto* const element = elements->GetElement(kFallbackPopupAnchorElementId);
+-  CHECK(element);
++  // navegador: com a barra escondida (Ctrl+Shift+S) o botão não está
++  // desenhado, e a âncora reserva só existe com a janela já mostrada. O
++  // balão de "restaurar páginas?" depois de uma queda abre antes disso: era
++  // CHECK, o navegador caía de novo, o perfil continuava marcado como
++  // "fechou com erro" e não abria mais. Fica no lugar do botão.
++  if (!element) {
++    return views::BubbleAnchor(this);
++  }
+   return views::BubbleAnchor(element);
+ }
+ 
 diff --git i/chrome/browser/ui/views/frame/browser_view.cc w/chrome/browser/ui/views/frame/browser_view.cc
 index 63c3090b4c..fc7b6a6cbb 100644
 --- i/chrome/browser/ui/views/frame/browser_view.cc
