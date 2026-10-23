@@ -721,7 +721,7 @@ index 5029e26405..dd12d4dfe2 100644
    // Block navigation requests when in locked fullscreen mode. We allow
    // navigation requests in the webapp when locked for OnTask (only relevant for
 diff --git i/chrome/browser/ui/tabs/BUILD.gn w/chrome/browser/ui/tabs/BUILD.gn
-index 3396b27000..0a140cef0b 100644
+index 3396b27000..82fd358899 100644
 --- i/chrome/browser/ui/tabs/BUILD.gn
 +++ w/chrome/browser/ui/tabs/BUILD.gn
 @@ -157,6 +157,8 @@ if (!is_android) {
@@ -733,7 +733,15 @@ index 3396b27000..0a140cef0b 100644
        ":tab_menu",
        ":tab_model",
        ":tab_strip",
-@@ -365,6 +367,7 @@ if (!is_android) {
+@@ -303,6 +305,7 @@ if (!is_android) {
+       ":tab_strip",
+       ":tabs",
+       "//chrome/app/vector_icons",
++      "//navegador/icones/menu",  # navegador (menu da divisão)
+       "//chrome/browser/commerce",
+       "//chrome/browser/feedback",
+       "//chrome/browser/profiles:profile",
+@@ -365,6 +368,7 @@ if (!is_android) {
      ]
  
      deps = [

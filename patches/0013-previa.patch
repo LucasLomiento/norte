@@ -1,24 +1,730 @@
 diff --git i/chrome/browser/ui/views/frame/multi_contents_view.cc w/chrome/browser/ui/views/frame/multi_contents_view.cc
-index 76475b5693..0aa19b7a38 100644
+index 76475b5693..22a7aa6c92 100644
 --- i/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ w/chrome/browser/ui/views/frame/multi_contents_view.cc
-@@ -37,6 +37,7 @@
+@@ -37,6 +37,10 @@
  #include "chrome/common/pref_names.h"
  #include "chrome/common/webui_url_constants.h"
  #include "components/prefs/pref_service.h"
++#include "navegador/browser/containers/espacos_dados.h"
++#include "navegador/browser/divisao/soltar.h"
++#include "navegador/browser/divisao/visual.h"
 +#include "navegador/browser/ui/visual.h"
  #include "components/split_tabs/split_tab_visual_data.h"
  #include "components/tabs/public/tab_interface.h"
  #include "content/public/browser/web_contents.h"
-@@ -552,6 +553,15 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+@@ -54,6 +58,14 @@
+ 
+ namespace {
+ constexpr int kSnapDistance = 15;
++
++// navegador: a menor área de pegar uma fresta entre as páginas.
++constexpr int kNavegadorAreaDeToque = 10;
++
++// navegador: a área de um painel da árvore (navegador/browser/divisao).
++gfx::Rect Retangulo(const navegador::divisao::Retangulo& r) {
++  return gfx::Rect(r.x, r.y, r.largura, r.altura);
++}
+ }
+ 
+ void MultiContentsView::ContentsSeparators::Reset() {
+@@ -78,18 +90,24 @@ MultiContentsView::MultiContentsView(
+   background_view_ =
+       AddChildView(std::make_unique<MultiContentsBackgroundView>(browser_view));
+ 
+-  contents_container_views_.push_back(
+-      AddChildView(std::make_unique<ContentsContainerView>(browser_view_)));
++  // navegador: até 4 painéis (navegador/browser/divisao), todos criados
++  // aqui (quem guarda a lista deles, como as ferramentas de desenvolvedor,
++  // pega na criação da janela); as frestas vêm depois deles, por cima.
++  for (int i = 0; i < kNavegadorMaximoDePaineis; ++i) {
++    contents_container_views_.push_back(
++        AddChildView(std::make_unique<ContentsContainerView>(browser_view_)));
++    contents_container_views_.back()->SetVisible(i == 0);
++  }
+   contents_container_views_[0]
+       ->contents_view()
+       ->set_is_primary_web_contents_for_window(true);
+ 
+-  resize_area_ = AddChildView(std::make_unique<MultiContentsResizeArea>(this));
+-  resize_area_->SetVisible(false);
+-
+-  contents_container_views_.push_back(
+-      AddChildView(std::make_unique<ContentsContainerView>(browser_view_)));
+-  contents_container_views_[1]->SetVisible(false);
++  for (int i = 0; i + 1 < kNavegadorMaximoDePaineis; ++i) {
++    divisores_.push_back(
++        AddChildView(std::make_unique<MultiContentsResizeArea>(this, i)));
++    divisores_.back()->SetVisible(false);
++  }
++  resize_area_ = divisores_[0];
+ 
+   drop_target_view_ =
+       AddChildView(std::make_unique<MultiContentsDropTargetView>());
+@@ -180,6 +198,38 @@ MultiContentsView::MultiContentsView(
+       prefs::kSplitViewDragAndDropEnabled,
+       base::BindRepeating(&MultiContentsView::OnDragAndDropPrefStateChange,
+                           base::Unretained(this)));
++  // navegador: o espaço entre as páginas divididas (Configurações).
++  pref_change_registrar_.Add(
++      navegador::espacos::kEspacoDaDivisaoPref,
++      base::BindRepeating(
++          [](MultiContentsView* self) {
++            self->InvalidateLayout();
++            if (self->parent()) {
++              self->parent()->InvalidateLayout();
++            }
++          },
++          base::Unretained(this)));
++
++  // navegador: arrastar uma aba da lateral pra cima das páginas divide a
++  // tela (navegador/browser/divisao/soltar.h). A prévia fica por cima de
++  // tudo.
++  previa_de_soltar_ =
++      AddChildView(std::make_unique<navegador::divisao::PreviaDeSoltar>());
++  if (browser_view_->GetIsNormalType()) {
++    alvo_da_divisao_ = std::make_unique<navegador::divisao::AlvoDaDivisao>(
++        *this, *previa_de_soltar_,
++        *browser_view_->browser()->GetTabStripModel());
++    // As alças dos painéis: por cima das páginas e das frestas, embaixo da
++    // prévia.
++    for (int i = 0; i < kNavegadorMaximoDePaineis; ++i) {
++      alcas_.push_back(AddChildViewAt(
++          std::make_unique<navegador::divisao::AlcaDoPainel>(
++              *this, *previa_de_soltar_,
++              *browser_view_->browser()->GetTabStripModel(), i),
++          GetIndexOf(previa_de_soltar_).value()));
++    }
++    vigia_ = std::make_unique<navegador::divisao::VigiaDasAlcas>(*this, alcas_);
++  }
+ }
+ 
+ MultiContentsView::~MultiContentsView() {
+@@ -190,6 +240,13 @@ MultiContentsView::~MultiContentsView() {
+   if (drop_target_controller_) {
+     drop_target_controller_.reset();
+   }
++  // navegador
++  navegador_assentar_.Stop();
++  vigia_.reset();
++  alvo_da_divisao_.reset();
++  alcas_.clear();
++  previa_de_soltar_ = nullptr;
++  divisores_.clear();
+   drop_target_view_ = nullptr;
+   lens_overlay_view_ = nullptr;
+   resize_area_ = nullptr;
+@@ -228,9 +285,13 @@ void MultiContentsView::SetBackgroundRadii(const gfx::RoundedCornersF& radii) {
+   background_view_->SetRoundedCorners(radii);
+ 
+   if (!IsInSplitView()) {
+-    GetActiveContentsContainerView()->SetRoundedCorners(radii);
+-    GetInactiveContentsContainerView()->SetRoundedCorners(
+-        gfx::RoundedCornersF());
++    // navegador: até 4 painéis; só o ativo aparece.
++    for (auto& container : contents_container_views_) {
++      container->SetRoundedCorners(container ==
++                                           GetActiveContentsContainerView()
++                                       ? radii
++                                       : gfx::RoundedCornersF());
++    }
+   }
+ }
+ 
+@@ -256,22 +317,21 @@ MultiContentsView::GetFocusableViewsMapFor(
+ }
+ 
+ bool MultiContentsView::IsInSplitView() const {
+-  return resize_area_->GetVisible();
++  // navegador: até 4 painéis (navegador/browser/divisao).
++  return paineis_ > 1;
+ }
+ 
+ void MultiContentsView::SetWebContentsAtIndex(
+     content::WebContents* web_contents,
+     int index) {
+-  CHECK(index >= 0 && index < 2);
++  // navegador: até 4 painéis (navegador/browser/divisao).
++  CHECK(index >= 0 && index < kNavegadorMaximoDePaineis);
++  if (index >= paineis_) {
++    NavegadorDefinirPaineis(index + 1);
++  }
+   contents_container_views_[index]->contents_view()->SetWebContents(
+       web_contents);
+ 
+-  if (index == 1 && !contents_container_views_[1]->GetVisible()) {
+-    contents_container_views_[1]->SetVisible(true);
+-    resize_area_->SetVisible(true);
+-    UpdateContentsBorderAndOverlay();
+-  }
+-
+   SafeInvoke(web_contents)
+       .Then(Overload<content::WebContents*>(
+           &tabs::TabInterface::MaybeGetFromContents))
+@@ -281,18 +341,19 @@ void MultiContentsView::SetWebContentsAtIndex(
+ 
+ void MultiContentsView::ShowSplitView(
+     split_tabs::SplitTabVisualData visual_data) {
+-  if (!contents_container_views_[1]->GetVisible()) {
+-    // If split view is not visible, set the `visual_data_` and update the view
+-    // visibility.
+-    visual_data_ = visual_data;
+-    contents_container_views_[1]->SetVisible(true);
+-    resize_area_->SetVisible(true);
+-    resize_area_->SetLayout(visual_data.split_layout());
+-    UpdateContentsBorderAndOverlay();
+-  } else {
+-    // If the split view is visible, update the split visual data.
+-    UpdateSplitVisualData(visual_data);
++  // navegador: o número de painéis vem do desenho (a árvore tem 3 ou 4; sem
++  // ela, 2).
++  int paineis = 2;
++  if (!visual_data.navegador_arvore().empty()) {
++    if (std::optional<navegador::divisao::No> arvore =
++            navegador::divisao::Ler(visual_data.navegador_arvore())) {
++      paineis = std::max(2, navegador::divisao::Paineis(*arvore));
++    }
+   }
++  visual_data_ = visual_data;
++  NavegadorDefinirPaineis(paineis);
++  NavegadorAtualizarDivisores();
++  InvalidateLayout();
+ }
+ 
+ void MultiContentsView::CloseSplitView() {
+@@ -300,13 +361,14 @@ void MultiContentsView::CloseSplitView() {
+     return;
+   }
+ 
++  // navegador: o painel ativo vai pro começo; os outros (até 3) somem.
+   if (active_index_ != 0) {
+-    SwapContentsInSplitView();
++    std::swap(contents_container_views_[0],
++              contents_container_views_[active_index_]);
++    active_index_ = 0;
++    NavegadorReordenarFilhos();
+   }
+-  contents_container_views_[1]->contents_view()->SetWebContents(nullptr);
+-  contents_container_views_[1]->SetVisible(false);
+-  resize_area_->SetVisible(false);
+-  UpdateContentsBorderAndOverlay();
++  NavegadorDefinirPaineis(1);
+ 
+   SafeInvoke(GetActiveContentsView()->web_contents())
+       .Then(Overload<content::WebContents*>(
+@@ -333,12 +395,18 @@ void MultiContentsView::SwapContentsInSplitView() {
+ void MultiContentsView::SetActiveIndex(int index) {
+   // Index should never be less than 0 or equal to or greater than the total
+   // number of contents views.
+-  CHECK(index >= 0 && index < 2);
++  // navegador: até 4 painéis.
++  CHECK(index >= 0 && index < kNavegadorMaximoDePaineis);
+   // We will only activate a visible contents view.
+   CHECK(contents_container_views_[index]->GetVisible());
+   active_index_ = index;
+-  GetActiveContentsView()->set_is_primary_web_contents_for_window(true);
+-  GetInactiveContentsView()->set_is_primary_web_contents_for_window(false);
++  for (auto& container : contents_container_views_) {
++    container->contents_view()->set_is_primary_web_contents_for_window(
++        container == GetActiveContentsContainerView());
++  }
++  for (size_t i = 0; i < alcas_.size(); ++i) {
++    alcas_[i]->SetAtiva(static_cast<int>(i) == active_index_);
++  }
+   UpdateContentsBorderAndOverlay();
+ }
+ 
+@@ -349,7 +417,7 @@ void MultiContentsView::UpdateSplitVisualData(
+   }
+ 
+   visual_data_ = visual_data;
+-  resize_area_->SetLayout(visual_data.split_layout());
++  NavegadorAtualizarDivisores();
+   InvalidateLayout();
+ }
+ 
+@@ -404,23 +472,312 @@ std::vector<views::View*> MultiContentsView::GetAccessiblePanes() {
+ }
+ 
+ void MultiContentsView::OnResize(int resize_amount, bool done_resizing) {
+-  if (!initial_start_size_on_resize_.has_value()) {
+-    initial_start_size_on_resize_ = std::make_optional(
+-        GetResizeAxisComponent(contents_container_views_[0]->size()));
+-  }
+-  double total_size =
+-      GetResizeAxisComponent(contents_container_views_[0]->size()) +
+-      GetResizeAxisComponent(contents_container_views_[1]->size());
+-  double new_start_size = initial_start_size_on_resize_.value() + resize_amount;
++  // navegador: cada fresta avisa com o índice dela (NavegadorRedimensionar).
++  NavegadorRedimensionar(0, resize_amount, done_resizing);
++}
+ 
+-  // If new_start_size is within the snap point sizes, update to the snap
+-  // point.
+-  delegate_->ResizeWebContents(
+-      CalculateRatioWithSnapPoints(new_start_size, total_size), done_resizing);
+-
+-  if (done_resizing) {
+-    initial_start_size_on_resize_ = std::nullopt;
++void MultiContentsView::NavegadorRedimensionar(int indice,
++                                               int quanto,
++                                               bool fim) {
++  if (!IsInSplitView()) {
++    return;
+   }
++  // As páginas só se refazem quando o mouse para (ou ao soltar).
++  if (fim) {
++    navegador_assentar_.Stop();
++    NavegadorRapido(false);
++  } else {
++    NavegadorRapido(true);
++    navegador_assentar_.Start(
++        FROM_HERE, base::Milliseconds(120),
++        base::BindOnce(&MultiContentsView::NavegadorAssentar,
++                       base::Unretained(this)));
++  }
++  if (!arvore_no_inicio_ || divisor_arrastado_ != indice) {
++    arvore_no_inicio_ = navegador::divisao::ArvoreDe(visual_data_, paineis_);
++    area_no_inicio_ = NavegadorAreaDosPaineis();
++    divisor_arrastado_ = indice;
++  }
++  const navegador::divisao::Retangulo area{
++      area_no_inicio_.x(), area_no_inicio_.y(), area_no_inicio_.width(),
++      area_no_inicio_.height()};
++  const navegador::divisao::Desenho desenho =
++      navegador::divisao::Calcular(*arvore_no_inicio_, area, NavegadorEspaco());
++  if (indice >= 0 && indice < static_cast<int>(desenho.divisores.size())) {
++    const navegador::divisao::Divisor& divisor = desenho.divisores[indice];
++    // O menor painel: como o Chromium (10% da janela, entre 50 e 200 px).
++    const int minimo = std::clamp(
++        static_cast<int>(kMinWebContentsSizePercentage *
++                         std::max(area_no_inicio_.width(),
++                                  area_no_inicio_.height())),
++        kConstrainedMinWebContentsSize,
++        min_contents_size_for_testing_.value_or(kMinWebContentsSize));
++    delegate_->NavegadorDesenhar(
++        navegador::divisao::VisualDe(navegador::divisao::Redimensionar(
++            *arvore_no_inicio_, area, NavegadorEspaco(), divisor.caminho,
++            divisor.indice, quanto, minimo)),
++        fim);
++  }
++  if (fim) {
++    arvore_no_inicio_.reset();
++    divisor_arrastado_ = -1;
++  }
++}
++
++void MultiContentsView::NavegadorRapido(bool rapido) {
++  if (navegador_rapido_ == rapido) {
++    return;
++  }
++  navegador_rapido_ = rapido;
++  for (int i = 0; i < paineis_; ++i) {
++    ContentsWebView* const pagina =
++        contents_container_views_[i]->contents_view();
++    pagina->SetFastResize(rapido);
++    if (!rapido) {
++      // Com o mesmo tamanho de antes o NativeViewHost não refaz o layout
++      // sozinho, e a página ficaria recortada no tamanho velho.
++      pagina->holder()->InvalidateLayout();
++    }
++  }
++}
++
++void MultiContentsView::NavegadorAssentar() {
++  // O mouse parou no meio do arrasto: as páginas se refazem no tamanho de
++  // agora, e o arrasto continua rápido.
++  NavegadorRapido(false);
++  DeprecatedLayoutImmediately();
++  NavegadorRapido(true);
++}
++
++void MultiContentsView::NavegadorDuploClique(int indice) {
++  if (!IsInSplitView()) {
++    return;
++  }
++  if (paineis_ <= 2) {
++    OnSwap();
++    return;
++  }
++  const navegador::divisao::No arvore =
++      navegador::divisao::ArvoreDe(visual_data_, paineis_);
++  const navegador::divisao::Desenho desenho = navegador::divisao::Calcular(
++      arvore, navegador::divisao::Retangulo{0, 0, 1000, 1000}, 0);
++  if (indice < 0 || indice >= static_cast<int>(desenho.divisores.size())) {
++    return;
++  }
++  delegate_->NavegadorDesenhar(
++      navegador::divisao::VisualDe(navegador::divisao::IgualarNo(
++          arvore, desenho.divisores[indice].caminho)),
++      /*fim=*/true);
++}
++
++void MultiContentsView::NavegadorMostrarPaginas(
++    const std::vector<content::WebContents*>& paginas,
++    int ativa,
++    const split_tabs::SplitTabVisualData& visual_data) {
++  const int n = std::clamp(static_cast<int>(paginas.size()), 1,
++                           kNavegadorMaximoDePaineis);
++  // Os painéis que já mostram uma das páginas vão pro lugar dela; os outros
++  // preenchem o resto, na ordem.
++  std::vector<raw_ptr<ContentsContainerView, DanglingUntriaged>> novos(
++      contents_container_views_.size(), nullptr);
++  std::vector<bool> usado(contents_container_views_.size(), false);
++  for (int i = 0; i < n; ++i) {
++    for (size_t j = 0; j < contents_container_views_.size(); ++j) {
++      if (!usado[j] && paginas[i] &&
++          contents_container_views_[j]->contents_view()->web_contents() ==
++              paginas[i]) {
++        novos[i] = contents_container_views_[j];
++        usado[j] = true;
++        break;
++      }
++    }
++  }
++  for (size_t i = 0, j = 0; i < novos.size(); ++i) {
++    if (novos[i]) {
++      continue;
++    }
++    while (usado[j]) {
++      ++j;
++    }
++    novos[i] = contents_container_views_[j];
++    usado[j] = true;
++  }
++  contents_container_views_ = std::move(novos);
++  NavegadorReordenarFilhos();
++
++  visual_data_ = visual_data;
++  NavegadorDefinirPaineis(n);
++  for (int i = 0; i < n; ++i) {
++    ContentsWebView* const pagina =
++        contents_container_views_[i]->contents_view();
++    if (pagina->web_contents() != paginas[i]) {
++      pagina->SetWebContents(paginas[i]);
++      SafeInvoke(paginas[i])
++          .Then(Overload<content::WebContents*>(
++              &tabs::TabInterface::MaybeGetFromContents))
++          .Then(&SadTabHelper::From)
++          .Then(&SadTabHelper::ReinstallInWebView);
++    }
++  }
++  SetActiveIndex(std::clamp(ativa, 0, n - 1));
++  NavegadorAtualizarDivisores();
++  InvalidateLayout();
++}
++
++std::vector<ContentsWebView*> MultiContentsView::NavegadorPaginasVisiveis()
++    const {
++  std::vector<ContentsWebView*> paginas = {GetActiveContentsView()};
++  for (int i = 0; i < paineis_; ++i) {
++    if (i != active_index_) {
++      paginas.push_back(contents_container_views_[i]->contents_view());
++    }
++  }
++  return paginas;
++}
++
++bool MultiContentsView::NavegadorMostraInativa(
++    const content::WebContents* contents) const {
++  if (!contents) {
++    return false;
++  }
++  for (int i = 0; i < paineis_; ++i) {
++    if (i != active_index_ &&
++        contents_container_views_[i]->contents_view()->web_contents() ==
++            contents) {
++      return true;
++    }
++  }
++  return false;
++}
++
++bool MultiContentsView::NavegadorInativaComFoco() const {
++  for (int i = 0; i < paineis_; ++i) {
++    if (i != active_index_ &&
++        contents_container_views_[i]->contents_view()->HasFocus()) {
++      return true;
++    }
++  }
++  return false;
++}
++
++void MultiContentsView::NavegadorLimparInativas() {
++  for (size_t i = 0; i < contents_container_views_.size(); ++i) {
++    if (static_cast<int>(i) != active_index_) {
++      contents_container_views_[i]->contents_view()->SetWebContents(nullptr);
++    }
++  }
++}
++
++int MultiContentsView::NavegadorPainelEm(const gfx::Point& ponto) const {
++  if (!GetLocalBounds().Contains(ponto)) {
++    return -1;
++  }
++  int mais_perto = -1;
++  int64_t distancia = 0;
++  for (int i = 0; i < paineis_; ++i) {
++    const gfx::Rect r = contents_container_views_[i]->bounds();
++    if (r.Contains(ponto)) {
++      return i;
++    }
++    const int dx = std::max({r.x() - ponto.x(), 0, ponto.x() - r.right()});
++    const int dy = std::max({r.y() - ponto.y(), 0, ponto.y() - r.bottom()});
++    const int64_t d = static_cast<int64_t>(dx) * dx + static_cast<int64_t>(dy) * dy;
++    if (mais_perto < 0 || d < distancia) {
++      mais_perto = i;
++      distancia = d;
++    }
++  }
++  return mais_perto;
++}
++
++TabDragTarget* MultiContentsView::NavegadorAlvo(
++    const gfx::Point& ponto_na_tela) {
++  if (!alvo_da_divisao_ || !GetVisible() ||
++      !GetBoundsInScreen().Contains(ponto_na_tela)) {
++    return nullptr;
++  }
++  return alvo_da_divisao_.get();
++}
++
++int MultiContentsView::NavegadorEspaco() const {
++  return navegador::espacos::EspacoDaDivisao(browser_view_->GetProfile());
++}
++
++void MultiContentsView::NavegadorDefinirPaineis(int paineis) {
++  paineis = std::clamp(paineis, 1, kNavegadorMaximoDePaineis);
++  // O painel ativo fica entre os que aparecem.
++  if (active_index_ >= paineis) {
++    std::swap(contents_container_views_[0],
++              contents_container_views_[active_index_]);
++    active_index_ = 0;
++    NavegadorReordenarFilhos();
++  }
++  for (int i = 0; i < kNavegadorMaximoDePaineis; ++i) {
++    ContentsContainerView* const container = contents_container_views_[i];
++    if (i >= paineis) {
++      container->contents_view()->SetWebContents(nullptr);
++    }
++    container->SetVisible(i < paineis);
++  }
++  if (paineis_ != paineis) {
++    paineis_ = paineis;
++    NavegadorAtualizarDivisores();
++    UpdateContentsBorderAndOverlay();
++    InvalidateLayout();
++  }
++}
++
++void MultiContentsView::NavegadorAtualizarDivisores() {
++  // As frestas (e o lado de cada uma) não dependem do tamanho da área.
++  const navegador::divisao::Desenho desenho =
++      NavegadorDesenho(gfx::Rect(0, 0, 1000, 1000));
++  for (size_t j = 0; j < divisores_.size(); ++j) {
++    const bool visivel =
++        IsInSplitView() && j < desenho.divisores.size();
++    if (visivel) {
++      divisores_[j]->SetLayout(desenho.divisores[j].em_pe
++                                   ? split_tabs::SplitTabLayout::kSideBySide
++                                   : split_tabs::SplitTabLayout::kStacked);
++    }
++    divisores_[j]->SetVisible(visivel);
++  }
++  for (size_t i = 0; i < alcas_.size(); ++i) {
++    alcas_[i]->SetVisible(IsInSplitView() && static_cast<int>(i) < paineis_);
++    alcas_[i]->SetAtiva(static_cast<int>(i) == active_index_);
++  }
++  if (vigia_) {
++    vigia_->Ligar(IsInSplitView());
++  }
++}
++
++void MultiContentsView::NavegadorReordenarFilhos() {
++  // Os painéis ocupam as primeiras posições depois do fundo, na ordem.
++  const size_t primeiro = GetIndexOf(background_view_).value_or(0) + 1;
++  for (size_t i = 0; i < contents_container_views_.size(); ++i) {
++    ReorderChildView(contents_container_views_[i], primeiro + i);
++  }
++}
++
++navegador::divisao::Desenho MultiContentsView::NavegadorDesenho(
++    const gfx::Rect& area) const {
++  const navegador::divisao::Retangulo retangulo{area.x(), area.y(),
++                                                area.width(), area.height()};
++  if (paineis_ <= 1) {
++    navegador::divisao::Desenho desenho;
++    desenho.paineis.push_back(retangulo);
++    return desenho;
++  }
++  return navegador::divisao::Calcular(
++      navegador::divisao::ArvoreDe(visual_data_, paineis_), retangulo,
++      NavegadorEspaco());
++}
++
++gfx::Rect MultiContentsView::NavegadorAreaDosPaineis() const {
++  gfx::Rect area;
++  for (int i = 0; i < paineis_; ++i) {
++    area.Union(contents_container_views_[i]->bounds());
++  }
++  return area;
+ }
+ 
+ double MultiContentsView::CalculateRatioWithSnapPoints(
+@@ -438,9 +795,19 @@ double MultiContentsView::CalculateRatioWithSnapPoints(
+ void MultiContentsView::OnThemeChanged() {
+   views::View::OnThemeChanged();
+   UpdateContentsBorderAndOverlay();
++  // navegador: já na janela (o vigia das alças precisa dela).
++  if (vigia_) {
++    vigia_->Ligar(IsInSplitView());
++  }
+ }
+ 
+ int MultiContentsView::GetInactiveIndex() const {
++  // navegador: até 4 painéis; o primeiro que aparece e não é o ativo.
++  for (int i = 0; i < paineis_; ++i) {
++    if (i != active_index_) {
++      return i;
++    }
++  }
+   return active_index_ == 0 ? 1 : 0;
+ }
+ 
+@@ -448,7 +815,8 @@ void MultiContentsView::OnWebContentsFocused(views::WebView* web_view) {
+   if (IsInSplitView()) {
+     // Check whether the widget is visible as otherwise during browser hide,
+     // inactive web contents gets focus. See crbug.com/419335827
+-    if (GetInactiveContentsView()->web_contents() == web_view->web_contents() &&
++    // navegador: qualquer painel que não é o ativo.
++    if (NavegadorMostraInativa(web_view->web_contents()) &&
+         GetWidget()->IsVisible()) {
+       delegate_->WebContentsFocused(web_view->web_contents());
+     }
+@@ -460,10 +828,10 @@ void MultiContentsView::OnActorOverlayFocused(views::WebView* web_view) {
+     for (auto& contents_container_view : contents_container_views_) {
+       if (contents_container_view->actor_overlay_web_view() &&
+           contents_container_view->actor_overlay_web_view() == web_view &&
+-          GetInactiveContentsView() ==
+-              contents_container_view->contents_view()) {
++          NavegadorMostraInativa(
++              contents_container_view->contents_view()->web_contents())) {
+         return delegate_->WebContentsFocused(
+-            GetInactiveContentsView()->web_contents());
++            contents_container_view->contents_view()->web_contents());
+       }
+     }
+   }
+@@ -474,10 +842,10 @@ void MultiContentsView::OnNtpFooterFocused(views::WebView* web_view) {
+     for (auto& contents_container_view : contents_container_views_) {
+       if (contents_container_view->new_tab_footer_view() &&
+           contents_container_view->new_tab_footer_view() == web_view &&
+-          GetInactiveContentsView() ==
+-              contents_container_view->contents_view()) {
++          NavegadorMostraInativa(
++              contents_container_view->contents_view()->web_contents())) {
+         return delegate_->WebContentsFocused(
+-            GetInactiveContentsView()->web_contents());
++            contents_container_view->contents_view()->web_contents());
+       }
+     }
+   }
+@@ -487,7 +855,7 @@ void MultiContentsView::OnReadAnythingOverlayFocused(
+     ContentsContainerView* container,
+     views::WebView* web_view) {
+   if (IsInSplitView() && GetWidget()->IsVisible()) {
+-    if (GetInactiveContentsContainerView() == container) {
++    if (NavegadorMostraInativa(container->contents_view()->web_contents())) {
+       delegate_->WebContentsFocused(container->contents_view()->web_contents());
+     }
+   }
+@@ -522,36 +890,68 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+   if (IsInSplitView()) {
+     available_space.Inset(split_view_insets_);
+   }
+-  ViewSizes sizes = GetViewSizes(available_space);
+ 
+-  gfx::Rect start_rect, resize_rect, end_rect;
+-  if (GetSplitLayout() == split_tabs::SplitTabLayout::kSideBySide) {
+-    start_rect = gfx::Rect(available_space.origin(),
+-                           gfx::Size(sizes.start, available_space.height()));
+-    resize_rect = gfx::Rect(start_rect.top_right(),
+-                            gfx::Size(sizes.resize, available_space.height()));
+-    end_rect = gfx::Rect(resize_rect.top_right(),
+-                         gfx::Size(sizes.end, available_space.height()));
+-  } else {
+-    start_rect = gfx::Rect(available_space.origin(),
+-                           gfx::Size(available_space.width(), sizes.start));
+-    resize_rect = gfx::Rect(start_rect.bottom_left(),
+-                            gfx::Size(available_space.width(), sizes.resize));
+-    end_rect = gfx::Rect(resize_rect.bottom_left(),
+-                         gfx::Size(available_space.width(), sizes.end));
++  // navegador: até 4 painéis (navegador/browser/divisao), no desenho da
++  // árvore da divisão, com as frestas entre eles.
++  const navegador::divisao::Desenho desenho = NavegadorDesenho(available_space);
++  for (size_t i = 0; i < contents_container_views_.size(); ++i) {
++    ContentsContainerView* const container = contents_container_views_[i];
++    gfx::Rect retangulo;
++    if (static_cast<int>(i) < paineis_ && i < desenho.paineis.size()) {
++      retangulo = Retangulo(desenho.paineis[i]);
++    }
++    layouts.child_layouts.emplace_back(container, container->GetVisible(),
++                                       retangulo);
++  }
++  for (size_t j = 0; j < divisores_.size(); ++j) {
++    gfx::Rect retangulo;
++    if (IsInSplitView() && j < desenho.divisores.size()) {
++      // A área de pegar tem pelo menos kNavegadorAreaDeToque px, mesmo com
++      // pouco espaço entre as páginas (passa por cima da beira delas).
++      retangulo = Retangulo(desenho.divisores[j].area);
++      const int falta = kNavegadorAreaDeToque - (desenho.divisores[j].em_pe
++                                                     ? retangulo.width()
++                                                     : retangulo.height());
++      if (falta > 0) {
++        retangulo.Outset(desenho.divisores[j].em_pe
++                             ? gfx::Outsets::TLBR(0, falta / 2, 0,
++                                                  falta - falta / 2)
++                             : gfx::Outsets::TLBR(falta / 2, 0,
++                                                  falta - falta / 2, 0));
++      }
++    }
++    layouts.child_layouts.emplace_back(divisores_[j].get(),
++                                       divisores_[j]->GetVisible(), retangulo);
++  }
++  // A alça de cada painel, pendurada no meio da beira de cima dele.
++  for (size_t i = 0; i < alcas_.size(); ++i) {
++    gfx::Rect retangulo;
++    if (IsInSplitView() && static_cast<int>(i) < paineis_ &&
++        i < desenho.paineis.size()) {
++      const gfx::Rect painel = Retangulo(desenho.paineis[i]);
++      retangulo = gfx::Rect(
++          painel.CenterPoint().x() -
++              navegador::divisao::AlcaDoPainel::kLargura / 2,
++          painel.y(), navegador::divisao::AlcaDoPainel::kLargura,
++          navegador::divisao::AlcaDoPainel::kAltura);
++      retangulo.Intersect(painel);
++    }
++    layouts.child_layouts.emplace_back(alcas_[i].get(),
++                                       alcas_[i]->GetVisible(), retangulo);
+   }
+-
+-  layouts.child_layouts.emplace_back(contents_container_views_[0].get(),
+-                                     contents_container_views_[0]->GetVisible(),
+-                                     start_rect);
+-  layouts.child_layouts.emplace_back(resize_area_.get(),
+-                                     resize_area_->GetVisible(), resize_rect);
+-  layouts.child_layouts.emplace_back(contents_container_views_[1].get(),
+-                                     contents_container_views_[1]->GetVisible(),
+-                                     end_rect);
    layouts.child_layouts.emplace_back(lens_overlay_view_.get(),
                                       lens_overlay_view_->GetVisible(),
                                       gfx::Rect(width, height));
-+  // navegador: a prévia de link e o painel da Memória cobrem a área
-+  // inteira, por cima das páginas.
++  // navegador: a prévia de link, o painel da Memória e a prévia de soltar
++  // uma aba cobrem a área inteira, por cima das páginas.
 +  for (views::View* filho : children()) {
 +    if (filho->GetID() == navegador::visual::kIdPrevia ||
-+        filho->GetID() == navegador::visual::kIdMemoria) {
++        filho->GetID() == navegador::visual::kIdMemoria ||
++        filho->GetID() == navegador::divisao::kIdSoltar) {
 +      layouts.child_layouts.emplace_back(filho, filho->GetVisible(),
 +                                         gfx::Rect(width, height));
 +    }
@@ -26,3 +732,67 @@ index 76475b5693..0aa19b7a38 100644
  
    layouts.host_size = gfx::Size(width, height);
    return layouts;
+@@ -567,8 +967,14 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
+ 
+   if (!IsInSplitView()) {
+     const auto outsets = -target_content_bounds_->clipped_area.ToOutsets();
+-    GetActiveContentsContainerView()->SetTargetContentBounds(outsets);
+-    GetInactiveContentsContainerView()->SetTargetContentBounds(std::nullopt);
++    // navegador: até 4 painéis; só o ativo aparece.
++    for (auto& contents : contents_container_views_) {
++      if (contents == GetActiveContentsContainerView()) {
++        contents->SetTargetContentBounds(outsets);
++      } else {
++        contents->SetTargetContentBounds(std::nullopt);
++      }
++    }
+     return;
+   }
+ 
+@@ -594,28 +1000,25 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
+   // edge for both split webviews. This reduces jumping/popping for very slow
+   // websites.
+ 
+-  gfx::Outsets first_outsets = gfx::Outsets::TLBR(
+-      default_clip.top(), 0, default_clip.bottom(), default_clip.left());
+-  auto* const first = contents_container_views_[0].get();
+-  auto* const first_current = layout.GetLayoutFor(first);
+-  auto* const first_target = target_layout.GetLayoutFor(first);
+-  if (first_current && first_target) {
+-    first_outsets.set_right(std::max(
+-        0, first_target->bounds.width() - first_current->bounds.width()));
++  // navegador: até 4 painéis (navegador/browser/divisao), todos como o
++  // segundo do Chromium.
++  for (size_t i = 0; i < contents_container_views_.size(); ++i) {
++    ContentsContainerView* const contents = contents_container_views_[i];
++    if (static_cast<int>(i) >= paineis_) {
++      contents->SetTargetContentBounds(std::nullopt);
++      continue;
++    }
++    gfx::Outsets outsets = gfx::Outsets::TLBR(
++        default_clip.top(), 0, default_clip.bottom(),
++        i == 0 ? default_clip.left() : default_clip.right());
++    auto* const current = layout.GetLayoutFor(contents);
++    auto* const target = target_layout.GetLayoutFor(contents);
++    if (current && target) {
++      outsets.set_right(
++          std::max(0, target->bounds.width() - current->bounds.width()));
++    }
++    contents->SetTargetContentBounds(outsets);
+   }
+-
+-  gfx::Outsets second_outsets = gfx::Outsets::TLBR(
+-      default_clip.top(), 0, default_clip.bottom(), default_clip.right());
+-  auto* const second = contents_container_views_[1].get();
+-  auto* const second_current = layout.GetLayoutFor(second);
+-  auto* const second_target = target_layout.GetLayoutFor(second);
+-  if (second_current && second_target) {
+-    second_outsets.set_right(std::max(
+-        0, second_target->bounds.width() - second_current->bounds.width()));
+-  }
+-
+-  first->SetTargetContentBounds(first_outsets);
+-  second->SetTargetContentBounds(second_outsets);
+ }
+ 
+ gfx::Rect MultiContentsView::CalculateDropTargetLayout(

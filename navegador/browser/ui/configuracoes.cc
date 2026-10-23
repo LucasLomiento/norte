@@ -1495,6 +1495,19 @@ std::unique_ptr<views::View> PaginaAparencia(BrowserWindowInterface* browser) {
               },
               perfil))));
   janela->Adicionar(Linha(
+      u"Espaço da tela dividida",
+      u"Entre as páginas divididas e em volta delas. É também onde se "
+      u"arrasta pra mudar o tamanho de cada uma.",
+      std::make_unique<Deslizador>(
+          espacos::kEspacoDaDivisaoMinimo, espacos::kEspacoDaDivisaoMaximo, 1,
+          espacos::EspacoDaDivisao(perfil), u" px", u"Espaço da tela dividida",
+          base::BindRepeating(
+              [](Profile* perfil, int valor) {
+                perfil->GetPrefs()->SetInteger(espacos::kEspacoDaDivisaoPref,
+                                               valor);
+              },
+              perfil))));
+  janela->Adicionar(Linha(
       u"Barra e abas na tela cheia",
       u"Na tela cheia (F11 ou o Super+F do sistema), a barra de endereço e "
       u"a lateral continuam. Desligado, somem como no Chrome. Vídeo em tela "

@@ -30,6 +30,7 @@ std::u16string Palavras(std::string_view acao) {
     return u"zen compacto tela";
   }
   if (acao == "dividir_lado" || acao == "dividir_cima" ||
+      acao == "dividir_grade" || acao == "desfazer_divisao" ||
       acao == "trocar_lados") {
     return u"split divisao";
   }

@@ -62,7 +62,7 @@ index e0d817653b..44eb263481 100644
  }
  
 diff --git i/chrome/browser/ui/views/frame/browser_view.cc w/chrome/browser/ui/views/frame/browser_view.cc
-index 63c3090b4c..fc7b6a6cbb 100644
+index 63c3090b4c..bb90b964e3 100644
 --- i/chrome/browser/ui/views/frame/browser_view.cc
 +++ w/chrome/browser/ui/views/frame/browser_view.cc
 @@ -4,6 +4,11 @@
@@ -86,7 +86,29 @@ index 63c3090b4c..fc7b6a6cbb 100644
  #include "ui/base/dragdrop/os_exchange_data.h"
  #include "ui/base/hit_test.h"
  #include "ui/base/l10n/l10n_util.h"
-@@ -2344,6 +2351,9 @@ void BrowserView::SetFocusToLocationBar(bool is_user_initiated) {
+@@ -2021,7 +2028,8 @@ void BrowserView::OnActiveTabChanged(content::WebContents* old_contents,
+       GetWidget()->GetFocusManager()->ClearFocus();
+     }
+ 
+-    multi_contents_view_->GetInactiveContentsView()->SetWebContents(nullptr);
++    // navegador: até 4 painéis (navegador/browser/divisao).
++    multi_contents_view_->NavegadorLimparInativas();
+     active_contents_view->SetWebContents(nullptr);
+   }
+ 
+@@ -2187,7 +2195,10 @@ void BrowserView::SetContentsSize(const gfx::Size& size) {
+ 
+   // If in split view, the size diff needs to be scaled by the split ratio to
+   // account for the combined width of both contents views.
+-  if (multi_contents_view_->IsInSplitView()) {
++  // navegador: com mais de duas abas o tamanho de cada página não sai de uma
++  // proporção só; fica a diferença inteira.
++  if (multi_contents_view_->IsInSplitView() &&
++      multi_contents_view_->NavegadorPaineis() == 2) {
+     const double split_ratio = multi_contents_view_->GetSplitRatio();
+     CHECK(split_ratio > 0.0 && split_ratio < 1.0);
+     const double divider = multi_contents_view_->GetActiveIndex() == 0
+@@ -2344,6 +2355,9 @@ void BrowserView::SetFocusToLocationBar(bool is_user_initiated) {
      return;
    }
  #endif
@@ -96,7 +118,21 @@ index 63c3090b4c..fc7b6a6cbb 100644
    if (!IsLocationBarVisible()) {
      return;
    }
-@@ -3014,6 +3024,10 @@ bool BrowserView::IsBookmarkBarVisible() const {
+@@ -2490,6 +2504,13 @@ TabDragTarget* BrowserView::GetTabDragTarget(
+       return target;
+     }
+   }
++  // navegador: a aba arrastada da lateral pra cima das páginas divide a tela
++  // em qualquer lado de qualquer painel (navegador/browser/divisao/soltar.h),
++  // com ou sem divisão.
++  if (TabDragTarget* alvo =
++          multi_contents_view_->NavegadorAlvo(point_in_screen)) {
++    return alvo;
++  }
+   if (multi_contents_view_->IsInSplitView() ||
+       !multi_contents_view_->IsDragAndDropEnabled()) {
+     return nullptr;
+@@ -3014,6 +3035,10 @@ bool BrowserView::IsBookmarkBarVisible() const {
            WindowFeatureController::WindowFeature::kFeatureBookmarkBar)) {
      return false;
    }
@@ -107,7 +143,7 @@ index 63c3090b4c..fc7b6a6cbb 100644
    if (!bookmark_bar_view_) {
      return false;
    }
-@@ -3067,7 +3081,7 @@ bool BrowserView::IsToolbarVisible() const {
+@@ -3067,7 +3092,7 @@ bool BrowserView::IsToolbarVisible() const {
                WindowFeatureController::WindowFeature::kFeatureToolbar) ||
            WindowFeatureController::From(browser_)->SupportsWindowFeature(
                WindowFeatureController::WindowFeature::kFeatureLocationBar)) &&
@@ -116,7 +152,7 @@ index 63c3090b4c..fc7b6a6cbb 100644
  }
  
  bool BrowserView::IsToolbarShowing() const {
-@@ -3191,6 +3205,10 @@ void BrowserView::UserChangedTheme(BrowserThemeChangeType theme_change_type) {
+@@ -3191,6 +3216,10 @@ void BrowserView::UserChangedTheme(BrowserThemeChangeType theme_change_type) {
  }
  
  void BrowserView::ShowAppMenu() {
@@ -127,7 +163,7 @@ index 63c3090b4c..fc7b6a6cbb 100644
    auto* control = ToolbarButtonProvider::From(browser_)->GetAppMenuControl();
    if (!control) {
      return;
-@@ -3255,6 +3273,14 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
+@@ -3255,6 +3284,14 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
      return result;
    }
  
@@ -142,7 +178,7 @@ index 63c3090b4c..fc7b6a6cbb 100644
    int id;
    if (!FindCommandIdForAccelerator(accelerator, &id)) {
      // |accelerator| is not a browser command, it may be handled by ash (e.g.
-@@ -3289,6 +3315,18 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
+@@ -3289,6 +3326,18 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
  
  void BrowserView::PreHandleDragUpdate(const content::DropData& drop_data,
                                        const gfx::PointF& point) {
@@ -161,6 +197,82 @@ index 63c3090b4c..fc7b6a6cbb 100644
    if (multi_contents_view_->IsDragAndDropEnabled()) {
      // Read the split state from the active tab because when BrowserView is in
      // full screen it may not be rendering a split, even though the active tab
+@@ -3489,8 +3538,10 @@ void BrowserView::OnSplitTabChanged(const SplitTabChange& change) {
+       const tabs::TabInterface* active_tab =
+           browser_->GetTabStripModel()->GetActiveTab();
+ 
++      // navegador: com até 4 abas a ordem pode mudar de qualquer jeito; os
++      // painéis acompanham sem recarregar as páginas.
+       if (active_tab->GetSplit() == change.split_id) {
+-        multi_contents_view_->SwapContentsInSplitView();
++        ShowSplitView(/*focus_active_view=*/false);
+       }
+       break;
+     }
+@@ -4310,15 +4361,17 @@ void BrowserView::ShowSplitView(bool focus_active_view) {
+ 
+   std::vector<tabs::TabInterface*> split_tabs = split_data->ListTabs();
+ 
+-  for (size_t i = 0; tabs::TabInterface* tab : split_tabs) {
+-    multi_contents_view_->SetWebContentsAtIndex(tab->GetContents(), i++);
++  // navegador: até 4 painéis (navegador/browser/divisao); os que já mostram
++  // a página dela só mudam de lugar.
++  std::vector<content::WebContents*> paginas;
++  for (tabs::TabInterface* tab : split_tabs) {
++    paginas.push_back(tab->GetContents());
+   }
+   const int first_split_tab_index =
+       browser_->GetTabStripModel()->GetIndexOfTab(split_tabs[0]);
+   const int relative_active_position = active_index - first_split_tab_index;
+-  multi_contents_view_->SetActiveIndex(relative_active_position);
+-
+-  multi_contents_view_->UpdateSplitVisualData(*split_data->visual_data());
++  multi_contents_view_->NavegadorMostrarPaginas(
++      paginas, relative_active_position, *split_data->visual_data());
+ 
+   // Set focus to the active contents avoid reentrency when setting the web
+   // contents within MultiContentsView. See crbug.com/458189541 and
+@@ -4358,19 +4411,20 @@ void BrowserView::UpdateActiveTabInSplitView() {
+   // When active tab changes inside a split, it's generally due to focus change.
+   // However, there are cases where inactive tab can be activated without a
+   // focus change e.g. using tab shortcuts and in these cases update focus.
++  // navegador: até 4 painéis.
+   if (GetWidget()->IsActive() &&
+-      multi_contents_view_->GetInactiveContentsView()->HasFocus()) {
++      multi_contents_view_->NavegadorInativaComFoco()) {
+     multi_contents_view_->GetActiveContentsView()->RequestFocus();
+   }
+ }
+ 
+ bool BrowserView::IsTabChangeInSplitView(content::WebContents* old_contents,
+                                          content::WebContents* new_contents) {
++  // navegador: até 4 painéis (navegador/browser/divisao).
+   return multi_contents_view_->IsInSplitView() &&
+          multi_contents_view_->GetActiveContentsView()->web_contents() ==
+              old_contents &&
+-         multi_contents_view_->GetInactiveContentsView()->web_contents() ==
+-             new_contents;
++         multi_contents_view_->NavegadorMostraInativa(new_contents);
+ }
+ 
+ void BrowserView::UpdateTabModalDialogHost() {
+@@ -4417,14 +4471,8 @@ void BrowserView::MaybeUpdateStoredFocusForWebContents(
+ }
+ 
+ std::vector<ContentsWebView*> BrowserView::GetAllVisibleContentsWebViews() {
+-  std::vector<ContentsWebView*> contents_views;
+-  contents_views.push_back(multi_contents_view_->GetActiveContentsView());
+-  ContentsWebView* inactive_contents_view =
+-      multi_contents_view_->GetInactiveContentsView();
+-  if (multi_contents_view_->IsInSplitView()) {
+-    contents_views.push_back(inactive_contents_view);
+-  }
+-  return contents_views;
++  // navegador: até 4 painéis (navegador/browser/divisao).
++  return multi_contents_view_->NavegadorPaginasVisiveis();
+ }
+ 
+ void BrowserView::RevealTopContainerIfNeeded() {
 diff --git i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 index d69e4dd30f..136105c6e2 100644
 --- i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc

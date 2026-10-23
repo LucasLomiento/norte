@@ -67,7 +67,7 @@ index 9190f16df0..a1e73f1094 100644
    // Update the local group with the new data. This will open new tabs, close
    // tabs, and navigate tabs to match the saved group.
 diff --git i/chrome/browser/ui/tabs/tab_strip_model.cc w/chrome/browser/ui/tabs/tab_strip_model.cc
-index 01f863a9f4..44dddf1a1a 100644
+index 01f863a9f4..82e5d54648 100644
 --- i/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ w/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -4,6 +4,9 @@
@@ -80,7 +80,15 @@ index 01f863a9f4..44dddf1a1a 100644
  #include <algorithm>
  #include <cstddef>
  #include <cstdint>
-@@ -163,6 +166,73 @@ bool ShouldForgetOpenersForTransition(ui::PageTransition transition) {
+@@ -82,6 +85,7 @@
+ #include "chrome/browser/web_applications/web_app_tab_helper.h"
+ #include "chrome/common/chrome_features.h"
+ #include "chrome/common/webui_url_constants.h"
++#include "navegador/browser/divisao/visual.h"
+ #include "components/commerce/core/commerce_utils.h"
+ #include "components/content_settings/core/browser/host_content_settings_map.h"
+ #include "components/content_settings/core/common/content_settings.h"
+@@ -163,6 +167,73 @@ bool ShouldForgetOpenersForTransition(ui::PageTransition transition) {
                                        ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
  }
  
@@ -154,7 +162,17 @@ index 01f863a9f4..44dddf1a1a 100644
  }  // namespace
  
  TabGroupModelFactory::TabGroupModelFactory() {
-@@ -1114,15 +1184,27 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
+@@ -1087,6 +1158,9 @@ void TabStripModel::SendDetachWebContentsNotifications(
+     }
+   }
+ 
++  // navegador: as divisões de 3 ou 4 que perderam uma aba.
++  NavegadorRefazerDivisoesPendentes();
++
+   if (empty()) {
+     for (auto& observer : observers_) {
+       observer.TabStripEmpty();
+@@ -1114,15 +1188,27 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
  
    // If this tab was activated, eg. by an extension, but is not in the focused
    // group, unfocus the focused group (unless it is a pinned tab).
@@ -183,7 +201,7 @@ index 01f863a9f4..44dddf1a1a 100644
    SetSelection(
        new_model,
        user_gesture.type != TabStripUserGestureDetails::GestureType::kNone
-@@ -1424,7 +1506,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
+@@ -1424,7 +1510,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
  
    CHECK(contents);
    CHECK_NE(GetIndexOfWebContents(contents), kNoTab);
@@ -199,7 +217,244 @@ index 01f863a9f4..44dddf1a1a 100644
  }
  
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
-@@ -2815,6 +2905,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
+@@ -1669,7 +1763,10 @@ void TabStripModel::DeselectTabAt(int index) {
+     // If the tab is already deselected, no need to do anything.
+     return;
+   } else if (selection_model_.size() == 1 ||
+-             (selection_model_.size() == 2 && tab->GetSplit().has_value())) {
++             // navegador: até 4 abas (navegador/browser/divisao).
++             (tab->GetSplit().has_value() &&
++              selection_model_.size() ==
++                  GetSplitData(*tab->GetSplit())->ListTabs().size())) {
+     // One tab must be selected and this tab is currently selected so we can't
+     // unselect it.
+     return;
+@@ -1979,6 +2076,24 @@ void TabStripModel::UpdateSplitLayout(
+ 
+   split_tabs::SplitTabData* split_data = GetSplitData(split_id);
+ 
++  // navegador: com mais de duas abas, todas lado a lado ou empilhadas.
++  const int paineis = static_cast<int>(split_data->ListTabs().size());
++  if (paineis > 2) {
++    const split_tabs::SplitTabVisualData novo = navegador::divisao::VisualDe(
++        tab_layout == split_tabs::SplitTabLayout::kSideBySide
++            ? navegador::divisao::Colunas(paineis)
++            : navegador::divisao::Linhas(paineis));
++    if (*split_data->visual_data() == novo) {
++      return;
++    }
++    const split_tabs::SplitTabVisualData antes = *split_data->visual_data();
++    *split_data->visual_data() = novo;
++    NotifySplitTabVisualsChanged(
++        split_id, antes, novo,
++        SplitTabChange::SplitVisualChangeReason::kLayoutUpdated);
++    return;
++  }
++
+   if (split_data->visual_data()->split_layout() == tab_layout) {
+     return;
+   }
+@@ -2068,7 +2183,10 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
+     split_tabs::SplitTabCreatedSource source) {
+   ReentrancyCheck reentrancy_check(&reentrancy_guard_);
+ 
+-  CHECK(indices.size() == 1u || indices.size() == 2u)
++  // navegador: até 4 abas (navegador/browser/divisao).
++  CHECK(indices.size() >= 1u &&
++        indices.size() <=
++            static_cast<size_t>(navegador::divisao::kMaximoDePaineis))
+       << "Invalid index count: " << indices.size();
+ 
+   // If there is only one entry in `indices`, use the active index as the pivot
+@@ -2076,6 +2194,8 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
+   if (indices.size() == 1u) {
+     indices.insert(indices.begin(), active_index());
+   }
++  visual_data = navegador::divisao::Normalizado(
++      visual_data, static_cast<int>(indices.size()));
+   int pivot_index = indices[0];
+   CHECK(pivot_index != kNoTab);
+   // Check that the indices are unique.
+@@ -2111,7 +2231,12 @@ void TabStripModel::RestoreSplit(split_tabs::SplitTabId split_id,
+                                  split_tabs::SplitTabVisualData visual_data) {
+   ReentrancyCheck reentrancy_check(&reentrancy_guard_);
+   CHECK(std::ranges::is_sorted(indices));
+-  CHECK_EQ(indices.size(), 2u);
++  // navegador: até 4 abas.
++  CHECK_GE(indices.size(), 2u);
++  CHECK_LE(indices.size(),
++           static_cast<size_t>(navegador::divisao::kMaximoDePaineis));
++  visual_data = navegador::divisao::Normalizado(
++      visual_data, static_cast<int>(indices.size()));
+ 
+   // Ideally these are consecutive indices from the restore flow and the pivot
+   // index does not matter. However, given there are numerous steps in restore
+@@ -2261,6 +2386,164 @@ void TabStripModel::RemoveSplit(split_tabs::SplitTabId split_id) {
+   CompleteModelUpdateTransaction();
+ }
+ 
++TabStripModel::NavegadorDivisaoARefazer::NavegadorDivisaoARefazer() = default;
++TabStripModel::NavegadorDivisaoARefazer::NavegadorDivisaoARefazer(
++    NavegadorDivisaoARefazer&&) = default;
++TabStripModel::NavegadorDivisaoARefazer&
++TabStripModel::NavegadorDivisaoARefazer::operator=(
++    NavegadorDivisaoARefazer&&) = default;
++TabStripModel::NavegadorDivisaoARefazer::~NavegadorDivisaoARefazer() =
++    default;
++
++void TabStripModel::NavegadorRefazerDivisao(
++    split_tabs::SplitTabId split_id,
++    const std::vector<tabs::TabInterface*>& ordem,
++    split_tabs::SplitTabVisualData visual_data) {
++  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
++
++  if (!ContainsSplit(split_id) ||
++      ordem.size() >
++          static_cast<size_t>(navegador::divisao::kMaximoDePaineis)) {
++    return;
++  }
++  for (tabs::TabInterface* aba : ordem) {
++    CHECK(aba);
++    CHECK_NE(GetIndexOfTab(aba), kNoTab);
++    CHECK(!aba->IsSplit() || aba->GetSplit() == split_id);
++  }
++
++  const std::vector<tabs::TabInterface*> antes =
++      GetSplitData(split_id)->ListTabs();
++  tabs::TabInterface* const ancora = antes[0];
++  const std::optional<tab_groups::TabGroupId> grupo = ancora->GetGroup();
++  const bool fixada = ancora->IsPinned();
++  const bool divisao_ativa = GetActiveTab()->GetSplit() == split_id;
++
++  // As que saem deixam de aparecer (como no RemoveSplit), menos a ativa.
++  if (divisao_ativa) {
++    for (tabs::TabInterface* aba : antes) {
++      if (!std::ranges::contains(ordem, aba) && !aba->IsActivated() &&
++          aba->IsVisible()) {
++        static_cast<tabs::TabModel*>(aba)->WillBecomeHidden(
++            base::PassKey<TabStripModel>());
++      }
++    }
++  }
++
++  RemoveSplitImpl(split_id,
++                  SplitTabChange::SplitTabRemoveReason::kSplitTabUpdated);
++  if (ordem.size() < 2u) {
++    return;
++  }
++
++  // Em fila, na ordem, começando onde a divisão estava; a que entra vem pro
++  // grupo (espaço) da divisão.
++  for (size_t k = 0; k < ordem.size(); ++k) {
++    tabs::TabInterface* const aba = ordem[k];
++    const int de = GetIndexOfTab(aba);
++    int para;
++    if (k == 0) {
++      const int referencia = GetIndexOfTab(ancora);
++      para = de < referencia ? referencia - 1 : referencia;
++    } else {
++      const int anterior = GetIndexOfTab(ordem[k - 1]);
++      para = de < anterior ? anterior : anterior + 1;
++    }
++    para = std::clamp(para, 0, count() - 1);
++    if (de != para || aba->IsPinned() != fixada || aba->GetGroup() != grupo) {
++      MoveTabToIndexImpl(de, para, grupo, fixada,
++                         /*select_after_move=*/false);
++    }
++  }
++
++  std::vector<int> indices;
++  for (tabs::TabInterface* aba : ordem) {
++    indices.push_back(GetIndexOfTab(aba));
++  }
++  std::ranges::sort(indices);
++  AddToSplitImpl(split_id, indices, indices[0],
++                 navegador::divisao::Normalizado(
++                     visual_data, static_cast<int>(indices.size())),
++                 SplitTabChange::SplitTabAddReason::kSplitTabUpdated);
++}
++
++void TabStripModel::NavegadorDesenharDivisao(
++    split_tabs::SplitTabId split_id,
++    split_tabs::SplitTabVisualData visual_data,
++    bool is_intermediate) {
++  ReentrancyCheck reentrancy_check(&reentrancy_guard_);
++
++  if (!ContainsSplit(split_id)) {
++    return;
++  }
++  split_tabs::SplitTabData* const split_data = GetSplitData(split_id);
++  visual_data = navegador::divisao::Normalizado(
++      visual_data, static_cast<int>(split_data->ListTabs().size()));
++  if (*split_data->visual_data() == visual_data) {
++    return;
++  }
++  const split_tabs::SplitTabVisualData antes = *split_data->visual_data();
++  *split_data->visual_data() = visual_data;
++  const bool so_tamanho =
++      antes.split_layout() == visual_data.split_layout() &&
++      navegador::divisao::Escrever(navegador::divisao::Igualar(
++          navegador::divisao::ArvoreDe(
++              antes, static_cast<int>(split_data->ListTabs().size())))) ==
++          navegador::divisao::Escrever(navegador::divisao::Igualar(
++              navegador::divisao::ArvoreDe(
++                  visual_data,
++                  static_cast<int>(split_data->ListTabs().size()))));
++  NotifySplitTabVisualsChanged(
++      split_id, antes, visual_data,
++      so_tamanho ? SplitTabChange::SplitVisualChangeReason::kRatioUpdated
++                 : SplitTabChange::SplitVisualChangeReason::kLayoutUpdated,
++      is_intermediate);
++}
++
++void TabStripModel::NavegadorRefazerDivisoesPendentes() {
++  std::vector<NavegadorDivisaoARefazer> pendentes;
++  std::swap(pendentes, navegador_divisoes_a_refazer_);
++  for (NavegadorDivisaoARefazer& pendente : pendentes) {
++    if (ContainsSplit(pendente.id)) {
++      continue;
++    }
++    std::vector<tabs::TabInterface*> abas;
++    std::vector<int> fora;
++    for (size_t k = 0; k < pendente.abas.size(); ++k) {
++      tabs::TabInterface* const aba = pendente.abas[k].Get();
++      if (!aba || GetIndexOfTab(aba) == kNoTab || aba->IsSplit()) {
++        fora.push_back(static_cast<int>(k));
++        continue;
++      }
++      abas.push_back(aba);
++    }
++    if (abas.size() < 2u) {
++      continue;
++    }
++    std::vector<int> indices;
++    for (tabs::TabInterface* aba : abas) {
++      indices.push_back(GetIndexOfTab(aba));
++    }
++    std::ranges::sort(indices);
++    // Juntas (a que saiu estava no meio delas) e com o mesmo grupo e fixação:
++    // senão ficam soltas.
++    bool juntas = indices.back() - indices.front() + 1 ==
++                  static_cast<int>(indices.size());
++    for (tabs::TabInterface* aba : abas) {
++      juntas = juntas && aba->GetGroup() == abas[0]->GetGroup() &&
++               aba->IsPinned() == abas[0]->IsPinned();
++    }
++    if (!juntas) {
++      continue;
++    }
++    AddToSplitImpl(pendente.id, indices, indices[0],
++                   navegador::divisao::SemPaineis(
++                       pendente.visual, static_cast<int>(pendente.abas.size()),
++                       fora),
++                   SplitTabChange::SplitTabAddReason::kSplitTabUpdated);
++  }
++}
++
+ // Returns the ID of the group that is focused. If no group is focused,
+ // returns nullopt.
+ std::optional<tab_groups::TabGroupId> TabStripModel::GetFocusedGroup() const {
+@@ -2815,6 +3098,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
      }
  
      case CommandTogglePinned: {
@@ -211,7 +466,7 @@ index 01f863a9f4..44dddf1a1a 100644
        base::UmaHistogramCounts1000(
            "Tab.ContextMenu.TogglePinned.SelectedTabsCount",
            selection_model_.size());
-@@ -3340,6 +3435,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3340,6 +3628,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
          get_tabs_to_close,
      bool delete_groups) {
    std::vector<tabs::TabInterface*> tabs_to_close = get_tabs_to_close.Run();
@@ -222,7 +477,7 @@ index 01f863a9f4..44dddf1a1a 100644
    std::vector<tab_groups::TabGroupId> groups_to_delete =
        GetGroupsDestroyedFromRemovingTabs(get_tabs_to_close.Run());
  
-@@ -3363,7 +3462,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3363,7 +3655,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
      delegate_->OnGroupsDestruction(groups_to_delete, std::move(close_callback),
                                     delete_groups);
    } else {
@@ -234,7 +489,44 @@ index 01f863a9f4..44dddf1a1a 100644
    }
  }
  
-@@ -5027,12 +5130,21 @@ void TabStripModel::MoveTabsToIndexImpl(
+@@ -4840,6 +5136,36 @@ std::unique_ptr<tabs::TabModel> TabStripModel::RemoveTabFromIndexImpl(
+   if (removed_tab_is_split) {
+     next_selected_index = GetIndexOfTab(
+         GetSplitData(tab_to_remove->GetSplit().value())->ListTabs()[0]);
++    // navegador: numa divisão de 3 ou 4, as outras continuam divididas
++    // (refeitas no SendDetachWebContentsNotifications) e a que fica ativa é
++    // a vizinha na tela, não a primeira.
++    const split_tabs::SplitTabId divisao = tab_to_remove->GetSplit().value();
++    const std::vector<tabs::TabInterface*> da_divisao =
++        GetSplitData(divisao)->ListTabs();
++    if (da_divisao.size() > 2) {
++      NavegadorDivisaoARefazer refazer;
++      refazer.id = divisao;
++      refazer.visual = *GetSplitData(divisao)->visual_data();
++      for (tabs::TabInterface* aba : da_divisao) {
++        refazer.abas.push_back(aba->GetHandle());
++      }
++      navegador_divisoes_a_refazer_.push_back(std::move(refazer));
++      const int posicao = static_cast<int>(
++          std::ranges::find(da_divisao, tab_to_remove) - da_divisao.begin());
++      const int vizinho = navegador::divisao::Vizinho(
++          navegador::divisao::ArvoreDe(*GetSplitData(divisao)->visual_data(),
++                                       static_cast<int>(da_divisao.size())),
++          posicao);
++      if (vizinho >= 0 && vizinho < static_cast<int>(da_divisao.size()) &&
++          vizinho != posicao) {
++        // O índice depois de tirar a aba (é usado depois).
++        int indice = GetIndexOfTab(da_divisao[vizinho]);
++        if (indice > index) {
++          --indice;
++        }
++        next_selected_index = indice;
++      }
++    }
+     RemoveSplitImpl(tab_to_remove->GetSplit().value(),
+                     SplitTabChange::SplitTabRemoveReason::kSplitTabRemoved);
+   }
+@@ -5027,12 +5353,21 @@ void TabStripModel::MoveTabsToIndexImpl(
    CHECK(all_tabs_pinned || all_tabs_unpinned);
    CHECK(std::ranges::is_sorted(tab_indices));
  
@@ -257,6 +549,17 @@ index 01f863a9f4..44dddf1a1a 100644
  }
  
  void TabStripModel::TabGroupStateChanged(
+@@ -6003,7 +6338,9 @@ void TabStripModel::CreateHistoricalSplitIfClosing(
+       }
+     }
+     for (const auto& [split_id, count] : split_closing_counts) {
+-      if (count == 2) {
++      // navegador: o "reabrir" guarda divisões de duas; as maiores voltam
++      // como abas soltas.
++      if (count == 2 && GetSplitData(split_id)->ListTabs().size() == 2u) {
+         delegate_->CreateHistoricalSplit(split_id);
+       }
+     }
 diff --git i/chrome/browser/ui/views/animations/tab_strip_animations.cc w/chrome/browser/ui/views/animations/tab_strip_animations.cc
 index a276d311e0..97f0a80bd6 100644
 --- i/chrome/browser/ui/views/animations/tab_strip_animations.cc

@@ -145,6 +145,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(kQuadroDeFavoritosPref, true);
   registry->RegisterBooleanPref(kBotoesDaJanelaPref, BotoesPorPadrao());
   registry->RegisterIntegerPref(kMolduraPref, kMolduraPadrao);
+  registry->RegisterIntegerPref(kEspacoDaDivisaoPref, kEspacoDaDivisaoPadrao);
   registry->RegisterBooleanPref(kBarraNaCorDoSitePref, true);
   registry->RegisterBooleanPref(kAvisosDeCookiesPref, true);
   registry->RegisterDictionaryPref(kEstilosCssPref);
@@ -388,6 +389,8 @@ const std::vector<Atalho>& Atalhos() {
           // Divisão de tela: os do Zen.
           {"dividir_lado", u"Dividir a tela lado a lado", "Ctrl+Alt+V"},
           {"dividir_cima", u"Dividir a tela em cima e embaixo", "Ctrl+Alt+H"},
+          {"dividir_grade", u"Dividir a tela em grade", "Ctrl+Alt+G"},
+          {"desfazer_divisao", u"Desfazer a divisão da tela", "Ctrl+Alt+U"},
           {"trocar_lados", u"Trocar as abas da divisão de lado", "Ctrl+Alt+X"},
           {"configuracoes", u"Configurações do Norte", "Ctrl+Comma"},
           {"containers", u"Gerenciar containers", ""},
@@ -440,6 +443,11 @@ bool MostrarBotoesDaJanela(Profile* profile) {
 
 int Moldura(const Profile* profile) {
   return std::clamp(profile->GetPrefs()->GetInteger(kMolduraPref), 0, 16);
+}
+
+int EspacoDaDivisao(const Profile* profile) {
+  return std::clamp(profile->GetPrefs()->GetInteger(kEspacoDaDivisaoPref),
+                    kEspacoDaDivisaoMinimo, kEspacoDaDivisaoMaximo);
 }
 
 bool MostrarNaBorda(const Profile* profile) {

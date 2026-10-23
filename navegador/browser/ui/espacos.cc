@@ -58,6 +58,7 @@
 #include "navegador/browser/containers/containers.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/containers/fixos.h"
+#include "navegador/browser/divisao/divisao.h"
 #include "navegador/browser/ui/abas/abas.h"
 #include "navegador/browser/ui/atalhos.h"
 #include "navegador/browser/ui/barra.h"
@@ -1070,56 +1071,86 @@ class FaixaDeEspacos : public views::View,
     }
   }
 
-  // Divisão de tela pelo teclado (Ctrl+Alt+V/H, como no Zen): divide a aba
-  // ativa com a outra selecionada (Ctrl+clique) ou com uma aba nova, que
-  // escolhe o que abrir. Já dividida: o mesmo atalho desfaz, o outro vira.
-  void Dividir(split_tabs::SplitTabLayout layout) {
+  // Desfaz a divisão; a metade que ainda é o seletor da divisão ("escolha
+  // uma aba", sem histórico) fecha junto, em vez de ficar na lista como uma
+  // "Nova aba" a mais.
+  void DesfazerDivisao(split_tabs::SplitTabId divisao) {
+    TabStripModel* model = browser_->GetTabStripModel();
+    std::vector<content::WebContents*> seletores;
+    for (tabs::TabInterface* metade : model->GetSplitData(divisao)->ListTabs()) {
+      content::WebContents* pagina = metade->GetContents();
+      if (pagina->GetLastCommittedURL() ==
+              GURL(chrome::kChromeUISplitViewNewTabPageURL) &&
+          pagina->GetController().GetEntryCount() <= 1) {
+        seletores.push_back(pagina);
+      }
+    }
+    model->RemoveSplit(divisao);
+    for (content::WebContents* pagina : seletores) {
+      if (const int i = model->GetIndexOfWebContents(pagina);
+          i != TabStripModel::kNoTab) {
+        model->CloseWebContentsAt(i, TabCloseTypes::CLOSE_NONE);
+      }
+    }
+  }
+
+  // Divisão de tela pelo teclado (como no Zen): Ctrl+Alt+V lado a lado,
+  // Ctrl+Alt+H empilhadas, Ctrl+Alt+G em grade. Divide a aba ativa com as
+  // outras selecionadas (Ctrl+clique, até 4 ao todo) ou com uma aba nova, que
+  // escolhe o que abrir. Já dividida: as selecionadas entram; sem elas, o
+  // mesmo arranjo desfaz e outro rearruma.
+  void Dividir(divisao::Arranjo arranjo) {
     TabStripModel* model = browser_->GetTabStripModel();
     tabs::TabInterface* ativa = model->GetActiveTab();
     if (!ativa) {
       return;
     }
-    if (std::optional<split_tabs::SplitTabId> divisao = ativa->GetSplit()) {
-      if (model->GetSplitData(*divisao)->visual_data()->split_layout() ==
-          layout) {
-        // Desfazendo: a metade que ainda é o seletor da divisão ("escolha
-        // uma aba", sem histórico) fecha junto, em vez de ficar na lista
-        // como uma "Nova aba" a mais.
-        std::vector<content::WebContents*> seletores;
-        for (tabs::TabInterface* metade :
-             model->GetSplitData(*divisao)->ListTabs()) {
-          content::WebContents* pagina = metade->GetContents();
-          if (pagina->GetLastCommittedURL() ==
-                  GURL(chrome::kChromeUISplitViewNewTabPageURL) &&
-              pagina->GetController().GetEntryCount() <= 1) {
-            seletores.push_back(pagina);
-          }
-        }
-        model->RemoveSplit(*divisao);
-        for (content::WebContents* pagina : seletores) {
-          if (const int i = model->GetIndexOfWebContents(pagina);
-              i != TabStripModel::kNoTab) {
-            model->CloseWebContentsAt(i, TabCloseTypes::CLOSE_NONE);
-          }
-        }
-      } else {
-        model->UpdateSplitLayout(*divisao, layout);
-        model->UpdateSplitRatio(*divisao, 0.5);
-      }
-      return;
+    std::vector<tabs::TabInterface*> abas;
+    if (ativa->GetSplit()) {
+      abas = model->GetSplitData(*ativa->GetSplit())->ListTabs();
+    } else {
+      abas.push_back(ativa);
     }
-    std::vector<int> outras;
+    const size_t antes = abas.size();
+    // Numa divisão, a seleção já tem todas as abas dela: as que sobram
+    // foram escolhidas com Ctrl+clique. Na ordem da lateral.
+    std::vector<tabs::TabInterface*> selecionadas;
     for (tabs::TabInterface* aba : model->selection_model().selected_tabs()) {
-      if (aba != ativa && !aba->IsSplit()) {
-        outras.push_back(model->GetIndexOfTab(aba));
+      if (!std::ranges::contains(abas, aba)) {
+        selecionadas.push_back(aba);
       }
     }
-    if (outras.size() == 1) {
-      model->AddToNewSplit(outras, split_tabs::SplitTabVisualData(layout),
-                           split_tabs::SplitTabCreatedSource::kKeyboardShortcut);
+    std::ranges::sort(selecionadas, {}, [model](tabs::TabInterface* aba) {
+      return model->GetIndexOfTab(aba);
+    });
+    for (tabs::TabInterface* aba : selecionadas) {
+      if (abas.size() >= static_cast<size_t>(divisao::kMaximoDePaineis)) {
+        break;
+      }
+      abas.push_back(aba);
+    }
+    // Sem divisão ainda, todas na ordem da lateral.
+    if (!ativa->GetSplit()) {
+      std::ranges::sort(abas, {}, [model](tabs::TabInterface* aba) {
+        return model->GetIndexOfTab(aba);
+      });
+    }
+    if (abas.size() > antes) {
+      divisao::DividirAbas(model, abas, arranjo);
       return;
     }
-    chrome::NewSplitTab(browser_, layout,
+    if (std::optional<split_tabs::SplitTabId> atual = ativa->GetSplit()) {
+      if (divisao::TemArranjo(model, *atual, arranjo)) {
+        DesfazerDivisao(*atual);
+      } else {
+        divisao::Arrumar(model, *atual, arranjo);
+      }
+      return;
+    }
+    chrome::NewSplitTab(browser_,
+                        arranjo == divisao::Arranjo::kEmpilhadas
+                            ? split_tabs::SplitTabLayout::kStacked
+                            : split_tabs::SplitTabLayout::kSideBySide,
                         split_tabs::SplitTabCreatedSource::kKeyboardShortcut);
   }
 
@@ -1172,9 +1203,16 @@ class FaixaDeEspacos : public views::View,
     } else if (acao == "alternar_barra") {
       barra::Alternar(browser_);
     } else if (acao == "dividir_lado") {
-      Dividir(split_tabs::SplitTabLayout::kSideBySide);
+      Dividir(divisao::Arranjo::kLadoALado);
     } else if (acao == "dividir_cima") {
-      Dividir(split_tabs::SplitTabLayout::kStacked);
+      Dividir(divisao::Arranjo::kEmpilhadas);
+    } else if (acao == "dividir_grade") {
+      Dividir(divisao::Arranjo::kGrade);
+    } else if (acao == "desfazer_divisao") {
+      if (tabs::TabInterface* ativa = browser_->GetTabStripModel()->GetActiveTab();
+          ativa && ativa->GetSplit()) {
+        DesfazerDivisao(*ativa->GetSplit());
+      }
     } else if (acao == "trocar_lados") {
       if (tabs::TabInterface* ativa = browser_->GetTabStripModel()->GetActiveTab();
           ativa && ativa->GetSplit()) {

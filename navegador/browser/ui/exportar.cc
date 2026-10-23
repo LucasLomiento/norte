@@ -43,6 +43,7 @@ constexpr const char* kPrefs[] = {
     "navegador.atalhos",
     "navegador.barra.cor_do_site",
     "navegador.barra.escondida",
+    "navegador.divisao.espaco",
     "navegador.inicio.hora",
     "navegador.inicio.data",
     "navegador.janela.barra_na_tela_cheia",

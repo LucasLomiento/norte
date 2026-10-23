@@ -11,6 +11,7 @@
 #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tabs/public/split_tab_data.h"
+#include "navegador/browser/divisao/divisao.h"
 #include "components/tabs/public/tab_interface.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_handle.h"
@@ -32,7 +33,8 @@ std::set<tabs::TabHandle>& Lideres() {
   return *lideres;
 }
 
-// A outra metade da divisão de `aba`, ou nada.
+// A outra metade da divisão de `aba` (com 3 ou 4 abas, o painel vizinho na
+// tela), ou nada.
 tabs::TabInterface* OutraMetade(tabs::TabInterface* aba) {
   if (!aba || !aba->IsSplit()) {
     return nullptr;
@@ -44,7 +46,15 @@ tabs::TabInterface* OutraMetade(tabs::TabInterface* aba) {
   if (!divisao) {
     return nullptr;
   }
-  for (tabs::TabInterface* outra : divisao->ListTabs()) {
+  const std::vector<tabs::TabInterface*> abas = divisao->ListTabs();
+  const int posicao = navegador::divisao::PosicaoNaDivisao(model, aba);
+  const int vizinha = navegador::divisao::Vizinho(
+      navegador::divisao::ArvoreDaAba(model, aba), posicao);
+  if (vizinha >= 0 && vizinha < static_cast<int>(abas.size()) &&
+      vizinha != posicao) {
+    return abas[vizinha];
+  }
+  for (tabs::TabInterface* outra : abas) {
     if (outra != aba) {
       return outra;
     }

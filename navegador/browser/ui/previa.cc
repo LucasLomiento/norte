@@ -33,6 +33,8 @@
 #include "components/input/native_web_keyboard_event.h"
 #include "components/prefs/pref_service.h"
 #include "components/split_tabs/split_tab_visual_data.h"
+#include "components/tabs/public/split_tab_data.h"
+#include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/site_instance.h"
@@ -41,6 +43,7 @@
 #include "navegador/browser/containers/containers.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/ui/containers/espaco.h"
+#include "navegador/browser/divisao/divisao.h"
 #include "navegador/browser/ui/visual.h"
 #include "navegador/icones/menu/vector_icons.h"
 #include "third_party/blink/public/common/input/web_input_event.h"
@@ -611,19 +614,26 @@ class Previa : public content::WebContentsDelegate,
     Esconder();
     // O foco fica na página que veio da prévia, não volta pra origem.
     virou_aba_ = true;
-    // Ao lado da aba de origem, no grupo (espaço) dela.
-    modelo->InsertWebContentsAt(indice + 1, std::move(pagina),
+    // Ao lado da aba de origem (depois da divisão dela, sem quebrar a
+    // divisão), no grupo (espaço) dela.
+    tabs::TabInterface* const aba_de_origem = modelo->GetTabAtIndex(indice);
+    int onde = indice + 1;
+    if (aba_de_origem->IsSplit()) {
+      onde = static_cast<int>(
+          modelo->GetSplitData(*aba_de_origem->GetSplit())
+              ->GetIndexRange()
+              .end());
+    }
+    modelo->InsertWebContentsAt(onde, std::move(pagina),
                                 AddTabTypes::ADD_ACTIVE,
                                 modelo->GetTabGroupForTab(indice));
     if (dividir) {
-      modelo->AddToNewSplit(
-          {indice},
-          split_tabs::SplitTabVisualData(
-              split_tabs::SplitTabLayout::kSideBySide),
-          split_tabs::SplitTabCreatedSource::kLinkContextMenu);
-      if (const int i = modelo->GetIndexOfWebContents(nova);
-          i != TabStripModel::kNoTab) {
-        modelo->ActivateTabAt(i);
+      // À direita da origem; numa divisão, entra nela (até 4 abas).
+      tabs::TabInterface* const aba_nova =
+          tabs::TabInterface::MaybeGetFromContents(nova);
+      if (aba_nova) {
+        divisao::Juntar(modelo, aba_nova, aba_de_origem,
+                        divisao::Lado::kDireita);
       }
     }
     nova->Focus();

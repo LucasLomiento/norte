@@ -78,29 +78,92 @@ index b6cf0bffe2..80b403864e 100644
  
      ${this.showCtrlTabMru_ ? html`
 diff --git i/chrome/browser/ui/tabs/split_tab_menu_model.cc w/chrome/browser/ui/tabs/split_tab_menu_model.cc
-index f994e8162e..68a695b38d 100644
+index f994e8162e..389aa608b3 100644
 --- i/chrome/browser/ui/tabs/split_tab_menu_model.cc
 +++ w/chrome/browser/ui/tabs/split_tab_menu_model.cc
-@@ -34,6 +34,7 @@
+@@ -34,6 +34,9 @@
  #include "components/tabs/public/tab_interface.h"
  #include "components/vector_icons/vector_icons.h"
  #include "content/public/browser/web_contents.h"
++#include "navegador/browser/divisao/divisao.h"
 +#include "navegador/browser/ui/seguidora.h"
++#include "navegador/icones/menu/vector_icons.h"
  #include "ui/base/interaction/element_identifier.h"
  #include "ui/base/l10n/l10n_util.h"
  #include "ui/base/models/image_model.h"
-@@ -66,6 +67,10 @@ SplitTabMenuModel::CommandId GetCommandIdEnum(int command_id) {
+@@ -66,6 +69,22 @@ SplitTabMenuModel::CommandId GetCommandIdEnum(int command_id) {
        command_id - ExistingBaseSubMenuModel::kMinSplitTabMenuModelCommandId);
  }
  
 +// navegador: fora do CommandId (que vai pras métricas): o "Links desta aba
 +// abrem na outra metade" (navegador/browser/ui/seguidora.h).
 +constexpr int kNavegadorSeguidora = 1000;
++// E os da divisão com 3 ou 4 abas (navegador/browser/divisao), no fim da
++// faixa do menu (1701-1800), depois do CommandId.
++constexpr int kNavegadorTirar = 1791;
++constexpr int kNavegadorLadoALado = 1792;
++constexpr int kNavegadorEmpilhadas = 1793;
++constexpr int kNavegadorGrade = 1794;
++constexpr int kNavegadorIgualar = 1795;
++
++ui::ImageModel NavegadorIcone(const gfx::VectorIcon& icone) {
++  return ui::ImageModel::FromVectorIcon(icone, ui::kColorMenuIcon,
++                                        ui::SimpleMenuModel::kDefaultIconSize);
++}
 +
  std::string_view GetMetricsSuffixForCommand(
      SplitTabMenuModel::CommandId command_id) {
    // These strings are persisted to logs. Entries should not be changed.
-@@ -173,6 +178,14 @@ SplitTabMenuModel::SplitTabMenuModel(TabStripModel* tab_strip_model,
+@@ -119,6 +138,11 @@ SplitTabMenuModel::SplitTabMenuModel(TabStripModel* tab_strip_model,
+       tab_strip_model_(tab_strip_model),
+       menu_source_(menu_source),
+       split_tab_index_(split_tab_index) {
++  // navegador: com 3 ou 4 abas (navegador/browser/divisao) não há "a da
++  // esquerda" e "a da direita": tirar a aba do painel e os arranjos prontos.
++  // O menu do botão da barra é criado uma vez só, antes de haver divisão:
++  // os itens de cada caso estão sempre aqui e aparecem conforme a divisão à
++  // vista (IsCommandIdVisible).
+   AddItemWithStringIdAndIcon(
+       GetCommandIdInt(CommandId::kExitSplit), IDS_SPLIT_TAB_SEPARATE_VIEWS,
+       ui::ImageModel::FromVectorIcon(
+@@ -140,10 +164,20 @@ SplitTabMenuModel::SplitTabMenuModel(TabStripModel* tab_strip_model,
+         GetIndexOfCommandId(GetCommandIdInt(CommandId::kCloseSpecifiedTab))
+             .value(),
+         kCloseMenuItem);
++    if (split_tab_index_.has_value()) {
++      AddItemWithIcon(
++          kNavegadorTirar, u"Tirar esta aba da divisão",
++          NavegadorIcone(navegador::icones_menu::kSquareArrowOutUpRightIcon));
++    }
+   } else if (menu_source == MenuSource::kTabContextMenu ||
+              menu_source == MenuSource::kToolbarButton) {
+     AddItem(GetCommandIdInt(CommandId::kCloseStartTab), std::u16string());
+     AddItem(GetCommandIdInt(CommandId::kCloseEndTab), std::u16string());
++    if (split_tab_index_.has_value()) {
++      AddItemWithIcon(
++          kNavegadorTirar, u"Tirar esta aba da divisão",
++          NavegadorIcone(navegador::icones_menu::kSquareArrowOutUpRightIcon));
++    }
+     AddSeparator(ui::MenuSeparatorType::NORMAL_SEPARATOR);
+ 
+     SetElementIdentifierAt(
+@@ -156,6 +190,15 @@ SplitTabMenuModel::SplitTabMenuModel(TabStripModel* tab_strip_model,
+     NOTREACHED() << "Unknown close menu item option";
+   }
+ 
++  AddItemWithIcon(kNavegadorLadoALado, u"Todas lado a lado",
++                  NavegadorIcone(navegador::icones_menu::kColumns3Icon));
++  AddItemWithIcon(kNavegadorEmpilhadas, u"Todas empilhadas",
++                  NavegadorIcone(navegador::icones_menu::kRows3Icon));
++  AddItemWithIcon(kNavegadorGrade, u"Em grade",
++                  NavegadorIcone(navegador::icones_menu::kLayoutDashboardIcon));
++  AddItemWithIcon(kNavegadorIgualar, u"Igualar os tamanhos",
++                  NavegadorIcone(navegador::icones_menu::kEqualIcon));
++
+   if (base::FeatureList::IsEnabled(tabs::kSplitViewHorizontal)) {
+     AddItem(GetCommandIdInt(CommandId::kToggleOrientation), std::u16string());
+     SetElementIdentifierAt(
+@@ -173,6 +216,13 @@ SplitTabMenuModel::SplitTabMenuModel(TabStripModel* tab_strip_model,
        GetIndexOfCommandId(GetCommandIdInt(CommandId::kExitSplit)).value(),
        kExitSplitMenuItem);
  
@@ -108,14 +171,76 @@ index f994e8162e..68a695b38d 100644
 +  // o da própria metade).
 +  if (split_tab_index_.has_value()) {
 +    AddSeparator(ui::MenuSeparatorType::NORMAL_SEPARATOR);
-+    AddCheckItem(kNavegadorSeguidora,
-+                 u"Links desta aba abrem na outra metade");
++    AddCheckItem(kNavegadorSeguidora, std::u16string());
 +  }
 +
    // Only render feedback in the toolbar button menu.
    if (menu_source == MenuSource::kToolbarButton &&
        chrome::CanShowFeedback(tab_strip_model->profile())) {
-@@ -253,7 +266,20 @@ ui::ImageModel SplitTabMenuModel::GetIconForCommandId(int command_id) const {
+@@ -187,13 +237,52 @@ SplitTabMenuModel::SplitTabMenuModel(TabStripModel* tab_strip_model,
+ 
+ SplitTabMenuModel::~SplitTabMenuModel() = default;
+ 
++bool SplitTabMenuModel::NavegadorVarias() const {
++  tabs::TabInterface* const tab =
++      split_tab_index_.has_value() &&
++              tab_strip_model_->ContainsIndex(*split_tab_index_)
++          ? tab_strip_model_->GetTabAtIndex(*split_tab_index_)
++          : tab_strip_model_->GetActiveTab();
++  return tab && tab->IsSplit() &&
++         tab_strip_model_->GetSplitData(*tab->GetSplit())->ListTabs().size() >
++             2u;
++}
++
++bool SplitTabMenuModel::IsCommandIdVisible(int command_id) const {
++  if (command_id >= kNavegadorTirar && command_id <= kNavegadorIgualar) {
++    return NavegadorVarias();
++  }
++  if (command_id == kNavegadorSeguidora) {
++    return true;
++  }
++  switch (GetCommandIdEnum(command_id)) {
++    case CommandId::kCloseStartTab:
++    case CommandId::kCloseEndTab:
++    case CommandId::kToggleOrientation:
++    case CommandId::kReversePosition:
++      return !NavegadorVarias();
++    default:
++      return true;
++  }
++}
++
+ bool SplitTabMenuModel::IsItemForCommandIdDynamic(int command_id) const {
++  if (command_id == kNavegadorSeguidora) {
++    return true;
++  }
++  if (command_id >= kNavegadorTirar && command_id <= kNavegadorIgualar) {
++    return false;
++  }
+   const CommandId id = GetCommandIdEnum(command_id);
+   return id == CommandId::kReversePosition || id == CommandId::kCloseStartTab ||
+          id == CommandId::kCloseEndTab || id == CommandId::kToggleOrientation;
+ }
+ 
+ std::u16string SplitTabMenuModel::GetLabelForCommandId(int command_id) const {
++  if (command_id == kNavegadorSeguidora) {
++    return NavegadorVarias() ? u"Links desta aba abrem no painel ao lado"
++                             : u"Links desta aba abrem na outra metade";
++  }
+   const CommandId id = GetCommandIdEnum(command_id);
+ 
+   if (id == CommandId::kReversePosition) {
+@@ -220,6 +309,9 @@ std::u16string SplitTabMenuModel::GetLabelForCommandId(int command_id) const {
+ }
+ 
+ ui::ImageModel SplitTabMenuModel::GetIconForCommandId(int command_id) const {
++  if (command_id == kNavegadorSeguidora) {
++    return ui::ImageModel();
++  }
+   const split_tabs::SplitTabActiveLocation active_split_tab_location =
+       split_tabs::GetLastActiveTabLocation(tab_strip_model_, GetSplitTabId());
+ 
+@@ -253,12 +345,60 @@ ui::ImageModel SplitTabMenuModel::GetIconForCommandId(int command_id) const {
                                          ui::SimpleMenuModel::kDefaultIconSize);
  }
  
@@ -133,23 +258,71 @@ index f994e8162e..68a695b38d 100644
 +    }
 +    return;
 +  }
++  // navegador: os da divisão com 3 ou 4 abas. A aba pode ter saído da
++  // divisão com o menu aberto.
++  if (command_id >= kNavegadorTirar && command_id <= kNavegadorIgualar) {
++    tabs::TabInterface* const aba =
++        split_tab_index_.has_value() &&
++                tab_strip_model_->ContainsIndex(*split_tab_index_)
++            ? tab_strip_model_->GetTabAtIndex(*split_tab_index_)
++            : tab_strip_model_->GetActiveTab();
++    if (!aba || !aba->IsSplit()) {
++      return;
++    }
++    switch (command_id) {
++      case kNavegadorTirar:
++        navegador::divisao::Tirar(tab_strip_model_, aba);
++        break;
++      case kNavegadorLadoALado:
++        navegador::divisao::Arrumar(tab_strip_model_, *aba->GetSplit(),
++                                    navegador::divisao::Arranjo::kLadoALado);
++        break;
++      case kNavegadorEmpilhadas:
++        navegador::divisao::Arrumar(tab_strip_model_, *aba->GetSplit(),
++                                    navegador::divisao::Arranjo::kEmpilhadas);
++        break;
++      case kNavegadorGrade:
++        navegador::divisao::Arrumar(tab_strip_model_, *aba->GetSplit(),
++                                    navegador::divisao::Arranjo::kGrade);
++        break;
++      case kNavegadorIgualar:
++        navegador::divisao::Igualar(tab_strip_model_, *aba->GetSplit());
++        break;
++    }
++    return;
++  }
    const split_tabs::SplitTabId split_id = GetSplitTabId();
    split_tabs::SplitTabData* const split_tab_data =
        tab_strip_model_->GetSplitData(split_id);
+   std::vector<tabs::TabInterface*> tabs_in_split = split_tab_data->ListTabs();
+-  CHECK_EQ(tabs_in_split.size(), 2U);
++  // navegador: até 4 abas (os itens de "a da esquerda/direita" só aparecem
++  // com duas).
++  CHECK_GE(tabs_in_split.size(), 2U);
+   CommandId split_command_id = GetCommandIdEnum(command_id);
+   switch (split_command_id) {
+     case CommandId::kReversePosition:
 diff --git i/chrome/browser/ui/tabs/split_tab_menu_model.h w/chrome/browser/ui/tabs/split_tab_menu_model.h
-index 6d8db4344e..fe12f27f8e 100644
+index 6d8db4344e..0e0868caf3 100644
 --- i/chrome/browser/ui/tabs/split_tab_menu_model.h
 +++ w/chrome/browser/ui/tabs/split_tab_menu_model.h
-@@ -75,6 +75,7 @@ class SplitTabMenuModel : public ui::SimpleMenuModel,
+@@ -75,9 +75,14 @@ class SplitTabMenuModel : public ui::SimpleMenuModel,
    bool IsItemForCommandIdDynamic(int command_id) const override;
    std::u16string GetLabelForCommandId(int command_id) const override;
    ui::ImageModel GetIconForCommandId(int command_id) const override;
 +  bool IsCommandIdChecked(int command_id) const override;
++  bool IsCommandIdVisible(int command_id) const override;
    void ExecuteCommand(int command_id, int event_flags) override;
  
   private:
++  // navegador: a divisão (do painel ou a à vista) tem mais de duas abas.
++  bool NavegadorVarias() const;
++
+   // Returns the split id for the split tabs that this menu is acting on.
+   split_tabs::SplitTabId GetSplitTabId() const;
+   const gfx::VectorIcon& GetReversePositionIcon(
 diff --git i/chrome/browser/ui/tabs/tab_menu_model.cc w/chrome/browser/ui/tabs/tab_menu_model.cc
-index 97c6ded1ac..aaa2162b90 100644
+index 97c6ded1ac..2e78e3825d 100644
 --- i/chrome/browser/ui/tabs/tab_menu_model.cc
 +++ w/chrome/browser/ui/tabs/tab_menu_model.cc
 @@ -4,6 +4,9 @@
@@ -162,7 +335,7 @@ index 97c6ded1ac..aaa2162b90 100644
  #include <memory>
  #include <optional>
  
-@@ -339,6 +342,12 @@ void TabMenuModel::Build(int index) {
+@@ -339,14 +342,21 @@ void TabMenuModel::Build(int index) {
                                              : IDS_TAB_CXMENU_NEWTABTORIGHT);
    }
    SetElementIdentifierAt(GetItemCount() - 1, kAddNewTabAdjacentMenuItem);
@@ -175,7 +348,19 @@ index 97c6ded1ac..aaa2162b90 100644
  
    if (!tab_strip_->GetSplitForTab(index).has_value()) {
      if (tab_strip_->GetActiveTab()->IsSplit()) {
-@@ -408,60 +417,28 @@ void TabMenuModel::Build(int index) {
+       swap_with_split_submenu_ =
+           std::make_unique<SplitTabSwapMenuModel>(tab_strip_, index);
+-      AddSubMenuWithStringIdAndIcon(
+-          TabStripModel::CommandSwapWithActiveSplit,
+-          IDS_TAB_CXMENU_SWAP_WITH_ACTIVE_SPLIT, swap_with_split_submenu_.get(),
++      // navegador: o submenu também junta a aba à divisão (até 4 abas).
++      AddSubMenuWithIcon(
++          TabStripModel::CommandSwapWithActiveSplit, u"Divisão à vista",
++          swap_with_split_submenu_.get(),
+           ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
+                                              ? kSplitSceneIcon
+                                              : kSplitSceneOldIcon,
+@@ -408,60 +418,28 @@ void TabMenuModel::Build(int index) {
      SetElementIdentifierAt(GetItemCount() - 1, kArrangeSplitTabsMenuItem);
    }
  
@@ -256,7 +441,7 @@ index 97c6ded1ac..aaa2162b90 100644
    }
  
    if (ExistingWindowSubMenuModel::ShouldShowSubmenu(tab_strip_->profile())) {
-@@ -496,17 +473,48 @@ void TabMenuModel::Build(int index) {
+@@ -496,17 +474,48 @@ void TabMenuModel::Build(int index) {
  
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(TabStripModel::CommandReload, IDS_TAB_CXMENU_RELOAD);
@@ -309,7 +494,7 @@ index 97c6ded1ac..aaa2162b90 100644
      SetIconForCommandId(
          TabStripModel::CommandTogglePinned,
          ui::ImageModel::FromVectorIcon(
-@@ -547,7 +555,8 @@ void TabMenuModel::Build(int index) {
+@@ -547,7 +556,8 @@ void TabMenuModel::Build(int index) {
      glic_displayed = true;
    }
  
@@ -319,7 +504,7 @@ index 97c6ded1ac..aaa2162b90 100644
    const std::optional<send_tab_to_self::EntryPointDisplayReason>
        send_tab_to_self_reason = send_tab_to_self::GetEntryPointDisplayReason(
            tab_strip_->GetWebContentsAt(index));
-@@ -585,32 +594,21 @@ void TabMenuModel::Build(int index) {
+@@ -585,32 +595,21 @@ void TabMenuModel::Build(int index) {
      }
    }
  
@@ -366,7 +551,7 @@ index 97c6ded1ac..aaa2162b90 100644
    }
  
    // Append extension items for the 'tab' context if the feature is enabled.
-@@ -638,6 +636,12 @@ void TabMenuModel::Build(int index) {
+@@ -638,6 +637,12 @@ void TabMenuModel::Build(int index) {
    // Separator Close Tab items
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(TabStripModel::CommandCloseTab, IDS_TAB_CXMENU_CLOSETAB);

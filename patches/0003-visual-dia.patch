@@ -1029,7 +1029,7 @@ index a335e2d5cc..9e1616c111 100644
  #if BUILDFLAG(IS_CHROMEOS)
    // ChromeOS SystemWebApps use the OS theme all the time.
 diff --git i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-index 29dfbde914..3e288d81b6 100644
+index 29dfbde914..a0d6de2b84 100644
 --- i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 @@ -4,6 +4,13 @@
@@ -1214,7 +1214,24 @@ index 29dfbde914..3e288d81b6 100644
    }
  
    // Lay out infobar container.
-@@ -1174,6 +1264,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1128,7 +1218,15 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     const bool include_trailing_inset =
+         separator_info.shadow_box ||
+         !(horizontal_layout.has_side_panel() && !side_panel_leading);
+-    const int default_inset = MultiContentsView::kSplitViewContentInset;
++    // navegador: o espaço da divisão das Configurações (o mesmo entre as
++    // páginas, navegador/browser/divisao).
++    const auto* navegador_browser_view =
++        views::AsViewClass<BrowserView>(views().browser_view);
++    const int default_inset =
++        navegador_browser_view
++            ? navegador::espacos::EspacoDaDivisao(
++                  navegador_browser_view->browser()->GetProfile())
++            : MultiContentsView::kSplitViewContentInset;
+     const int panel_side_inset =
+         base::ClampRound((1.0 - side_panel_reveal_amount) * default_inset);
+ 
+@@ -1174,6 +1272,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                                  params.visual_client_area.height()));
  
    // Maybe expand and clip the web contents to avoid issues during animation.
@@ -1223,7 +1240,7 @@ index 29dfbde914..3e288d81b6 100644
    if (features::UseSidePanelFlyoverAnimation()) {
      if (clip_content_for_animation) {
        // Vertical span is whatever it is, minus any shadow overlay insets.
-@@ -1195,6 +1287,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1195,6 +1295,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        // Avoid cases where these areas are somehow misaligned (shouldn't happen,
        // but want to avoid visual artifacts if they are).
        contents_layout.bounds.Intersect(unclipped_contents_region);
@@ -1237,7 +1254,7 @@ index 29dfbde914..3e288d81b6 100644
        const auto clip_insets =
            unclipped_contents_region.InsetsFrom(contents_layout.bounds);
  
-@@ -1231,6 +1330,20 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1231,6 +1338,20 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        }
      }
      views().multi_contents_view->SetBackgroundRadii(content_corners);
@@ -1258,7 +1275,7 @@ index 29dfbde914..3e288d81b6 100644
    }
  
    // Make final visual adjustments required for child views to paint.
-@@ -1253,6 +1366,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1253,6 +1374,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        // aligned with the tabstrip (which can happen in collapsed mode with
        // leading caption buttons).
        toolbar_height = toolbar_bounds->bottom() - tabstrip_bounds->y();
@@ -1276,7 +1293,7 @@ index 29dfbde914..3e288d81b6 100644
  
        caption_button_width =
            base::ClampCeil(browser_params.leading_exclusion.content.width()) -
-@@ -1427,9 +1551,16 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
+@@ -1427,9 +1559,16 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
    // By default, this is just a flat background.
    CustomCornersBackground::Corners corners;
  
@@ -1295,7 +1312,7 @@ index 29dfbde914..3e288d81b6 100644
        layout_data_->window_state == WindowState::kNormal) {
      corners[CornerOrientation::kTopTrailing] =
          background->GetWindowCorner(/*upper=*/true);
-@@ -1524,6 +1655,39 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1524,6 +1663,39 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
            (1.0 - animation.expand_on_hover_opacity) * frame_color.opacity +
            animation.expand_on_hover_opacity * expand_on_hover_opacity);
        vertical_tabs_background->SetPrimaryColor(vertical_tabs_background_color);
@@ -1335,7 +1352,7 @@ index 29dfbde914..3e288d81b6 100644
      } else {
        vertical_tabs_background->SetPrimaryColor(frame_color);
      }
-@@ -1707,6 +1871,16 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1707,6 +1879,16 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
        break;
      }
      case TabStripType::kVertical: {

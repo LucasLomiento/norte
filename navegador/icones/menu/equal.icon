@@ -1,0 +1,15 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "equal" do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.1f,
+MOVE_TO, 5, 9,
+LINE_TO, 19, 9,
+NEW_PATH,
+STROKE, 2.1f,
+MOVE_TO, 5, 15,
+LINE_TO, 19, 15,

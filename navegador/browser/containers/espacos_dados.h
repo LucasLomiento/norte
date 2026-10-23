@@ -49,6 +49,8 @@ inline constexpr char kQuadroDeFavoritosPref[] =
 inline constexpr char kBotoesDaJanelaPref[] = "navegador.janela.botoes";
 // Espessura da moldura em volta do cartão (barra + página), em px.
 inline constexpr char kMolduraPref[] = "navegador.janela.moldura";
+// Espaço entre as páginas da tela dividida (e em volta delas), em px.
+inline constexpr char kEspacoDaDivisaoPref[] = "navegador.divisao.espaco";
 // Tela cheia da janela (F11, Super+F do Hyprland) com a barra e as abas à
 // vista; desligado, some tudo como no Chromium. A tela cheia de um site
 // (vídeo) esconde tudo sempre.
@@ -196,6 +198,7 @@ bool MostrarBotoesDaJanela(Profile* profile);
 // gerenciador por atalho (Hyprland, Sway, i3).
 bool JanelasPeloMouse();
 int Moldura(const Profile* profile);
+int EspacoDaDivisao(const Profile* profile);
 bool MostrarNaBorda(const Profile* profile);
 bool AbrirInteira(const Profile* profile);
 int EsconderDepoisMs(const Profile* profile);
@@ -207,6 +210,9 @@ int FlutuanteDesfoque(const Profile* profile);
 
 // Padrões (também usados quando não há perfil à mão).
 inline constexpr int kMolduraPadrao = 3;
+inline constexpr int kEspacoDaDivisaoPadrao = 6;
+inline constexpr int kEspacoDaDivisaoMinimo = 0;
+inline constexpr int kEspacoDaDivisaoMaximo = 16;
 inline constexpr int kFlutuanteOpacidadePadrao = 90;
 inline constexpr int kFlutuanteDesfoquePadrao = 20;
 // Como o Zen (zen.view.compact.sidebar-keep-hover.duration = 150).
