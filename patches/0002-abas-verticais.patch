@@ -469,7 +469,7 @@ index 22ece00a8c..11bc2b5c89 100644
      collapse_action->SetEnabled(ShouldDisplayVerticalTabs());
    }
 diff --git i/chrome/browser/ui/toolbar/app_menu_model.cc w/chrome/browser/ui/toolbar/app_menu_model.cc
-index f8f6a64f35..ae8f7c90ef 100644
+index f8f6a64f35..c8151c5204 100644
 --- i/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ w/chrome/browser/ui/toolbar/app_menu_model.cc
 @@ -4,6 +4,8 @@
@@ -509,7 +509,7 @@ index f8f6a64f35..ae8f7c90ef 100644
  
    if (CustomizeChromePageHandler::IsSupported(
            NtpCustomBackgroundServiceFactory::GetForProfile(
-@@ -1258,6 +1241,12 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
+@@ -1258,6 +1241,15 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
    LogMenuMetrics(command_id);
  
    switch (command_id) {
@@ -519,20 +519,41 @@ index f8f6a64f35..ae8f7c90ef 100644
 +    case kNavegadorConfiguracoes:
 +      navegador::containers::MostrarConfiguracoes(browser_);
 +      return;
++    case kNavegadorMemoria:
++      navegador::containers::ExecutarAcao(browser_, "memoria");
++      return;
      case IDC_SHOW_BOOKMARK_SIDE_PANEL:
      case IDC_SHOW_HISTORY_CLUSTERS_SIDE_PANEL:
      case IDC_SHOW_READING_MODE_SIDE_PANEL:
-@@ -1994,6 +1983,9 @@ bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
+@@ -1994,6 +1986,10 @@ bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
    switch (command_id) {
      case IDC_NEW_INCOGNITO_WINDOW:
        return IncognitoModePrefs::IsIncognitoAllowed(browser_->GetProfile());
 +    case kNavegadorContainersMenu:
 +    case kNavegadorConfiguracoes:
++    case kNavegadorMemoria:
 +      return true;
      default:
        return chrome::IsCommandEnabled(browser_, command_id);
    }
-@@ -2114,6 +2106,21 @@ void AppMenuModel::Build() {
+@@ -2016,6 +2012,16 @@ bool AppMenuModel::GetAcceleratorForCommandId(
+                                                  accelerator);
+   }
+ 
++  // navegador: o atalho da Memória (o que a pessoa escolheu).
++  if (command_id == kNavegadorMemoria) {
++    std::optional<ui::Accelerator> atalho =
++        navegador::containers::AtalhoDaAcao(browser_->GetProfile(), "memoria");
++    if (atalho) {
++      *accelerator = *atalho;
++    }
++    return atalho.has_value();
++  }
++
+   // Reading mode uses different command IDs for different ways of opening
+   // it, so adjust to use the command ID for the keyboard shortcut to grab
+   // the proper accelerator.
+@@ -2114,6 +2120,21 @@ void AppMenuModel::Build() {
      }
    }
  
@@ -554,7 +575,20 @@ index f8f6a64f35..ae8f7c90ef 100644
    AddSeparator(ui::NORMAL_SEPARATOR);
  
  #if !BUILDFLAG(IS_CHROMEOS)
-@@ -2180,7 +2187,10 @@ void AppMenuModel::Build() {
+@@ -2160,6 +2181,12 @@ void AppMenuModel::Build() {
+     SetElementIdentifierAt(
+         GetIndexOfCommandId(kRecentTabsMenuPlaceholder).value(),
+         kHistoryMenuItem);
++    // navegador: a Memória, logo depois do histórico.
++    AddItemWithIcon(kNavegadorMemoria, u"Memória",
++                    ui::ImageModel::FromVectorIcon(
++                        vector_icons::kSearchIcon,
++                        ui::kColorMenuIcon,
++                        ui::SimpleMenuModel::kDefaultIconSize));
+   }
+   AddItemWithStringIdAndVectorIcon(
+       this, IDC_SHOW_DOWNLOADS, IDS_SHOW_DOWNLOADS,
+@@ -2180,7 +2207,10 @@ void AppMenuModel::Build() {
          kBookmarksMenuItem);
    }
  
@@ -567,10 +601,10 @@ index f8f6a64f35..ae8f7c90ef 100644
      sub_menus_.push_back(std::move(saved_tab_groups_model));
      AddSubMenuWithStringIdAndVectorIcon(
 diff --git i/chrome/browser/ui/toolbar/app_menu_model.h w/chrome/browser/ui/toolbar/app_menu_model.h
-index ed3f1fa50b..8d1a49dbe3 100644
+index ed3f1fa50b..969c02560b 100644
 --- i/chrome/browser/ui/toolbar/app_menu_model.h
 +++ w/chrome/browser/ui/toolbar/app_menu_model.h
-@@ -234,6 +234,11 @@ class AppMenuModel : public ui::SimpleMenuModel,
+@@ -234,6 +234,13 @@ class AppMenuModel : public ui::SimpleMenuModel,
        IDC_SAVED_TAB_GROUPS_MENU;
    static constexpr int kMoreToolsMenuPlaceholder = IDC_MORE_TOOLS_MENU;
    static constexpr int kHelpMenuPlaceholder = IDC_HELP_MENU;
@@ -579,6 +613,8 @@ index ed3f1fa50b..8d1a49dbe3 100644
 +  static constexpr int kNavegadorContainersMenu = 0x6E62;
 +  // navegador: "Configurações do Navegador…" (espaços, containers, atalhos).
 +  static constexpr int kNavegadorConfiguracoes = 0x6E63;
++  // navegador: "Memória" (a busca no que você já leu).
++  static constexpr int kNavegadorMemoria = 0x6E64;
  
    // Number of menus within the app menu with an arbitrarily high (variable)
    // number of menu items. For example, the number of bookmarks menu items

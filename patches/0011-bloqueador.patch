@@ -103,24 +103,26 @@ index b11907b0f4..7e91d09242 100644
    RegisterCaptchaProviderComponent(cus);
  
 diff --git i/chrome/browser/ui/tab_helpers.cc w/chrome/browser/ui/tab_helpers.cc
-index 3b1e2e30ef..1dca8f650e 100644
+index 3b1e2e30ef..3621440024 100644
 --- i/chrome/browser/ui/tab_helpers.cc
 +++ w/chrome/browser/ui/tab_helpers.cc
-@@ -75,6 +75,8 @@
+@@ -75,6 +75,9 @@
  #include "chrome/browser/storage_access_api/storage_access_api_service_impl.h"
  #include "chrome/browser/storage_access_api/storage_access_api_tab_helper.h"
  #include "chrome/browser/subresource_filter/chrome_content_subresource_filter_web_contents_helper_factory.h"
 +#include "navegador/browser/ui/bloqueador.h"
 +#include "navegador/browser/ui/temporarios.h"
++#include "navegador/browser/memoria/memoria.h"
  #include "chrome/browser/supervised_user/supervised_user_navigation_observer.h"
  #include "chrome/browser/sync/sessions/sync_sessions_router_tab_helper.h"
  #include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
-@@ -400,6 +402,8 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
+@@ -400,6 +403,9 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
  #endif
    }
    CreateSubresourceFilterWebContentsHelper(web_contents);
 +  navegador::bloqueador::AcompanharAba(web_contents);  // navegador
 +  navegador::temporarios::AcompanharAba(web_contents);  // navegador
++  navegador::memoria::AcompanharAba(web_contents);  // navegador
  #if BUILDFLAG(ENABLE_RLZ)
    ChromeRLZTrackerWebContentsObserver::CreateForWebContentsIfNeeded(
        web_contents);

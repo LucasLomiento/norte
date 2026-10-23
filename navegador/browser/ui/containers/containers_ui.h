@@ -5,15 +5,18 @@
 #define NAVEGADOR_BROWSER_UI_CONTAINERS_CONTAINERS_UI_H_
 
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 
 #include "base/functional/callback.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/accelerators/accelerator.h"
 #include "ui/base/models/image_model.h"
 
 class BrowserWindowInterface;
 class GURL;
+class Profile;
 class TabStripModel;
 
 namespace content {
@@ -112,6 +115,21 @@ using AbrirConfiguracoes =
     base::RepeatingCallback<void(BrowserWindowInterface* browser,
                                  bool containers)>;
 void DefinirAbrirConfiguracoes(AbrirConfiguracoes abrir);
+
+// Uma ação da janela (as dos atalhos, ex. "memoria") pedida de quem não
+// enxerga o //chrome/browser/ui:ui (o menu do logo). espacos.cc registra.
+using ExecutarAcaoDaJanela =
+    base::RepeatingCallback<void(BrowserWindowInterface* browser,
+                                 const std::string& acao)>;
+void DefinirExecutarAcao(ExecutarAcaoDaJanela executar);
+void ExecutarAcao(BrowserWindowInterface* browser, const std::string& acao);
+// O atalho em uso pra ação (Configurações → Atalhos), pra mostrar no menu.
+using LerAtalhoDaAcao = base::RepeatingCallback<std::optional<ui::Accelerator>(
+    Profile* profile,
+    const std::string& acao)>;
+void DefinirAtalhoDaAcao(LerAtalhoDaAcao ler);
+std::optional<ui::Accelerator> AtalhoDaAcao(Profile* profile,
+                                            const std::string& acao);
 void MostrarConfiguracoes(BrowserWindowInterface* browser,
                           bool containers = false);
 

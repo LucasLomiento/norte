@@ -41,6 +41,9 @@ inline constexpr int kIdAreaDeFixos = 0x6E66;
 // Id da camada da prévia de link (navegador/browser/ui/previa.h), filha do
 // MultiContentsView: o layout dele estica ela por cima das páginas.
 inline constexpr int kIdPrevia = 0x6E70;
+// Id do painel da Memória (navegador/browser/ui/painel_da_memoria.h), também filho do
+// MultiContentsView e esticado por cima das páginas.
+inline constexpr int kIdMemoria = 0x6E6D;
 
 std::optional<int> LayoutConstantOverride(LayoutConstant constant);
 std::optional<gfx::Insets> LayoutInsetsOverride(LayoutInset inset);

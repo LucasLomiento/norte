@@ -595,6 +595,42 @@ std::unique_ptr<ui::SimpleMenuModel> CriarSubmenuFixar(TabStripModel* tab_strip,
   return std::make_unique<SubmenuFixar>(tab_strip, index);
 }
 
+namespace {
+
+ExecutarAcaoDaJanela& PonteDasAcoes() {
+  static base::NoDestructor<ExecutarAcaoDaJanela> ponte;
+  return *ponte;
+}
+
+LerAtalhoDaAcao& PonteDosAtalhos() {
+  static base::NoDestructor<LerAtalhoDaAcao> ponte;
+  return *ponte;
+}
+
+}  // namespace
+
+void DefinirAtalhoDaAcao(LerAtalhoDaAcao ler) {
+  PonteDosAtalhos() = std::move(ler);
+}
+
+std::optional<ui::Accelerator> AtalhoDaAcao(Profile* profile,
+                                            const std::string& acao) {
+  if (PonteDosAtalhos().is_null()) {
+    return std::nullopt;
+  }
+  return PonteDosAtalhos().Run(profile, acao);
+}
+
+void DefinirExecutarAcao(ExecutarAcaoDaJanela executar) {
+  PonteDasAcoes() = std::move(executar);
+}
+
+void ExecutarAcao(BrowserWindowInterface* browser, const std::string& acao) {
+  if (!PonteDasAcoes().is_null()) {
+    PonteDasAcoes().Run(browser, acao);
+  }
+}
+
 void DefinirAbrirConfiguracoes(AbrirConfiguracoes abrir) {
   PonteConfiguracoes() = std::move(abrir);
 }

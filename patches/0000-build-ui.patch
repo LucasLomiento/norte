@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/ui/BUILD.gn w/chrome/browser/ui/BUILD.gn
-index 82f397571f..d2a8912876 100644
+index 82f397571f..9bbe3dcee6 100644
 --- i/chrome/browser/ui/BUILD.gn
 +++ w/chrome/browser/ui/BUILD.gn
 @@ -144,6 +144,8 @@ if (!is_android) {
@@ -19,12 +19,16 @@ index 82f397571f..d2a8912876 100644
        ":tab_ui_helper",
        "//base",
        "//chrome/browser/apps/app_service",
-@@ -1522,6 +1525,66 @@ static_library("ui") {
+@@ -1522,6 +1525,70 @@ static_library("ui") {
        "browser_commands.cc",
        "browser_commands.h",
        "browser_live_tab_context.cc",
 +
 +      # navegador: espaços do Dia e a barra na cor do site.
++      "//navegador/browser/memoria/memoria.cc",
++      "//navegador/browser/memoria/memoria.h",
++      "//navegador/browser/ui/painel_da_memoria.cc",
++      "//navegador/browser/ui/painel_da_memoria.h",
 +      "//navegador/browser/ui/aba_nova.cc",
 +      "//navegador/browser/ui/aba_nova.h",
 +      "//navegador/browser/ui/atalhos.cc",
@@ -86,7 +90,7 @@ index 82f397571f..d2a8912876 100644
        "browser_manager_service.cc",
        "browser_manager_service.h",
        "browser_manager_service_factory.cc",
-@@ -1558,6 +1621,14 @@ static_library("ui") {
+@@ -1558,6 +1625,15 @@ static_library("ui") {
  
      # Non-android deps for "ui" target.
      deps += [
@@ -94,6 +98,7 @@ index 82f397571f..d2a8912876 100644
 +      "//navegador/browser/ui/containers:containers_ui",  # navegador
 +      "//navegador/browser/ui/containers:espaco",  # navegador
 +      "//navegador/browser/ui/downloads:ponte",  # navegador
++      "//navegador/browser/memoria:nucleo",  # navegador (Memória)
 +      "//navegador/icones/menu",  # navegador (cartão "tocando agora")
 +      "//services/media_session/public/cpp",  # navegador
 +      "//services/media_session/public/mojom",  # navegador
@@ -101,7 +106,7 @@ index 82f397571f..d2a8912876 100644
        ":accelerator_table",
        ":browser_actions",
        ":browser_select_file_dialog_controller",
-@@ -3877,6 +3948,10 @@ source_set("layout_constants") {
+@@ -3877,6 +3953,10 @@ source_set("layout_constants") {
    sources = [
      "layout_constants.cc",
      "layout_constants.h",

@@ -96,6 +96,17 @@ inline constexpr char kPreviaPref[] = "navegador.previa.shift_clique";
 // próprio Chromium; ver navegador/browser/ui/inicio.h).
 inline constexpr char kInicioHoraPref[] = "navegador.inicio.hora";
 inline constexpr char kInicioDataPref[] = "navegador.inicio.data";
+// Memória (navegador/browser/memoria/memoria.h): guardar o texto das páginas
+// lidas; por quantos dias (0 = sempre); e-mail e conversas (Gmail, WhatsApp,
+// Slack...) também; e o que fica de fora: sites (hosts, valem os subdomínios)
+// e containers (ids).
+inline constexpr char kMemoriaPref[] = "navegador.memoria.ligada";
+inline constexpr char kMemoriaDiasPref[] = "navegador.memoria.dias";
+inline constexpr char kMemoriaConversasPref[] = "navegador.memoria.conversas";
+inline constexpr char kMemoriaForaSitesPref[] = "navegador.memoria.fora.sites";
+inline constexpr char kMemoriaForaContainersPref[] =
+    "navegador.memoria.fora.containers";
+inline constexpr int kMemoriaDiasPadrao = 90;
 
 struct Espaco {
   std::string id;

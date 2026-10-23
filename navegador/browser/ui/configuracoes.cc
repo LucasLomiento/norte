@@ -16,8 +16,10 @@
 #include "base/memory/weak_ptr.h"
 #include "base/no_destructor.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/timer/timer.h"
 #include "cc/paint/paint_flags.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/browser_process.h"
@@ -59,6 +61,8 @@
 #include "navegador/browser/ui/importar_chromium.h"
 #include "navegador/browser/ui/importar_zen.h"
 #include "navegador/browser/ui/inicio.h"
+#include "navegador/browser/memoria/memoria.h"
+#include "navegador/browser/ui/painel_da_memoria.h"
 #include "navegador/browser/sem_ia/sem_ia.h"
 #include "navegador/browser/ui/seletor_de_cor.h"
 #include "navegador/icones/menu/vector_icons.h"
@@ -960,8 +964,9 @@ std::unique_ptr<views::View> PaginaGeral(BrowserWindowInterface* browser) {
                       },
                       perfil))));
 
-  // No Local State: a lista de recursos é montada antes das prefs do perfil.
-  Cartao* memoria = pagina->Secao(u"Memória");
+  // "Desempenho", e não "Memória" (a Memória é a busca no que você leu). No
+  // Local State: a lista de recursos é montada antes das prefs do perfil.
+  Cartao* memoria = pagina->Secao(u"Desempenho");
   memoria->Adicionar(Linha(
       u"Congelar as abas dos outros espaços",
       u"Depois de 15 minutos sem uso, elas param de rodar (gastam menos "
@@ -1214,6 +1219,250 @@ std::unique_ptr<views::View> PaginaPrivacidade(
       u"segurança).");
   return pagina;
 }
+
+// --- Memória -----------------------------------------------------------------
+
+// Prazos de "Guardar por", em dias (0 = sempre).
+constexpr int kPrazosDaMemoria[] = {30, 90, 180, 365, 0};
+
+std::u16string Tamanho(int64_t bytes) {
+  if (bytes < 1024 * 1024) {
+    return base::NumberToString16(std::max<int64_t>(1, bytes / 1024)) + u" KB";
+  }
+  return base::NumberToString16(bytes / (1024 * 1024)) + u" MB";
+}
+
+// A Memória (navegador/browser/memoria/memoria.h): ligar, por quanto tempo,
+// o que fica de fora e o que já está guardado (com o "Apagar tudo", que pede
+// um segundo clique).
+class PaginaDaMemoria : public views::View, public views::TextfieldController {
+  METADATA_HEADER(PaginaDaMemoria, views::View)
+
+ public:
+  explicit PaginaDaMemoria(BrowserWindowInterface* browser)
+      : browser_(browser),
+        perfil_(browser->GetProfile()->GetOriginalProfile()) {
+    SetLayoutManager(std::make_unique<views::FillLayout>());
+    Montar();
+  }
+
+  // views::TextfieldController: os sites de fora, gravados quando a pessoa
+  // para de digitar (gravar a cada letra apagaria "git" de "github.com").
+  void ContentsChanged(views::Textfield* sender,
+                       const std::u16string& new_contents) override {
+    espera_.Start(FROM_HERE, base::Milliseconds(800),
+                  base::BindOnce(&PaginaDaMemoria::GravarSites,
+                                 base::Unretained(this)));
+  }
+
+  void RemovedFromWidget() override {
+    // Fechando as Configurações no meio da espera: grava antes.
+    if (espera_.IsRunning()) {
+      espera_.FireNow();
+    }
+  }
+
+ private:
+  void Montar() {
+    sites_ = nullptr;
+    resumo_ = nullptr;
+    apagar_ = nullptr;
+    RemoveAllChildViews();
+    auto pagina = std::make_unique<Pagina>(
+        u"Memória",
+        u"O Norte guarda o texto das páginas que você lê, pra você achar de "
+        u"novo pelo que lembra: uma frase, um termo, em qualquer língua. Fica "
+        u"só neste computador, e não tem IA: é busca de palavras.");
+
+    Cartao* memoria = pagina->Secao(std::u16string());
+    PrefService* prefs = perfil_->GetPrefs();
+    memoria->Adicionar(Linha(
+        u"Lembrar do que eu leio",
+        u"Uma página entra depois de uns segundos à vista. Desligado, nada "
+        u"novo entra, e a busca continua no que já foi guardado.",
+        Interruptor(prefs->GetBoolean(espacos::kMemoriaPref),
+                    u"Lembrar do que eu leio",
+                    base::BindRepeating(
+                        [](Profile* perfil, bool ligado) {
+                          perfil->GetPrefs()->SetBoolean(espacos::kMemoriaPref,
+                                                         ligado);
+                        },
+                        perfil_))));
+    const int dias = prefs->GetInteger(espacos::kMemoriaDiasPref);
+    size_t prazo = 1;
+    for (size_t i = 0; i < std::size(kPrazosDaMemoria); ++i) {
+      if (kPrazosDaMemoria[i] == dias) {
+        prazo = i;
+      }
+    }
+    memoria->Adicionar(Linha(
+        u"Guardar por",
+        u"Depois disso a página sai da memória, a não ser que você volte "
+        u"nela.",
+        Escolha({u"1 mês", u"3 meses", u"6 meses", u"1 ano", u"Sempre"}, prazo,
+                u"Guardar por",
+                base::BindRepeating(
+                    [](Profile* perfil, size_t escolha) {
+                      perfil->GetPrefs()->SetInteger(
+                          espacos::kMemoriaDiasPref,
+                          kPrazosDaMemoria[escolha]);
+                    },
+                    perfil_))));
+    memoria->Adicionar(Linha(
+        u"Buscar na Memória",
+        u"Com " + atalhos::Mostrar(espacos::AtalhoDe(perfil_, "memoria")) +
+            u", ou direto na barra de endereço: o que você digita acha "
+            u"também o texto das páginas, e ela abre já no trecho.",
+        Botao(u"Abrir", base::BindRepeating(&PaginaDaMemoria::AbrirPainel,
+                                            base::Unretained(this)))));
+
+    Cartao* fora = pagina->Secao(u"Fora da memória");
+    fora->Adicionar(Linha(
+        u"E-mail e conversas",
+        u"Gmail, Outlook, WhatsApp, Telegram, Slack, Discord, Teams e as "
+        u"mensagens diretas das redes ficam de fora. Ligado, entram também.",
+        Interruptor(prefs->GetBoolean(espacos::kMemoriaConversasPref),
+                    u"Lembrar de e-mail e conversas",
+                    base::BindRepeating(
+                        [](Profile* perfil, bool ligado) {
+                          perfil->GetPrefs()->SetBoolean(
+                              espacos::kMemoriaConversasPref, ligado);
+                        },
+                        perfil_))));
+    auto campo = std::make_unique<views::Textfield>();
+    campo->SetText(base::UTF8ToUTF16(memoria::SitesDeFora(perfil_)));
+    campo->SetPlaceholderText(u"banco.com.br, intranet.com");
+    campo->SetDefaultWidthInChars(22);
+    campo->SetAccessibleName(u"Sites que ficam de fora da memória");
+    campo->SetController(this);
+    sites_ = campo.get();
+    fora->Adicionar(Linha(u"Sites",
+                          u"Nunca entram, nem os subdomínios. O que já estava "
+                          u"guardado deles sai.",
+                          std::move(campo)));
+    for (const containers::Container& container :
+         containers::GetAll(perfil_)) {
+      if (container.temporario) {
+        continue;
+      }
+      const std::u16string nome = base::UTF8ToUTF16(container.name);
+      fora->Adicionar(Linha(
+          u"Container " + nome,
+          u"Lembrar das páginas lidas nele.",
+          Interruptor(!memoria::ContainerDeFora(perfil_, container.id),
+                      u"Lembrar das páginas do container " + nome,
+                      base::BindRepeating(
+                          [](Profile* perfil, std::string id, bool ligado) {
+                            memoria::DeixarContainerDeFora(perfil, id,
+                                                           !ligado);
+                          },
+                          perfil_, container.id))));
+    }
+    pagina->Rodape(
+        u"Também pelo botão direito numa página: “Não lembrar deste site”. "
+        u"E nunca entram: janelas anônimas e de visitante, apps instalados, "
+        u"containers temporários, páginas com campo de senha, páginas que "
+        u"pedem pra não ser guardadas (bancos e e-mails costumam pedir), a "
+        u"busca do buscador e endereços desta máquina.");
+
+    Cartao* guardado = pagina->Secao(u"Guardado");
+    auto linha_resumo =
+        Linha(u"Contando…", std::u16string(),
+              Botao(u"Apagar tudo…",
+                    base::BindRepeating(&PaginaDaMemoria::Apagar,
+                                        base::Unretained(this))));
+    // O título da linha vira o resumo quando a conta chega.
+    resumo_ = views::AsViewClass<views::Label>(
+        linha_resumo->children().front()->children().front());
+    apagar_ = views::AsViewClass<views::MdTextButton>(
+        linha_resumo->children().back());
+    guardado->Adicionar(std::move(linha_resumo));
+    pagina->Rodape(
+        u"Apagar o histórico (Ctrl+Shift+Del) também apaga daqui as mesmas "
+        u"páginas.");
+
+    AddChildView(Rolando(std::move(pagina)));
+    InvalidateLayout();
+    memoria::Resumir(perfil_, base::BindOnce(&PaginaDaMemoria::Resumiu,
+                                             weak_factory_.GetWeakPtr()));
+  }
+
+  void Resumiu(memoria::Resumo resumo) {
+    if (!resumo_) {
+      return;
+    }
+    paginas_ = resumo.paginas;
+    if (resumo.paginas == 0) {
+      resumo_->SetText(u"Nada guardado ainda");
+    } else {
+      base::Time::Exploded desde;
+      resumo.mais_antiga.LocalExplode(&desde);
+      resumo_->SetText(
+          (resumo.paginas == 1
+               ? u"1 página"
+               : base::NumberToString16(resumo.paginas) + u" páginas") +
+          u", " + Tamanho(resumo.bytes) + u", desde " +
+          base::UTF8ToUTF16(base::StringPrintf("%02d/%02d/%d",
+                                               desde.day_of_month,
+                                               desde.month, desde.year)));
+    }
+    apagar_->SetEnabled(resumo.paginas > 0);
+  }
+
+  // Primeiro clique pergunta; o segundo apaga.
+  void Apagar() {
+    if (!confirmando_) {
+      confirmando_ = true;
+      apagar_->SetText(u"Apagar as " + base::NumberToString16(paginas_) +
+                       u" páginas");
+      apagar_->SetStyle(ui::ButtonStyle::kProminent);
+      return;
+    }
+    confirmando_ = false;
+    apagar_->SetEnabled(false);
+    memoria::EsquecerTudo(perfil_,
+                          base::BindOnce(&PaginaDaMemoria::Apagou,
+                                         weak_factory_.GetWeakPtr()));
+  }
+
+  void Apagou() {
+    if (!apagar_) {
+      return;
+    }
+    apagar_->SetText(u"Apagar tudo…");
+    apagar_->SetStyle(ui::ButtonStyle::kTonal);
+    memoria::Resumir(perfil_, base::BindOnce(&PaginaDaMemoria::Resumiu,
+                                             weak_factory_.GetWeakPtr()));
+  }
+
+  void GravarSites() {
+    if (sites_) {
+      memoria::DefinirSitesDeFora(perfil_,
+                                  base::UTF16ToUTF8(sites_->GetText()));
+    }
+  }
+
+  void AbrirPainel() {
+    BrowserWindowInterface* browser = browser_;
+    if (auto it = Abertas().find(browser); it != Abertas().end() && it->second) {
+      it->second->CloseWithReason(views::Widget::ClosedReason::kUnspecified);
+    }
+    memoria::AbrirPainel(browser);
+  }
+
+  raw_ptr<BrowserWindowInterface> browser_;
+  raw_ptr<Profile> perfil_;
+  raw_ptr<views::Textfield> sites_ = nullptr;
+  raw_ptr<views::Label> resumo_ = nullptr;
+  raw_ptr<views::MdTextButton> apagar_ = nullptr;
+  bool confirmando_ = false;
+  int64_t paginas_ = 0;
+  base::OneShotTimer espera_;
+  base::WeakPtrFactory<PaginaDaMemoria> weak_factory_{this};
+};
+
+BEGIN_METADATA(PaginaDaMemoria)
+END_METADATA
 
 // --- Aparência ---------------------------------------------------------------
 
@@ -2236,6 +2485,7 @@ class JanelaDeConfiguracoes : public views::View {
     const Entrada entradas[] = {
         {raw_ref(vector_icons::kSettingsIcon), u"Geral"},
         {raw_ref(icones_menu::kShieldCheckIcon), u"Privacidade"},
+        {raw_ref(icones_menu::kTextSearchIcon), u"Memória"},
         {raw_ref(kBrushFilledIcon), u"Aparência"},
         {raw_ref(kViewListIcon), u"Lateral"},
         {raw_ref(kGridViewIcon), u"Espaços"},
@@ -2271,6 +2521,9 @@ class JanelaDeConfiguracoes : public views::View {
         break;
       case Aba::kPrivacidade:
         conteudo_->AddChildView(Rolando(PaginaPrivacidade(browser_)));
+        break;
+      case Aba::kMemoria:
+        conteudo_->AddChildView(std::make_unique<PaginaDaMemoria>(browser_));
         break;
       case Aba::kAparencia:
         conteudo_->AddChildView(Rolando(PaginaAparencia(browser_)));

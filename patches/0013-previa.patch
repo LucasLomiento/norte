@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/ui/views/frame/multi_contents_view.cc w/chrome/browser/ui/views/frame/multi_contents_view.cc
-index 76475b5693..e74e87e96e 100644
+index 76475b5693..0aa19b7a38 100644
 --- i/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ w/chrome/browser/ui/views/frame/multi_contents_view.cc
 @@ -37,6 +37,7 @@
@@ -10,13 +10,15 @@ index 76475b5693..e74e87e96e 100644
  #include "components/split_tabs/split_tab_visual_data.h"
  #include "components/tabs/public/tab_interface.h"
  #include "content/public/browser/web_contents.h"
-@@ -552,6 +553,13 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+@@ -552,6 +553,15 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
    layouts.child_layouts.emplace_back(lens_overlay_view_.get(),
                                       lens_overlay_view_->GetVisible(),
                                       gfx::Rect(width, height));
-+  // navegador: a prévia de link cobre a área inteira, por cima das páginas.
++  // navegador: a prévia de link e o painel da Memória cobrem a área
++  // inteira, por cima das páginas.
 +  for (views::View* filho : children()) {
-+    if (filho->GetID() == navegador::visual::kIdPrevia) {
++    if (filho->GetID() == navegador::visual::kIdPrevia ||
++        filho->GetID() == navegador::visual::kIdMemoria) {
 +      layouts.child_layouts.emplace_back(filho, filho->GetVisible(),
 +                                         gfx::Rect(width, height));
 +    }

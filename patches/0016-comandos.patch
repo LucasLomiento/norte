@@ -1,16 +1,17 @@
 diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
-index a9bb896ea1..7011631cc1 100644
+index a9bb896ea1..5ebc449490 100644
 --- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 +++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
-@@ -102,6 +102,7 @@
+@@ -102,6 +102,8 @@
  #include "content/public/browser/web_contents.h"
  #include "content/public/browser/web_contents_user_data.h"
  #include "extensions/buildflags/buildflags.h"
++#include "navegador/browser/memoria/memoria.h"
 +#include "navegador/browser/ui/comandos.h"
  #include "net/base/url_util.h"
  #include "net/traffic_annotation/network_traffic_annotation.h"
  #include "services/network/public/cpp/shared_url_loader_factory.h"
-@@ -774,6 +775,22 @@ void ChromeAutocompleteProviderClient::NewIncognitoWindow() {
+@@ -774,6 +776,58 @@ void ChromeAutocompleteProviderClient::NewIncognitoWindow() {
  #endif  // !BUILDFLAG(IS_ANDROID)
  }
  
@@ -20,6 +21,42 @@ index a9bb896ea1..7011631cc1 100644
 +  return navegador::comandos::Lista(profile_);
 +#else
 +  return {};
++#endif  // !BUILDFLAG(IS_ANDROID)
++}
++
++void ChromeAutocompleteProviderClient::NavegadorLembrar(
++    const std::u16string& texto,
++    base::OnceCallback<void(std::vector<NavegadorLembranca>)> pronto) {
++#if !BUILDFLAG(IS_ANDROID)
++  navegador::memoria::Filtro filtro;
++  filtro.consulta = texto;
++  filtro.limite = 3;
++  filtro.tamanho_do_trecho = 120;
++  navegador::memoria::Buscar(
++      profile_, std::move(filtro),
++      base::BindOnce(
++          [](base::OnceCallback<void(std::vector<NavegadorLembranca>)> pronto,
++             std::vector<navegador::memoria::Resultado> resultados) {
++            std::vector<NavegadorLembranca> lembrancas;
++            for (const navegador::memoria::Resultado& r : resultados) {
++              NavegadorLembranca lembranca;
++              lembranca.url = navegador::memoria::EnderecoNoTrecho(r);
++              lembranca.titulo = r.titulo;
++              lembranca.trecho = r.trecho.texto;
++              lembranca.destaques = r.trecho.destaques;
++              lembrancas.push_back(std::move(lembranca));
++            }
++            std::move(pronto).Run(std::move(lembrancas));
++          },
++          std::move(pronto)));
++#else
++  std::move(pronto).Run({});
++#endif  // !BUILDFLAG(IS_ANDROID)
++}
++
++void ChromeAutocompleteProviderClient::NavegadorEsquecer(const GURL& url) {
++#if !BUILDFLAG(IS_ANDROID)
++  navegador::memoria::EsquecerEndereco(profile_, url);
 +#endif  // !BUILDFLAG(IS_ANDROID)
 +}
 +
@@ -34,15 +71,21 @@ index a9bb896ea1..7011631cc1 100644
  #if !BUILDFLAG(IS_ANDROID)
    if (BrowserWindowInterface* const bwi =
 diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
-index 8ba87a1f7e..a5e3c53285 100644
+index 8ba87a1f7e..2b9ea40d90 100644
 --- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
 +++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
-@@ -146,9 +146,12 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
+@@ -146,9 +146,18 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
        LensOverlaySuggestInputsCallback callback) const override;
    base::WeakPtr<AutocompleteProviderClient> GetWeakPtr() override;
    bool IsWebUiNtpEnabledForDesktopAndroid() const override;
 +  // navegador: comandos do Norte na barra (navegador/browser/ui/comandos.h).
 +  std::vector<NavegadorComando> NavegadorComandos() override;
++  // navegador: a Memória na barra (navegador/browser/memoria/memoria.h).
++  void NavegadorLembrar(
++      const std::u16string& texto,
++      base::OnceCallback<void(std::vector<NavegadorLembranca>)> pronto)
++      override;
++  void NavegadorEsquecer(const GURL& url) override;
  
    // OmniboxAction::Client:
    void OpenSharingHub() override;
@@ -179,11 +222,48 @@ index 36ab6a1fbb..08dae9f72c 100644
  
      // When adding a value here, also update:
      // - omnibox_event.proto
+diff --git i/components/omnibox/browser/autocomplete_provider_client.cc w/components/omnibox/browser/autocomplete_provider_client.cc
+index 8b5acf5ed6..036d3e4b6a 100644
+--- i/components/omnibox/browser/autocomplete_provider_client.cc
++++ w/components/omnibox/browser/autocomplete_provider_client.cc
+@@ -113,3 +113,13 @@ bool AutocompleteProviderClient::ShouldOpenComposeboxForAskG() const {
+ }
+ 
+ void AutocompleteProviderClient::OpenComposeboxForAskG() {}
++
++// navegador: a página da Memória pra barra (navegador_provider.h).
++NavegadorLembranca::NavegadorLembranca() = default;
++NavegadorLembranca::NavegadorLembranca(const NavegadorLembranca&) = default;
++NavegadorLembranca::NavegadorLembranca(NavegadorLembranca&&) = default;
++NavegadorLembranca& NavegadorLembranca::operator=(const NavegadorLembranca&) =
++    default;
++NavegadorLembranca& NavegadorLembranca::operator=(NavegadorLembranca&&) =
++    default;
++NavegadorLembranca::~NavegadorLembranca() = default;
 diff --git i/components/omnibox/browser/autocomplete_provider_client.h w/components/omnibox/browser/autocomplete_provider_client.h
-index 1c215d2214..365a620137 100644
+index 1c215d2214..032bdbf76e 100644
 --- i/components/omnibox/browser/autocomplete_provider_client.h
 +++ w/components/omnibox/browser/autocomplete_provider_client.h
-@@ -82,10 +82,23 @@ class TabGroupSyncService;
+@@ -7,15 +7,18 @@
+ 
+ #include <memory>
+ #include <string>
++#include <utility>
+ #include <vector>
+ 
+ #include "base/callback_list.h"
++#include "base/functional/callback.h"
+ #include "base/memory/scoped_refptr.h"
+ #include "base/memory/weak_ptr.h"
+ #include "components/history/core/browser/keyword_id.h"
+ #include "components/omnibox/browser/actions/omnibox_action.h"
+ #include "components/omnibox/browser/lens_suggest_inputs_utils.h"
+ #include "third_party/metrics_proto/omnibox_event.pb.h"
++#include "url/gurl.h"
+ 
+ class AiModeButtonService;
+ class AimEligibilityService;
+@@ -82,10 +85,49 @@ class TabGroupSyncService;
  
  class TemplateURLService;
  
@@ -197,12 +277,38 @@ index 1c215d2214..365a620137 100644
 +  std::u16string palavras;
 +};
 +
++// navegador: uma página da Memória (o texto das páginas lidas) pra barra.
++struct NavegadorLembranca {
++  NavegadorLembranca();
++  NavegadorLembranca(const NavegadorLembranca&);
++  NavegadorLembranca(NavegadorLembranca&&);
++  NavegadorLembranca& operator=(const NavegadorLembranca&);
++  NavegadorLembranca& operator=(NavegadorLembranca&&);
++  ~NavegadorLembranca();
++
++  // Com o fragmento de texto: abre a página no trecho, destacado.
++  GURL url;
++  std::u16string titulo;
++  std::u16string trecho;
++  // Começo e fim das palavras achadas no trecho.
++  std::vector<std::pair<size_t, size_t>> destaques;
++};
++
  class AutocompleteProviderClient : public OmniboxAction::Client {
   public:
    ~AutocompleteProviderClient() override = default;
  
 +  // navegador: os comandos do Norte pra barra (">").
 +  virtual std::vector<NavegadorComando> NavegadorComandos() { return {}; }
++  // navegador: as páginas da Memória com o texto digitado; a resposta vem
++  // depois (vazia fora do perfil normal).
++  virtual void NavegadorLembrar(
++      const std::u16string& texto,
++      base::OnceCallback<void(std::vector<NavegadorLembranca>)> pronto) {
++    std::move(pronto).Run({});
++  }
++  // navegador: Shift+Delete numa sugestão da Memória.
++  virtual void NavegadorEsquecer(const GURL& url) {}
 +
    virtual scoped_refptr<network::SharedURLLoaderFactory>
    GetURLLoaderFactory() = 0;

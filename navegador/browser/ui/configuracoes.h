@@ -24,11 +24,12 @@ namespace navegador::configuracoes {
 enum class Aba {
   kGeral = 0,
   kPrivacidade = 1,
-  kAparencia = 2,
-  kLateral = 3,
-  kEspacos = 4,
-  kContainers = 5,
-  kAtalhos = 6,
+  kMemoria = 2,
+  kAparencia = 3,
+  kLateral = 4,
+  kEspacos = 5,
+  kContainers = 6,
+  kAtalhos = 7,
 };
 
 // Abre (ou traz pra frente) a janela de configurações na aba pedida.

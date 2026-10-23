@@ -1,0 +1,119 @@
+diff --git i/sql/database.cc w/sql/database.cc
+index 528c012f79..0beed69c2c 100644
+--- i/sql/database.cc
++++ w/sql/database.cc
+@@ -107,7 +107,7 @@ static constexpr char kSqliteOpenInMemoryPath[] = ":memory:";
+ // TODO(shess): Better story on this.  http://crbug.com/56559
+ const int kBusyTimeoutSeconds = 1;
+ 
+-constexpr int kPrepareFlags = SQLITE_PREPARE_NO_VTAB;
++constexpr int kPrepareFlags = SQLITE_PREPARE_NO_VTAB;  // navegador: ver PrepareFlags
+ 
+ // RAII-style wrapper that enables `writable_schema` until it goes out of scope.
+ // No error checking on the PRAGMA statements because it is reasonable to just
+@@ -1586,7 +1586,7 @@ SqliteResultCode Database::ExecuteAndReturnResultCode(
+     sqlite3_stmt* sqlite_statement;
+     const char* leftover_sql;
+     sqlite_result_code = ToSqliteResultCode(
+-        sqlite3_prepare_v3(db_, sql, /* nByte= */ -1, kPrepareFlags,
++        sqlite3_prepare_v3(db_, sql, /* nByte= */ -1, PrepareFlags(),
+                            &sqlite_statement, &leftover_sql));
+ 
+ #if DCHECK_IS_ON()
+@@ -1709,7 +1709,7 @@ bool Database::ExecuteScriptForTesting(base::cstring_view sql_script) {
+   while (*sql) {
+     sqlite3_stmt* sqlite_statement;
+     auto sqlite_result_code = ToSqliteResultCode(sqlite3_prepare_v3(
+-        db_, sql, /*nByte=*/-1, kPrepareFlags, &sqlite_statement, &sql));
++        db_, sql, /*nByte=*/-1, PrepareFlags(), &sqlite_statement, &sql));
+     if (sqlite_result_code != SqliteResultCode::kOk) {
+       return false;
+     }
+@@ -1798,7 +1798,7 @@ scoped_refptr<Database::StatementRef> Database::GetStatementImpl(
+   //               prepared with prepFlags set to SQLITE_PREPARE_PERSISTENT.
+   sqlite3_stmt* sqlite_statement;
+   auto sqlite_result_code = ToSqliteResultCode(sqlite3_prepare_v3(
+-      db_, sql.c_str(), /* nByte= */ -1, kPrepareFlags,
++      db_, sql.c_str(), /* nByte= */ -1, PrepareFlags(),
+       &sqlite_statement, unused_sql_ptr));
+ 
+ #if DCHECK_IS_ON()
+@@ -1926,7 +1926,7 @@ bool Database::IsSQLValid(base::cstring_view sql) {
+ 
+   sqlite3_stmt* sqlite_statement = nullptr;
+   auto sqlite_result_code = ToSqliteResultCode(sqlite3_prepare_v3(
+-      db_, sql.c_str(), /* nByte= */ -1, kPrepareFlags,
++      db_, sql.c_str(), /* nByte= */ -1, PrepareFlags(),
+       &sqlite_statement, unused_sql_ptr));
+   if (sqlite_result_code != SqliteResultCode::kOk) {
+     return false;
+@@ -2689,7 +2689,7 @@ bool Database::FullIntegrityCheck(std::vector<std::string>* messages) {
+   constexpr char kIntegrityCheckSql[] = "PRAGMA integrity_check";
+   const auto prepare_result_code = ToSqliteResultCode(
+       sqlite3_prepare_v3(db_, kIntegrityCheckSql, sizeof(kIntegrityCheckSql),
+-                         kPrepareFlags, &statement, /*pzTail=*/nullptr));
++                         PrepareFlags(), &statement, /*pzTail=*/nullptr));
+   if (prepare_result_code != SqliteResultCode::kOk) {
+     return false;
+   }
+@@ -2750,4 +2750,9 @@ bool Database::CheckpointDatabase(bool truncate) {
+                            /*is_auto_checkpoint=*/false, truncate) == SQLITE_OK;
+ }
+ 
++// navegador: tabelas virtuais só no banco que pede (a Memória).
++int Database::PrepareFlags() const {
++  return options_.enable_virtual_tables_discouraged_ ? 0 : kPrepareFlags;
++}
++
+ }  // namespace sql
+diff --git i/sql/database.h w/sql/database.h
+index 63c2cc6e33..ac40aece00 100644
+--- i/sql/database.h
++++ w/sql/database.h
+@@ -255,6 +255,15 @@ struct COMPONENT_EXPORT(SQL) DatabaseOptions {
+     return *this;
+   }
+ 
++  // navegador: se verdadeiro, este banco pode usar tabelas virtuais (o FTS5
++  // da Memória, navegador/browser/memoria). Nos outros o Chromium prepara
++  // tudo com SQLITE_PREPARE_NO_VTAB, e elas somem ("no such table").
++  DatabaseOptions& set_enable_virtual_tables_discouraged(
++      bool enable_virtual_tables_discouraged) {
++    enable_virtual_tables_discouraged_ = enable_virtual_tables_discouraged;
++    return *this;
++  }
++
+   // If true, enables SQL triggers for this database.
+   //
+   // The use of triggers should be thoughtful. See README.md for details.
+@@ -360,6 +369,7 @@ struct COMPONENT_EXPORT(SQL) DatabaseOptions {
+   bool mmap_enabled_ = true;
+   bool read_only_ = false;
+   bool enable_triggers_ = false;
++  bool enable_virtual_tables_discouraged_ = false;  // navegador
+   bool no_sync_ = false;
+   base::RepeatingCallback<void(int)> wal_commit_callback_;
+ };
+@@ -1171,6 +1181,10 @@ class COMPONENT_EXPORT(SQL) Database {
+                                         base::TimeDelta ms_timeout)
+       VALID_CONTEXT_REQUIRED(sequence_checker_);
+ 
++  // navegador: SQLITE_PREPARE_NO_VTAB, menos no banco que liga as tabelas
++  // virtuais (set_enable_virtual_tables_discouraged).
++  int PrepareFlags() const;
++
+   // Implementation helper for GetUniqueStatement() and GetCachedStatement().
+   scoped_refptr<StatementRef> GetStatementImpl(base::cstring_view sql,
+                                                bool is_readonly)
+diff --git i/third_party/sqlite/sqlite_common_configuration_flags.gni w/third_party/sqlite/sqlite_common_configuration_flags.gni
+index c057cbe4fc..abc7e8a14e 100644
+--- i/third_party/sqlite/sqlite_common_configuration_flags.gni
++++ w/third_party/sqlite/sqlite_common_configuration_flags.gni
+@@ -100,4 +100,7 @@ sqlite_common_configuration_flags = [
+   # to the sqlite_dbpage table. This table should not be accessed anywhere else
+   # in Chrome or by untrusted third-parties (i.e. WebSQL).
+   "SQLITE_ENABLE_DBPAGE_VTAB",
++
++  # navegador: a busca de texto da Memória (navegador/browser/memoria).
++  "SQLITE_ENABLE_FTS5",
+ ]

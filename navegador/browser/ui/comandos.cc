@@ -43,6 +43,9 @@ std::u16string Palavras(std::string_view acao) {
       acao == "novo_espaco" || acao == "fechar_espaco") {
     return u"workspace";
   }
+  if (acao == "memoria") {
+    return u"historico buscar procurar lembrar lido texto pagina";
+  }
   if (acao == "configuracoes") {
     return u"opcoes preferencias settings";
   }

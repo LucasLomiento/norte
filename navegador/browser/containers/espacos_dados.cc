@@ -163,6 +163,11 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterBooleanPref(kPreviaPref, true);
   registry->RegisterBooleanPref(kInicioHoraPref, true);
   registry->RegisterBooleanPref(kInicioDataPref, true);
+  registry->RegisterBooleanPref(kMemoriaPref, true);
+  registry->RegisterIntegerPref(kMemoriaDiasPref, kMemoriaDiasPadrao);
+  registry->RegisterBooleanPref(kMemoriaConversasPref, false);
+  registry->RegisterListPref(kMemoriaForaSitesPref);
+  registry->RegisterListPref(kMemoriaForaContainersPref);
 }
 
 std::vector<Espaco> Todos(Profile* profile) {
@@ -357,6 +362,9 @@ const std::vector<Atalho>& Atalhos() {
           // Ctrl+Shift+I e no F12).
           {"copiar_endereco", u"Copiar o endereço da aba (sem rastreio)",
            "Ctrl+Shift+C"},
+          // A busca no que você já leu (navegador/browser/ui/painel_da_memoria.h): o
+          // "procurar em tudo" dos editores (o Ctrl+F procura na página).
+          {"memoria", u"Memória: buscar no que você já leu", "Ctrl+Shift+F"},
           {"proximo_espaco", u"Próximo espaço", "Ctrl+Alt+Right"},
           {"espaco_anterior", u"Espaço anterior", "Ctrl+Alt+Left"},
           {"novo_espaco", u"Novo espaço", "Ctrl+Alt+N"},

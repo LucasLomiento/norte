@@ -7,6 +7,7 @@
 #include <utility>
 #include <vector>
 
+#include "base/functional/bind.h"
 #include "base/memory/scoped_refptr.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_split.h"
@@ -34,6 +35,12 @@ constexpr size_t kMaximoDeComandos = 8;
 constexpr int kRelevanciaDoPrimeiro = 1550;
 // Abaixo da busca: a conta aparece na lista, e Enter continua buscando.
 constexpr int kRelevanciaDaConta = 1250;
+// Memória: abaixo da busca e dos endereços do histórico que batem com o que
+// foi digitado; Enter continua fazendo o que fazia.
+constexpr int kRelevanciaDaMemoria = 1080;
+constexpr size_t kMaximoDaMemoria = 3;
+// Menos que isso digitado não vai pra Memória (acharia meio mundo).
+constexpr size_t kMinimoDaMemoria = 3;
 
 // A sugestão escolhida roda o comando em vez de navegar.
 class AcaoDoNorte : public OmniboxAction {
@@ -352,6 +359,107 @@ void NavegadorProvider::Start(const AutocompleteInput& input,
     return;
   }
   Calculadora(input);
+  Memoria(input);
+}
+
+void NavegadorProvider::Stop(AutocompleteStopReason stop_reason) {
+  AutocompleteProvider::Stop(stop_reason);
+  ++pedido_;
+}
+
+void NavegadorProvider::DeleteMatch(const AutocompleteMatch& match) {
+  if (match.type != AutocompleteMatchType::HISTORY_BODY) {
+    return;
+  }
+  client_->NavegadorEsquecer(match.destination_url);
+  std::erase_if(matches_, [&](const AutocompleteMatch& m) {
+    return m.destination_url == match.destination_url;
+  });
+}
+
+void NavegadorProvider::Memoria(const AutocompleteInput& input) {
+  // Endereço digitado é pra ir pro site; e a classificação síncrona (Enter
+  // antes das sugestões chegarem) não espera.
+  if (input.omit_asynchronous_matches() ||
+      input.type() == metrics::OmniboxInputType::URL) {
+    return;
+  }
+  const std::u16string texto(base::TrimWhitespace(input.text(), base::TRIM_ALL));
+  if (texto.size() < kMinimoDaMemoria) {
+    return;
+  }
+  done_ = false;
+  client_->NavegadorLembrar(
+      texto, base::BindOnce(&NavegadorProvider::Lembrou,
+                            weak_factory_.GetWeakPtr(), ++pedido_, texto));
+}
+
+void NavegadorProvider::Lembrou(int pedido,
+                                std::u16string texto,
+                                std::vector<NavegadorLembranca> lembrancas) {
+  if (pedido != pedido_) {
+    return;
+  }
+  done_ = true;
+  for (size_t i = 0; i < lembrancas.size() && i < kMaximoDaMemoria; ++i) {
+    const NavegadorLembranca& lembranca = lembrancas[i];
+    AutocompleteMatch match(this, kRelevanciaDaMemoria - static_cast<int>(i),
+                            /*deletable=*/true,
+                            AutocompleteMatchType::HISTORY_BODY);
+    match.destination_url = lembranca.url;
+    GURL::Replacements sem_trecho;
+    sem_trecho.ClearRef();
+    match.fill_into_edit = base::UTF8ToUTF16(
+        lembranca.url.ReplaceComponents(sem_trecho).spec());
+    // A barra troca as duas (AggregateNewMatches): aparece o título e, ao
+    // lado, o trecho com as palavras achadas em negrito.
+    match.description = lembranca.titulo.empty()
+                            ? base::UTF8ToUTF16(lembranca.url.host())
+                            : lembranca.titulo;
+    match.description_class = {{0, ACMatchClassification::NONE}};
+    match.contents = lembranca.trecho;
+    size_t pos = 0;
+    for (const auto& [inicio, fim] : lembranca.destaques) {
+      if (inicio < pos || fim <= inicio || fim > match.contents.size()) {
+        continue;
+      }
+      match.contents_class.emplace_back(pos, ACMatchClassification::DIM);
+      match.contents_class.emplace_back(inicio, ACMatchClassification::MATCH);
+      pos = fim;
+    }
+    match.contents_class.emplace_back(pos, ACMatchClassification::DIM);
+    // Sem pedaços vazios (dois na mesma posição) e começando do zero.
+    ACMatchClassifications limpas;
+    for (const ACMatchClassification& c : match.contents_class) {
+      if (!limpas.empty() && limpas.back().offset == c.offset) {
+        limpas.back() = c;
+      } else if (c.offset < match.contents.size() || limpas.empty()) {
+        limpas.push_back(c);
+      }
+    }
+    match.contents_class = std::move(limpas);
+    match.transition = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
+    matches_.push_back(std::move(match));
+  }
+  // Embaixo das páginas: o painel da Memória com o texto (mais resultados,
+  // miniaturas, filtros).
+  if (!lembrancas.empty()) {
+    const std::u16string titulo = u"Buscar “" + texto + u"” na Memória";
+    AutocompleteMatch match(
+        this,
+        kRelevanciaDaMemoria - static_cast<int>(kMaximoDaMemoria) - 1,
+        /*deletable=*/false, AutocompleteMatchType::PEDAL);
+    match.takeover_action = base::MakeRefCounted<AcaoDoNorte>(
+        "memoria:" + base::UTF16ToUTF8(texto), titulo);
+    match.contents = titulo;
+    match.contents_class = {{0, ACMatchClassification::NONE}};
+    match.fill_into_edit = texto;
+    match.destination_url = GURL("chrome://norte/memoria");
+    match.transition = ui::PAGE_TRANSITION_GENERATED;
+    match.suggest_type = omnibox::TYPE_NATIVE_CHROME;
+    matches_.push_back(std::move(match));
+  }
+  NotifyListeners(!lembrancas.empty());
 }
 
 void NavegadorProvider::Comandos(const AutocompleteInput& input,

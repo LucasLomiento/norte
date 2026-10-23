@@ -1,7 +1,7 @@
 // Itens do Norte no menu do botão direito das páginas: "Copiar link limpo" e
-// "Copiar link como Markdown" (num link) e "Desligar o bloqueador neste
+// "Copiar link como Markdown" (num link), "Desligar o bloqueador neste
 // site" (na página; antes, só pelas informações do site, como "Anúncios
-// invasivos"). Os comandos são nossos e quem atende é um observador do menu,
+// invasivos") e "Não lembrar deste site" (a Memória). Os comandos são nossos e quem atende é um observador do menu,
 // como o do corretor ortográfico.
 //
 // Compilado dentro de //chrome/browser/ui:ui.
@@ -30,10 +30,13 @@ inline constexpr int kCopiarLinkLimpo = 52700;
 inline constexpr int kCopiarLinkComoMarkdown = 52701;
 inline constexpr int kBloqueadorNoSite = 52702;
 inline constexpr int kEstiloDoSite = 52703;
+// "Não lembrar deste site" / "Voltar a lembrar deste site" (a Memória,
+// navegador/browser/memoria/memoria.h).
+inline constexpr int kMemoriaNoSite = 52704;
 // A faixa inteira (fora da tabela de métricas do menu, ver
 // RenderViewContextMenu::RecordUsedItem).
 inline constexpr int kPrimeiroComando = kCopiarLinkLimpo;
-inline constexpr int kUltimoComando = kEstiloDoSite;
+inline constexpr int kUltimoComando = kMemoriaNoSite;
 
 // O observador do menu de `pagina`: põe os itens no InitMenu e atende os
 // comandos.

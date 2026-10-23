@@ -68,6 +68,7 @@
 #include "navegador/browser/ui/downloads/botao.h"
 #include "navegador/browser/ui/grupos_salvos.h"
 #include "navegador/browser/ui/links.h"
+#include "navegador/browser/ui/painel_da_memoria.h"
 #include "navegador/browser/ui/previa.h"
 #include "navegador/browser/ui/tocando.h"
 #include "navegador/browser/ui/containers/espaco.h"
@@ -1129,10 +1130,16 @@ class FaixaDeEspacos : public views::View,
 
   // As ações dos atalhos (Atalhos() em espacos_dados.h) e as dos comandos da
   // barra (comandos.h): "espaco:<id>", "container:<id>", "temporario",
-  // "fechar_repetidas", "copiar_enderecos" e "descarregar_outros".
+  // "fechar_repetidas", "copiar_enderecos", "descarregar_outros" e
+  // "memoria:<texto>" (o painel da Memória já com a busca).
   bool ExecutarAcao(std::string_view acao) {
     if (acao.starts_with("espaco:")) {
       Focar(std::string(acao.substr(7)));
+      return true;
+    }
+    // "Buscar … na Memória" na barra: o painel com o texto.
+    if (acao.starts_with("memoria:")) {
+      memoria::AbrirPainel(browser_, base::UTF8ToUTF16(acao.substr(8)));
       return true;
     }
     if (acao.starts_with("container:") || acao == "temporario") {
@@ -1202,6 +1209,8 @@ class FaixaDeEspacos : public views::View,
           ativa && !anonima_) {
         fixos::AlternarFavorito(ativa);
       }
+    } else if (acao == "memoria") {
+      memoria::AbrirPainel(browser_);
     } else if (acao == "configuracoes") {
       configuracoes::Mostrar(browser_);
     } else if (acao == "containers") {
@@ -2195,6 +2204,17 @@ void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
             }
           }
           return std::nullopt;
+        }));
+    // "Memória" no menu do logo (o AppMenuModel não enxerga a interface),
+    // com o atalho ao lado.
+    containers::DefinirExecutarAcao(base::BindRepeating(
+        [](BrowserWindowInterface* janela, const std::string& acao) {
+          ExecutarAcao(janela, acao);
+        }));
+    containers::DefinirAtalhoDaAcao(base::BindRepeating(
+        [](Profile* perfil, const std::string& acao) {
+          return atalhos::Ler(
+              AtalhoDe(perfil->GetOriginalProfile(), acao));
         }));
     containers::DefinirAbrirConfiguracoes(base::BindRepeating(
         [](BrowserWindowInterface* janela, bool containers) {

@@ -19,6 +19,7 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
+#include "navegador/browser/memoria/memoria.h"
 #include "navegador/browser/ui/bloqueador.h"
 #include "navegador/browser/ui/configuracoes.h"
 #include "navegador/browser/ui/links.h"
@@ -75,12 +76,23 @@ class ItensDoNorte : public RenderViewContextMenuObserver {
       menu_->AddMenuItemWithIcon(kEstiloDoSite, u"Estilo deste site…",
                                  Icone(icones_menu::kPaintbrushIcon));
     }
+    // A Memória (só no perfil normal: a janela anônima não guarda nada).
+    if (na_pagina && !perfil->IsOffTheRecord() &&
+        !memoria::Chave(site_).empty()) {
+      const bool fora = memoria::SiteDeFora(perfil, site_);
+      menu_->AddMenuItemWithIcon(
+          kMemoriaNoSite,
+          fora ? u"Voltar a lembrar deste site" : u"Não lembrar deste site",
+          Icone(fora ? icones_menu::kTextSearchIcon
+                     : icones_menu::kEyeOffIcon));
+    }
   }
 
   bool IsCommandIdSupported(int command_id) override {
     return command_id == kCopiarLinkLimpo ||
            command_id == kCopiarLinkComoMarkdown ||
-           command_id == kBloqueadorNoSite || command_id == kEstiloDoSite;
+           command_id == kBloqueadorNoSite || command_id == kEstiloDoSite ||
+           command_id == kMemoriaNoSite;
   }
 
   bool IsCommandIdEnabled(int command_id) override { return !!pagina_; }
@@ -102,6 +114,13 @@ class ItensDoNorte : public RenderViewContextMenuObserver {
         break;
       case kEstiloDoSite:
         configuracoes::EditarEstilo(Janela(), pagina_.get());
+        break;
+      case kMemoriaNoSite:
+        if (Profile* perfil = Perfil()) {
+          // Tirar o site também apaga o que já estava guardado dele.
+          memoria::DeixarDeFora(perfil, std::string(site_.host()),
+                                !memoria::SiteDeFora(perfil, site_));
+        }
         break;
     }
   }
@@ -197,6 +216,7 @@ void Arrumar(ui::SimpleMenuModel& menu) {
         std::nullopt);
   Mover(menu, kBloqueadorNoSite, std::nullopt, IDC_VIEW_SOURCE);
   Mover(menu, kEstiloDoSite, std::nullopt, IDC_VIEW_SOURCE);
+  Mover(menu, kMemoriaNoSite, std::nullopt, IDC_VIEW_SOURCE);
   // Sem o "Ver código-fonte" (páginas sem ele), fica no fim, onde entrou.
 }
 

@@ -1,0 +1,37 @@
+import("//testing/test.gni")
+
+# Memória: o núcleo sem interface (o texto e o banco), que o
+# //chrome/browser/ui:ui usa (memoria.cc, a captura e a busca) e que os
+# testes compilam sem o navegador:
+#   tools/compilar.sh out/release navegador_memoria_unittests
+source_set("nucleo") {
+  sources = [
+    "banco.cc",
+    "banco.h",
+    "texto.cc",
+    "texto.h",
+  ]
+  public_deps = [
+    "//base",
+    "//sql",
+  ]
+  deps = [
+    "//base:i18n",
+    "//third_party/icu",
+  ]
+}
+
+test("navegador_memoria_unittests") {
+  sources = [
+    "banco_unittest.cc",
+    "texto_unittest.cc",
+  ]
+  deps = [
+    ":nucleo",
+    "//base",
+    "//base/test:run_all_unittests",
+    "//base/test:test_support",
+    "//sql",
+    "//testing/gtest",
+  ]
+}

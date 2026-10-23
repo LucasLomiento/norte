@@ -60,6 +60,12 @@ constexpr const char* kPrefs[] = {
     "navegador.bloqueador.avisos_de_cookies",
     "navegador.estilos.css",
     "navegador.estilos.escuro",
+    // As opções da Memória (o que ela guardou fica nesta máquina).
+    "navegador.memoria.ligada",
+    "navegador.memoria.dias",
+    "navegador.memoria.conversas",
+    "navegador.memoria.fora.sites",
+    "navegador.memoria.fora.containers",
 };
 
 // As opções que valem pro navegador inteiro (Local State: lidas antes de o
