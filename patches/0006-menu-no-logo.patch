@@ -62,7 +62,7 @@ index e0d817653b..44eb263481 100644
  }
  
 diff --git i/chrome/browser/ui/views/frame/browser_view.cc w/chrome/browser/ui/views/frame/browser_view.cc
-index 63c3090b4c..bb90b964e3 100644
+index 63c3090b4c..68a78ad69b 100644
 --- i/chrome/browser/ui/views/frame/browser_view.cc
 +++ w/chrome/browser/ui/views/frame/browser_view.cc
 @@ -4,6 +4,11 @@
@@ -178,7 +178,7 @@ index 63c3090b4c..bb90b964e3 100644
    int id;
    if (!FindCommandIdForAccelerator(accelerator, &id)) {
      // |accelerator| is not a browser command, it may be handled by ash (e.g.
-@@ -3289,6 +3326,18 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
+@@ -3289,6 +3326,23 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
  
  void BrowserView::PreHandleDragUpdate(const content::DropData& drop_data,
                                        const gfx::PointF& point) {
@@ -187,6 +187,11 @@ index 63c3090b4c..bb90b964e3 100644
 +  // aba: avisa o TabDragController como a lateral avisa, pra borda da página
 +  // virar alvo de dividir a tela.
 +  if (TabDragController::IsSystemDnDSessionRunning()) {
++    // Com o alvo da divisão, ele avisa (pela posição na janela, certa em
++    // qualquer painel: `point` é relativo à página debaixo do ponteiro).
++    if (multi_contents_view_->NavegadorAcompanharArrasto()) {
++      return;
++    }
 +    gfx::Point ponto = gfx::ToRoundedPoint(point);
 +    views::View::ConvertPointToWidget(GetActiveContentsContainerView(), &ponto);
 +    TabDragController::OnSystemDnDUpdated(ui::DropTargetEvent(
@@ -197,7 +202,18 @@ index 63c3090b4c..bb90b964e3 100644
    if (multi_contents_view_->IsDragAndDropEnabled()) {
      // Read the split state from the active tab because when BrowserView is in
      // full screen it may not be rendering a split, even though the active tab
-@@ -3489,8 +3538,10 @@ void BrowserView::OnSplitTabChanged(const SplitTabChange& change) {
+@@ -3305,6 +3359,10 @@ void BrowserView::PreHandleDragUpdate(const content::DropData& drop_data,
+ }
+ 
+ void BrowserView::PreHandleDragExit() {
++  // navegador: o arrasto da aba pode ter saído da janela por cima da página.
++  if (TabDragController::IsSystemDnDSessionRunning()) {
++    multi_contents_view_->NavegadorArrastoSaiu();
++  }
+   if (multi_contents_view_->IsDragAndDropEnabled()) {
+     multi_contents_view_->drop_target_controller().OnWebContentsDragExit();
+   }
+@@ -3489,8 +3547,10 @@ void BrowserView::OnSplitTabChanged(const SplitTabChange& change) {
        const tabs::TabInterface* active_tab =
            browser_->GetTabStripModel()->GetActiveTab();
  
@@ -209,7 +225,7 @@ index 63c3090b4c..bb90b964e3 100644
        }
        break;
      }
-@@ -4310,15 +4361,17 @@ void BrowserView::ShowSplitView(bool focus_active_view) {
+@@ -4310,15 +4370,17 @@ void BrowserView::ShowSplitView(bool focus_active_view) {
  
    std::vector<tabs::TabInterface*> split_tabs = split_data->ListTabs();
  
@@ -232,7 +248,7 @@ index 63c3090b4c..bb90b964e3 100644
  
    // Set focus to the active contents avoid reentrency when setting the web
    // contents within MultiContentsView. See crbug.com/458189541 and
-@@ -4358,19 +4411,20 @@ void BrowserView::UpdateActiveTabInSplitView() {
+@@ -4358,19 +4420,20 @@ void BrowserView::UpdateActiveTabInSplitView() {
    // When active tab changes inside a split, it's generally due to focus change.
    // However, there are cases where inactive tab can be activated without a
    // focus change e.g. using tab shortcuts and in these cases update focus.
@@ -256,7 +272,7 @@ index 63c3090b4c..bb90b964e3 100644
  }
  
  void BrowserView::UpdateTabModalDialogHost() {
-@@ -4417,14 +4471,8 @@ void BrowserView::MaybeUpdateStoredFocusForWebContents(
+@@ -4417,14 +4480,8 @@ void BrowserView::MaybeUpdateStoredFocusForWebContents(
  }
  
  std::vector<ContentsWebView*> BrowserView::GetAllVisibleContentsWebViews() {

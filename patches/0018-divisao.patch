@@ -423,7 +423,7 @@ index 460c40a7c5..9e5803b3a1 100644
  
  #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_MULTI_CONTENTS_RESIZE_AREA_H_
 diff --git i/chrome/browser/ui/views/frame/multi_contents_view.h w/chrome/browser/ui/views/frame/multi_contents_view.h
-index 6ecb49a239..dd407aaa2f 100644
+index 6ecb49a239..9ff79f9d42 100644
 --- i/chrome/browser/ui/views/frame/multi_contents_view.h
 +++ w/chrome/browser/ui/views/frame/multi_contents_view.h
 @@ -12,11 +12,13 @@
@@ -455,7 +455,7 @@ index 6ecb49a239..dd407aaa2f 100644
  
  namespace content {
  class WebContents;
-@@ -220,6 +230,43 @@ class MultiContentsView
+@@ -220,6 +230,49 @@ class MultiContentsView
    const FocusableViewMap* GetFocusableViewsMapFor(
        const ContentsContainerView* container) const;
  
@@ -493,13 +493,19 @@ index 6ecb49a239..dd407aaa2f 100644
 +  // O alvo do arrasto de abas por cima das páginas (navegador/browser/
 +  // divisao/soltar.h), se o ponto está em cima delas.
 +  TabDragTarget* NavegadorAlvo(const gfx::Point& ponto_na_tela);
++  // Aba arrastada pelo DnD do sistema (Wayland sem xdg-toplevel-drag): quem
++  // avisa o TabDragController em cima das páginas é o alvo, pelo cliente de
++  // arrastar da janela. Falso se não dá (janela sem o alvo).
++  bool NavegadorAcompanharArrasto();
++  // A página avisou que o arrasto do sistema saiu dela.
++  void NavegadorArrastoSaiu();
 +  // Espaço entre os painéis (e em volta deles), das Configurações.
 +  int NavegadorEspaco() const;
 +
   private:
    FRIEND_TEST_ALL_PREFIXES(MultiContentsViewBrowserTest, DropTargetLayout);
    FRIEND_TEST_ALL_PREFIXES(MultiContentsViewBrowserTest,
-@@ -347,6 +394,36 @@ class MultiContentsView
+@@ -347,6 +400,36 @@ class MultiContentsView
    // snap distance (kSnapDistance).
    std::vector<double> snap_points_ = {0.5};
  
@@ -885,7 +891,7 @@ index 6641560e2f..a90ab6403b 100644
    }
  
 diff --git i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
-index 63ca8403e9..bfa74274fd 100644
+index 63ca8403e9..5f0de2ad5b 100644
 --- i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
 +++ w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
 @@ -533,6 +533,15 @@ TabDragController::Liveness TabDragController::Init(
@@ -925,8 +931,47 @@ index 63ca8403e9..bfa74274fd 100644
  TabDragController::Liveness TabDragController::DragBrowserToNewTabStrip(
      TabDragContext* target_context,
      const gfx::Point& point_in_screen) {
+@@ -2025,12 +2040,35 @@ void TabDragController::EndDragImpl(EndDragType type) {
+           // Make the hidden window containing the dragged tabs visible. Show()
+           // may trigger platform event handlers that synchronously close the
+           // window and destroy `this`.
+-          GetAttachedBrowserWidget()->Show();
+-          if (!ref) {
+-            return;
++          // navegador: soltando num alvo (a página, pra dividir a tela), a aba
++          // sai da janela escondida e ela fecha vazia; mostrar só fazia uma
++          // janela piscar (e o Hyprland reencaixar as outras). Se a aba ficar
++          // nela, aparece depois.
++          if (!current_drag_target_ || !current_drag_target_->CanDropTab()) {
++            GetAttachedBrowserWidget()->Show();
++            if (!ref) {
++              return;
++            }
++          } else {
++            navegador_mostrar_depois_ = true;
+           }
+         }
+         CompleteDrag();
++        // navegador: ver acima.
++        if (!ref) {
++          return;
++        }
++        if (navegador_mostrar_depois_) {
++          navegador_mostrar_depois_ = false;
++          if (attached_context_ &&
++              !attached_context_->GetTabStripModel()->empty() &&
++              !GetAttachedBrowserWidget()->IsVisible()) {
++            GetAttachedBrowserWidget()->Show();
++            if (!ref) {
++              return;
++            }
++          }
++        }
+       }
+     }
+   } else if (drag_data_.tab_drag_data_.size() > 1) {
 diff --git i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
-index 2c3baaa924..54d80e0304 100644
+index 2c3baaa924..da284583d3 100644
 --- i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
 +++ w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
 @@ -227,6 +227,7 @@ class TabDragController : public views::WidgetObserver,
@@ -937,12 +982,15 @@ index 2c3baaa924..54d80e0304 100644
  
   private:
    friend class TabDragControllerTest;
-@@ -632,6 +633,9 @@ class TabDragController : public views::WidgetObserver,
+@@ -632,6 +633,12 @@ class TabDragController : public views::WidgetObserver,
    // details.
    ui::ListSelectionModel initial_selection_model_;
  
 +  // navegador: ver NavegadorAtivaAntes().
 +  tabs::TabHandle navegador_ativa_antes_;
++  // navegador: a janela escondida do DnD do sistema só aparece depois de o
++  // alvo pegar a aba, se ela ficar lá (EndDragImpl).
++  bool navegador_mostrar_depois_ = false;
 +
    // The selection model of `attached_context_` before the tabs were attached.
    ui::ListSelectionModel selection_model_before_attach_;

@@ -17,6 +17,7 @@
 #include "chrome/browser/ui/views/frame/multi_contents_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/drag_session_data.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_context.h"
+#include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "components/tabs/public/split_tab_data.h"
 #include "content/public/browser/web_contents.h"
 #include "navegador/browser/divisao/divisao.h"
@@ -45,6 +46,14 @@
 #include "ui/views/animation/animation_builder.h"
 #include "ui/views/controls/menu/menu_runner.h"
 #include "ui/views/widget/widget.h"
+
+#if defined(USE_AURA)
+#include "base/scoped_observation.h"
+#include "ui/aura/client/drag_drop_client.h"
+#include "ui/aura/client/drag_drop_client_observer.h"
+#include "ui/aura/window.h"
+#include "ui/base/dragdrop/drop_target_event.h"
+#endif
 
 namespace navegador::divisao {
 
@@ -672,16 +681,131 @@ void VigiaDasAlcas::OnEvent(const ui::Event& event) {
   }
 }
 
+#if defined(USE_AURA)
+// O arrasto do sistema em cima da janela (ver soltar.h). O cliente de
+// arrastar avisa os observadores antes de entregar o evento pra página, com a
+// posição relativa à janela inteira.
+class AlvoDaDivisao::Sistema : public aura::client::DragDropClientObserver {
+ public:
+  explicit Sistema(AlvoDaDivisao& alvo) : alvo_(alvo) {}
+  Sistema(const Sistema&) = delete;
+  Sistema& operator=(const Sistema&) = delete;
+  ~Sistema() override = default;
+
+  bool Acompanhar() {
+    views::Widget* const janela = alvo_->paginas_->GetWidget();
+    aura::Window* const raiz =
+        janela && janela->GetNativeWindow()
+            ? janela->GetNativeWindow()->GetRootWindow()
+            : nullptr;
+    aura::client::DragDropClient* const cliente =
+        raiz ? aura::client::GetDragDropClient(raiz) : nullptr;
+    if (!cliente) {
+      return false;
+    }
+    if (!observacao_.IsObservingSource(cliente)) {
+      observacao_.Reset();
+      observacao_.Observe(cliente);
+    }
+    return true;
+  }
+
+  void Saiu() {
+    if (!na_pagina_ || !TabDragController::IsSystemDnDSessionRunning()) {
+      return;
+    }
+    // Indo pra outro painel ou pro resto da janela, a atualização seguinte
+    // vem na mesma volta (o cliente troca de alvo e logo avisa a posição);
+    // sem ela, o arrasto saiu da janela.
+    base::SequencedTaskRunner::GetCurrentDefault()->PostTask(
+        FROM_HERE, base::BindOnce(&Sistema::ConferirSaida,
+                                  fabrica_.GetWeakPtr(), atualizacoes_));
+  }
+
+  // aura::client::DragDropClientObserver:
+  void OnDragUpdated(const ui::DropTargetEvent& event) override {
+    ++atualizacoes_;
+    if (!TabDragController::IsSystemDnDSessionRunning()) {
+      na_pagina_ = false;
+      return;
+    }
+    gfx::Point ponto = gfx::ToFlooredPoint(event.root_location_f());
+    views::View::ConvertPointFromWidget(&alvo_->paginas_.get(), &ponto);
+    const bool dentro = alvo_->paginas_->GetLocalBounds().Contains(ponto);
+    // Fora das páginas quem avisa é a lateral. Saindo delas pro resto da
+    // janela, avisa uma vez ainda, pro TabDragController largar a prévia.
+    if (!dentro && !na_pagina_) {
+      return;
+    }
+    na_pagina_ = dentro;
+    TabDragController::OnSystemDnDUpdated(event);
+  }
+  void OnDragCompleted(const ui::DropTargetEvent& event) override {
+    na_pagina_ = false;
+  }
+  void OnDragCancelled() override { na_pagina_ = false; }
+  void OnDragDropClientDestroying() override {
+    observacao_.Reset();
+    na_pagina_ = false;
+  }
+
+ private:
+  void ConferirSaida(int atualizacoes) {
+    if (atualizacoes != atualizacoes_ || !na_pagina_) {
+      return;
+    }
+    na_pagina_ = false;
+    // Se outra janela não pegou o arrasto antes (aí o alvo já saiu).
+    if (alvo_->dentro_ && TabDragController::IsSystemDnDSessionRunning()) {
+      TabDragController::OnSystemDnDExited();
+    }
+  }
+
+  const raw_ref<AlvoDaDivisao> alvo_;
+  // A última atualização caiu em cima das páginas.
+  bool na_pagina_ = false;
+  int atualizacoes_ = 0;
+  base::ScopedObservation<aura::client::DragDropClient,
+                          aura::client::DragDropClientObserver>
+      observacao_{this};
+  base::WeakPtrFactory<Sistema> fabrica_{this};
+};
+#else
+class AlvoDaDivisao::Sistema {};
+#endif  // defined(USE_AURA)
+
 AlvoDaDivisao::AlvoDaDivisao(MultiContentsView& paginas,
                              PreviaDeSoltar& previa,
                              TabStripModel& modelo)
     : paginas_(paginas), previa_(previa), modelo_(modelo) {}
 
 AlvoDaDivisao::~AlvoDaDivisao() {
+  sistema_.reset();
   ao_destruir_.Notify();
 }
 
-void AlvoDaDivisao::OnTabDragEntered() {}
+bool AlvoDaDivisao::AcompanharArrastoDoSistema() {
+#if defined(USE_AURA)
+  if (!sistema_) {
+    sistema_ = std::make_unique<Sistema>(*this);
+  }
+  return sistema_->Acompanhar();
+#else
+  return false;
+#endif
+}
+
+void AlvoDaDivisao::ArrastoSaiuDaPagina() {
+#if defined(USE_AURA)
+  if (sistema_) {
+    sistema_->Saiu();
+  }
+#endif
+}
+
+void AlvoDaDivisao::OnTabDragEntered() {
+  dentro_ = true;
+}
 
 TabDragContext* AlvoDaDivisao::OnTabDragUpdated(
     TabDragTarget::DragController& controller,
@@ -689,8 +813,13 @@ TabDragContext* AlvoDaDivisao::OnTabDragUpdated(
   const DragSessionData& dados = controller.GetSessionData();
   TabDragContext* const anexado =
       const_cast<TabDragContext*>(controller.GetAttachedContext());
-  const bool mesma_janela =
-      anexado && anexado->GetTabStripModel() == &modelo_.get();
+  // No arrasto do sistema a aba não fica presa na lateral em cima da página
+  // (a lateral pegou ela de volta, passando por ela): solta, numa janela
+  // escondida, como vinda de outra janela. Presa, soltar na página não
+  // acabava o arrasto: o fim do DnD só acaba o arrasto solto.
+  const bool mesma_janela = anexado &&
+                            anexado->GetTabStripModel() == &modelo_.get() &&
+                            !TabDragController::IsSystemDnDSessionRunning();
 
   // Uma aba solta, ou a aba pega de uma divisão (o Chromium arrasta a
   // divisão inteira; em cima da página, só a aba pega muda de lugar ou sai
@@ -771,11 +900,13 @@ TabDragContext* AlvoDaDivisao::OnTabDragUpdated(
 }
 
 void AlvoDaDivisao::OnTabDragExited(const gfx::Point& point_in_screen) {
+  dentro_ = false;
   Limpar();
   DevolverAtivacao();
 }
 
 void AlvoDaDivisao::OnTabDragEnded() {
+  dentro_ = false;
   Limpar();
   trocou_ = false;
 }

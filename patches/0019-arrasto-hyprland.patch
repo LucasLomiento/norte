@@ -1,0 +1,249 @@
+diff --git i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
+index ea5b676c9d..7be268307c 100644
+--- i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
++++ w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
+@@ -8,6 +8,7 @@
+ 
+ #include <bitset>
+ #include <cstdint>
++#include <cstdlib>
+ #include <memory>
+ 
+ #include "base/check.h"
+@@ -589,6 +590,28 @@ void WaylandDataDragController::OnDataSourceFinish(WaylandDataSource* source,
+           << " origin=" << !!origin_window_
+           << " nested_dispatcher=" << !!nested_dispatcher_;
+ 
++  // navegador: o Hyprland manda dnd_finished quando a janela de outro
++  // programa destrói a oferta com o ponteiro ainda em cima dela (o Zed faz
++  // isso com o que não é arquivo), sem dnd_drop_performed, e o arrasto
++  // continua do lado dele até soltar o botão (aí vem cancelled ou
++  // dnd_drop_performed + dnd_finished). Tratar como fim abria a aba arrastada
++  // numa janela nova, ou dividia a tela, assim que o ponteiro saía da janela.
++  // Soltando numa janela do XWayland o Hyprland só manda dnd_finished: aí o
++  // fim vem quando o ponteiro volta pra uma janela nossa (o Hyprland não dá o
++  // ponteiro pra ninguém durante um arrasto).
++  if (completed && !navegador_soltou_ && !navegador_fim_falso_) {
++    static const bool hyprland = [] {
++      const char* const assinatura = getenv("HYPRLAND_INSTANCE_SIGNATURE");
++      return assinatura && *assinatura;
++    }();
++    if (hyprland) {
++      VLOG(1) << "navegador: dnd_finished sem dnd_drop_performed (Hyprland), "
++                 "o arrasto continua";
++      navegador_fim_falso_ = true;
++      return;
++    }
++  }
++
+   // HandleDragEnd below is likely no-op, though is called to protect against
+   // buggy/malicious compositors, where no prior dnd_drop_performed was
+   // received, for example. In which case, it could result in UI hangs where
+@@ -603,6 +626,7 @@ void WaylandDataDragController::OnDataSourceDropPerformed(
+     WaylandDataSource* source,
+     base::TimeTicks timestamp) {
+   CHECK_EQ(data_source_.get(), source);
++  navegador_soltou_ = true;
+   VLOG(1) << __FUNCTION__ << " window=" << !!window_
+           << " origin=" << !!origin_window_
+           << " nested_dispatcher=" << !!nested_dispatcher_;
+@@ -852,9 +876,22 @@ void WaylandDataDragController::Reset() {
+   offered_exchange_data_provider_.reset();
+   data_device_->ResetDragDelegate();
+   has_received_enter_ = false;
++  navegador_soltou_ = false;
++  navegador_fim_falso_ = false;
+   state_ = State::kIdle;
+ }
+ 
++void WaylandDataDragController::NavegadorPonteiroEntrou(
++    base::TimeTicks timestamp) {
++  if (!navegador_fim_falso_ || state_ == State::kIdle) {
++    return;
++  }
++  VLOG(1) << "navegador: ponteiro de volta depois do dnd_finished falso, "
++             "fim do arrasto";
++  HandleDragEnd(DragResult::kCancelled, timestamp);
++  Reset();
++}
++
+ // TODO(crbug.com/329479345): Drop DragResult in favor of intermediary states
+ // `kDropping` and `kCancelling`, move `Reset` back into this function, called
+ // conditionally depending on the state it would be transitioning to.
+diff --git i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
+index 5ae6436764..051a5b86e4 100644
+--- i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
++++ w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
+@@ -133,6 +133,11 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
+   // TODO(crbug.com/40598679): Remove once focus is fixed during DND sessions.
+   WaylandWindow* entered_window() const { return window_; }
+ 
++  // navegador: o ponteiro entrou numa janela nossa (wl_pointer.enter). Com um
++  // dnd_finished falso esperando (ver OnDataSourceFinish), é o sinal de que o
++  // arrasto acabou do lado do compositor: acaba aqui também.
++  void NavegadorPonteiroEntrou(base::TimeTicks timestamp);
++
+   WaylandPointer::Delegate* pointer_delegate() const {
+     return pointer_delegate_;
+   }
+@@ -164,6 +169,11 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
+                            StartDragWithWrongMimeType);
+   FRIEND_TEST_ALL_PREFIXES(WaylandDataDragControllerTest,
+                            OutgoingSessionWithoutDndFinished);
++  // navegador
++  FRIEND_TEST_ALL_PREFIXES(WaylandDataDragControllerTest,
++                           NavegadorFimFalsoDoHyprlandContinua);
++  FRIEND_TEST_ALL_PREFIXES(WaylandDataDragControllerTest,
++                           NavegadorFimFalsoPonteiroDeVolta);
+   FRIEND_TEST_ALL_PREFIXES(WaylandWindowDragControllerTest,
+                            OutgoingSessionWithoutDndFinished);
+ 
+@@ -280,6 +290,11 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
+   // In outgoing sessions, tracks if any drag enter has already been received.
+   bool has_received_enter_ = false;
+ 
++  // navegador: na sessão de saída, chegou o dnd_drop_performed (soltou de
++  // verdade); e um dnd_finished veio sem ele e foi ignorado.
++  bool navegador_soltou_ = false;
++  bool navegador_fim_falso_ = false;
++
+   // Data offered by us to the other side.
+   std::unique_ptr<WaylandDataSource> data_source_;
+ 
+diff --git i/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc w/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc
+index d9a89a6741..50493520c7 100644
+--- i/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc
++++ w/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc
+@@ -9,6 +9,7 @@
+ 
+ #include <algorithm>
+ #include <array>
++#include <cstdlib>
+ #include <memory>
+ #include <string>
+ #include <vector>
+@@ -1549,6 +1550,101 @@ TEST_P(WaylandDataDragControllerTest, OutgoingSessionWithoutDndFinished) {
+   EXPECT_EQ(drag_controller_state(), WaylandDataDragController::State::kIdle);
+ }
+ 
++// navegador: no Hyprland, um dnd_finished sem dnd_drop_performed (a janela
++// de outro programa destruiu a oferta com o ponteiro em cima) não acaba o
++// arrasto; o cancelled de quando ele solta, sim. Rodar com
++// HYPRLAND_INSTANCE_SIGNATURE no ambiente (e os outros testes sem).
++TEST_P(WaylandDataDragControllerTest, NavegadorFimFalsoDoHyprlandContinua) {
++  if (!getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
++    GTEST_SKIP() << "só com HYPRLAND_INSTANCE_SIGNATURE";
++  }
++  FocusAndPressLeftPointerButton(window_.get(), &delegate_);
++
++  ScheduleTestTask(base::BindLambdaForTesting([&]() {
++    EXPECT_CALL(drag_finished_callback_, Run(_)).Times(0);
++    SendDndFinished();
++    EXPECT_TRUE(drag_controller()->data_source_);
++    EXPECT_NE(drag_controller_state(), WaylandDataDragController::State::kIdle);
++    Mock::VerifyAndClearExpectations(&drag_finished_callback_);
++  }));
++  // O arrasto segue: passa pela janela de novo.
++  ScheduleTestTask(base::BindLambdaForTesting([&]() {
++    SendMotionEvent(gfx::Point(30, 40));
++    EXPECT_TRUE(drag_controller()->data_source_);
++  }));
++  ScheduleTestTask(base::BindLambdaForTesting([&]() {
++    EXPECT_CALL(drag_finished_callback_, Run(DragOperation::kNone)).Times(1);
++    SendDndCancelled();
++  }));
++
++  RunMouseDragWithSampleData(
++      window_.get(), DragDropTypes::DRAG_COPY | DragDropTypes::DRAG_MOVE);
++  EXPECT_EQ(drag_controller_state(), WaylandDataDragController::State::kIdle);
++  EXPECT_FALSE(drag_controller()->data_source_);
++}
++
++// navegador: soltar de verdade (dnd_drop_performed + dnd_finished) continua
++// acabando o arrasto no Hyprland.
++TEST_P(WaylandDataDragControllerTest, NavegadorSoltarNoHyprland) {
++  if (!getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
++    GTEST_SKIP() << "só com HYPRLAND_INSTANCE_SIGNATURE";
++  }
++  FocusAndPressLeftPointerButton(window_.get(), &delegate_);
++
++  ScheduleDataDeviceAction(WL_DATA_DEVICE_MANAGER_DND_ACTION_COPY);
++  ScheduleTestTask(base::BindLambdaForTesting([&]() {
++    EXPECT_CALL(drag_finished_callback_, Run(DragOperation::kCopy)).Times(1);
++    SendDndDropPerformed();
++    SendDndFinished();
++  }));
++
++  RunMouseDragWithSampleData(
++      window_.get(), DragDropTypes::DRAG_COPY | DragDropTypes::DRAG_MOVE);
++  EXPECT_EQ(drag_controller_state(), WaylandDataDragController::State::kIdle);
++}
++
++// navegador: depois do dnd_finished falso, soltando numa janela do XWayland
++// nada mais chega; o ponteiro voltando pra uma janela nossa acaba o arrasto.
++TEST_P(WaylandDataDragControllerTest, NavegadorFimFalsoPonteiroDeVolta) {
++  if (!getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
++    GTEST_SKIP() << "só com HYPRLAND_INSTANCE_SIGNATURE";
++  }
++  FocusAndPressLeftPointerButton(window_.get(), &delegate_);
++
++  ScheduleTestTask(base::BindLambdaForTesting([&]() {
++    SendDndLeave();
++    SendDndFinished();
++    EXPECT_TRUE(drag_controller()->data_source_);
++  }));
++  ScheduleTestTask(base::BindLambdaForTesting([&]() {
++    EXPECT_CALL(drag_finished_callback_, Run(DragOperation::kNone)).Times(1);
++    SendPointerEnter(window_.get(), &delegate_);
++  }));
++
++  RunMouseDragWithSampleData(
++      window_.get(), DragDropTypes::DRAG_COPY | DragDropTypes::DRAG_MOVE);
++  EXPECT_EQ(drag_controller_state(), WaylandDataDragController::State::kIdle);
++  EXPECT_FALSE(drag_controller()->data_source_);
++}
++
++// navegador: fora do Hyprland, o dnd_finished sozinho acaba o arrasto, como
++// no Chromium.
++TEST_P(WaylandDataDragControllerTest, NavegadorFimSemHyprland) {
++  if (getenv("HYPRLAND_INSTANCE_SIGNATURE")) {
++    GTEST_SKIP() << "só sem HYPRLAND_INSTANCE_SIGNATURE";
++  }
++  FocusAndPressLeftPointerButton(window_.get(), &delegate_);
++
++  ScheduleTestTask(base::BindLambdaForTesting([&]() {
++    EXPECT_CALL(drag_finished_callback_, Run(_)).Times(1);
++    SendDndFinished();
++  }));
++
++  RunMouseDragWithSampleData(
++      window_.get(), DragDropTypes::DRAG_COPY | DragDropTypes::DRAG_MOVE);
++  EXPECT_EQ(drag_controller_state(), WaylandDataDragController::State::kIdle);
++}
++
+ TEST_P(WaylandDataDragControllerTest, ScaleEnterAndMotionEventsLocation) {
+   ASSERT_TRUE(connection_->IsUiScaleEnabled());
+ 
+diff --git i/ui/ozone/platform/wayland/host/wayland_pointer.cc w/ui/ozone/platform/wayland/host/wayland_pointer.cc
+index 06a9ae10ea..651e359d99 100644
+--- i/ui/ozone/platform/wayland/host/wayland_pointer.cc
++++ w/ui/ozone/platform/wayland/host/wayland_pointer.cc
+@@ -19,6 +19,7 @@
+ #include "ui/ozone/common/features.h"
+ #include "ui/ozone/platform/wayland/common/wayland_util.h"
+ #include "ui/ozone/platform/wayland/host/wayland_connection.h"
++#include "ui/ozone/platform/wayland/host/wayland_data_drag_controller.h"
+ #include "ui/ozone/platform/wayland/host/wayland_serial_tracker.h"
+ #include "ui/ozone/platform/wayland/host/wayland_window.h"
+ #include "ui/ozone/platform/wayland/host/wayland_window_drag_controller.h"
+@@ -87,6 +88,10 @@ void WaylandPointer::OnEnter(void* data,
+   if (!window) {
+     return;
+   }
++  // navegador: ver WaylandDataDragController::OnDataSourceFinish.
++  if (auto* arrasto = self->connection_->data_drag_controller()) {
++    arrasto->NavegadorPonteiroEntrou(timestamp);
++  }
+   self->delegate_->OnPointerFocusChanged(
+       window,
+       gfx::PointF(static_cast<float>(wl_fixed_to_double(surface_x)),

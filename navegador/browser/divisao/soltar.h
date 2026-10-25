@@ -16,6 +16,14 @@
 // vidro, pintar a janela inteira a cada movimento obrigava o compositor a
 // refazer o desfoque da janela toda.
 //
+// Arrasto do sistema (Wayland sem xdg-toplevel-drag, como o Hyprland): saindo
+// da janela, a aba vira um arrastar-e-soltar do sistema, e em cima da página
+// quem recebe os eventos é a página. O AlvoDaDivisao lê a posição no cliente
+// de arrastar da janela (aura::client::DragDropClient, relativa à janela
+// inteira: certa pra qualquer painel) e avisa o TabDragController, como a
+// lateral avisa; e, saindo da janela por cima da página, larga a prévia (senão
+// soltar fora dela dividia a tela).
+//
 // Compilado dentro do //chrome/browser/ui.
 
 #ifndef NAVEGADOR_BROWSER_DIVISAO_SOLTAR_H_
@@ -246,7 +254,16 @@ class AlvoDaDivisao : public TabDragTarget {
   base::CallbackListSubscription RegisterWillDestroyCallback(
       base::OnceClosure callback) override;
 
+  // Passa a acompanhar o arrasto do sistema na janela das páginas (sem custo
+  // fora dele). Repetir não faz nada. Falso se não deu (sem janela).
+  bool AcompanharArrastoDoSistema();
+  // A página avisou que o arrasto do sistema saiu dela (BrowserView::
+  // PreHandleDragExit): pode ter ido pra outro painel ou pra fora da janela.
+  void ArrastoSaiuDaPagina();
+
  private:
+  class Sistema;
+
   struct Escolha {
     tabs::TabHandle alvo;
     Lado lado = Lado::kDireita;
@@ -267,6 +284,9 @@ class AlvoDaDivisao : public TabDragTarget {
   // dela.
   tabs::TabHandle trocou_de_;
   bool trocou_ = false;
+  // O TabDragController está com este alvo (entre o Entered e o Exited).
+  bool dentro_ = false;
+  std::unique_ptr<Sistema> sistema_;
   base::OnceClosureList ao_destruir_;
   base::WeakPtrFactory<AlvoDaDivisao> fabrica_{this};
 };
