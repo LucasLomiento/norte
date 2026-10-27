@@ -46,12 +46,14 @@
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/reload_type.h"
 #include "content/public/browser/web_contents.h"
+#include "navegador/browser/containers/claude.h"
 #include "navegador/browser/containers/containers.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/ui/atalhos.h"
 #include "navegador/browser/ui/atualizador.h"
 #include "navegador/browser/ui/barra.h"
 #include "navegador/browser/ui/bloqueador.h"
+#include "navegador/browser/ui/claude.h"
 #include "navegador/browser/ui/containers/apps.h"
 #include "navegador/browser/ui/containers/containers_ui.h"
 #include "navegador/browser/ui/containers/gerenciador.h"
@@ -2172,6 +2174,39 @@ std::unique_ptr<views::View> PaginaContainers(BrowserWindowInterface* browser) {
       u"Cada app abre sempre no container escolhido (de início, o da aba em "
       u"que foi instalado). Trocar reabre as janelas abertas dele no "
       u"container novo; também dá pra trocar pelo menu da janela do app.");
+
+  // A extensão do Claude: em que container ela abre abas.
+  std::vector<std::u16string> opcoes = {u"O do espaço em que você está",
+                                        u"Sem container"};
+  std::vector<std::optional<std::string>> valores = {std::nullopt,
+                                                     std::string()};
+  for (const containers::Container& container : containers::GetAll(perfil)) {
+    opcoes.push_back(base::UTF8ToUTF16(container.name));
+    valores.push_back(container.id);
+  }
+  const std::optional<std::string> atual = claude::Container(perfil);
+  size_t escolhida = 0;
+  for (size_t i = 0; i < valores.size(); ++i) {
+    if (valores[i] == atual) {
+      escolhida = i;
+    }
+  }
+  Cartao* do_claude = pagina->Secao(u"Claude");
+  do_claude->Adicionar(Linha(
+      u"Container do Claude",
+      u"Onde a extensão do Claude abre abas, e com os logins de qual "
+      u"container. Também dá pra trocar no cartão dele, no pé da lateral, "
+      u"enquanto ele estiver usando o navegador.",
+      Escolha(std::move(opcoes), escolhida, u"Container do Claude",
+              base::BindRepeating(
+                  [](Profile* perfil,
+                     const std::vector<std::optional<std::string>>& valores,
+                     size_t escolha) {
+                    if (escolha < valores.size()) {
+                      claude::EscolherContainer(perfil, valores[escolha]);
+                    }
+                  },
+                  perfil, std::move(valores)))));
   return pagina;
 }
 

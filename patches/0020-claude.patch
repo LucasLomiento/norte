@@ -1,0 +1,87 @@
+diff --git i/chrome/browser/extensions/BUILD.gn w/chrome/browser/extensions/BUILD.gn
+index 563383fc71..5ab3f09ae1 100644
+--- i/chrome/browser/extensions/BUILD.gn
++++ w/chrome/browser/extensions/BUILD.gn
+@@ -492,6 +492,7 @@ source_set("extensions") {
+     "//base",
+     "//chrome/app:command_ids",
+     "//chrome/app/theme:chrome_unscaled_resources",
++    "//navegador/browser/containers",  # navegador
+     "//chrome/browser:browser_features",
+     "//chrome/browser:browser_process",
+     "//chrome/browser:browser_process_platform_part",
+diff --git i/chrome/browser/extensions/api/debugger/BUILD.gn w/chrome/browser/extensions/api/debugger/BUILD.gn
+index f8c4936979..df65faad97 100644
+--- i/chrome/browser/extensions/api/debugger/BUILD.gn
++++ w/chrome/browser/extensions/api/debugger/BUILD.gn
+@@ -51,6 +51,7 @@ source_set("debugger") {
+     "//content/public/common",
+     "//extensions/common:common_constants",
+     "//extensions/common:extension_features",
++    "//navegador/browser/containers",  # navegador
+     "//pdf:buildflags",
+     "//pdf:features",
+     "//ui/base",
+diff --git i/chrome/browser/extensions/api/debugger/debugger_api.cc w/chrome/browser/extensions/api/debugger/debugger_api.cc
+index 4f4153a4bd..8adaf77dda 100644
+--- i/chrome/browser/extensions/api/debugger/debugger_api.cc
++++ w/chrome/browser/extensions/api/debugger/debugger_api.cc
+@@ -61,6 +61,7 @@
+ #include "extensions/common/manifest_constants.h"
+ #include "extensions/common/permissions/permissions_data.h"
+ #include "extensions/common/switches.h"
++#include "navegador/browser/containers/claude.h"
+ #include "pdf/buildflags.h"
+ #include "url/origin.h"
+ #include "url/url_constants.h"
+@@ -651,6 +652,15 @@ void ExtensionDevToolsClientHost::CreateWarningMessage() {
+ #else
+ // Win/Mac/Linux/Chrome OS use the infobar API for the warning message.
+ void ExtensionDevToolsClientHost::CreateWarningInfobar() {
++  // navegador: pra extensão do Claude, o aviso é o cartão do Norte no pé da
++  // lateral, com "Parar" (navegador/browser/containers/claude.h); as outras
++  // extensões continuam com a tarja.
++  if (navegador::claude::EDoClaude(extension_id())) {
++    warning_infobar_subscription_ = navegador::claude::ComecouUso(
++        base::BindOnce(&ExtensionDevToolsClientHost::WarningUiDestroyed,
++                       base::Unretained(this)));
++    return;
++  }
+   if (infobars::IsInfoBarMigrated(
+           infobars::InfoBarDelegate::EXTENSION_DEV_TOOLS_INFOBAR_DELEGATE)) {
+     ExtensionDevToolsInfoBarController::GetInstance()->OnClientHostAttached(
+diff --git i/chrome/browser/extensions/open_tab_helper.cc w/chrome/browser/extensions/open_tab_helper.cc
+index 9ee4de85f5..b5ad570065 100644
+--- i/chrome/browser/extensions/open_tab_helper.cc
++++ w/chrome/browser/extensions/open_tab_helper.cc
+@@ -4,6 +4,8 @@
+ 
+ #include "chrome/browser/extensions/open_tab_helper.h"
+ 
++#include <optional>
++
+ #include "base/strings/string_number_conversions.h"
+ #include "base/types/expected_macros.h"
+ #include "chrome/browser/extensions/api/tabs/tabs_constants.h"
+@@ -27,6 +29,7 @@
+ #include "extensions/common/constants.h"
+ #include "extensions/common/extension_features.h"
+ #include "extensions/common/manifest_handlers/incognito_info.h"
++#include "navegador/browser/containers/claude.h"
+ #include "ui/base/base_window.h"
+ #include "ui/base/page_transition_types.h"
+ #include "ui/base/window_open_disposition.h"
+@@ -245,6 +248,13 @@ base::expected<content::WebContents*, std::string> OpenTabHelper::OpenTab(
+ 
+   MaybeSetPdfNavigateParams(function, navigate_params);
+ 
++  // navegador: a aba que a extensão do Claude abre nasce no container
++  // escolhido pra ele (navegador/browser/containers/claude.h).
++  std::optional<navegador::claude::AbaDoClaude> do_claude;
++  if (extension && navegador::claude::EDoClaude(extension->id())) {
++    do_claude.emplace();
++  }
++
+   base::WeakPtr<content::NavigationHandle> handle = Navigate(&navigate_params);
+   if (handle && params.bookmark_id) {
+     ChromeNavigationUIData* ui_data =

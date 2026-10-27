@@ -47,6 +47,7 @@ aggregate_vector_icons("icones_menu") {
     "settings_2.icon",
     "shield_check.icon",
     "shield_off.icon",
+    "sparkle.icon",
     "spell_check.icon",
     "square_arrow_out_up_right.icon",
     "square_mouse_pointer.icon",

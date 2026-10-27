@@ -1,5 +1,6 @@
 #include "navegador/browser/containers/containers.h"
 
+#include "navegador/browser/containers/claude.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/containers/fixos.h"
 #include "navegador/browser/containers/titulos.h"
@@ -99,6 +100,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterDictionaryPref(kAppsPref);
   espacos::RegisterProfilePrefs(registry);
   fixos::RegisterProfilePrefs(registry);
+  claude::RegisterProfilePrefs(registry);
 }
 
 std::optional<std::string> ContainerDoApp(Profile* profile,
@@ -303,7 +305,17 @@ scoped_refptr<content::SiteInstance> SiteInstanceForNewTab(
     return nullptr;
   }
   std::optional<std::string> id;
-  if (source_contents) {
+  // Aba que a extensão do Claude abre: no container escolhido pra ele
+  // (Configurações → Containers ou o cartão dele na lateral). Antes da aba
+  // de origem: o Navigate põe a aba ativa como origem de quem não tem uma.
+  if (std::optional<std::string> do_claude =
+          claude::CriandoAbaDoClaude() ? claude::Container(profile)
+                                       : std::nullopt) {
+    if (do_claude->empty()) {
+      return nullptr;
+    }
+    id = *do_claude;
+  } else if (source_contents) {
     // Só herda dentro do mesmo perfil: uma aba levada pra janela de outro
     // perfil não carrega o container junto.
     if (source_contents->GetBrowserContext() != profile) {

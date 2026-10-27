@@ -2,6 +2,8 @@
 # módulos pequenos do chrome/browser (navigator, tabrestore, sessions).
 source_set("containers") {
   sources = [
+    "claude.cc",
+    "claude.h",
     "containers.cc",
     "containers.h",
     "espacos_dados.cc",

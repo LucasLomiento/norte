@@ -167,6 +167,15 @@ Os ícones do Chromium (Material) são trocados pelos do Lucide (licença ISC, o
 - Ícones `tocar`, `pausar` e `proxima` (do Lucide, preenchidos) em `navegador/icones/menu`.
 - O botão de mídia do Chromium no canto da barra saiu no Linux (`toolbar_view.cc`): o cartão faz o papel dele, e a barra do Dia não tem.
 
+## Claude (a extensão)
+
+A extensão do Claude (Claude in Chrome, id `fcoeoabgfenejglbffodgkkbkcdhcgfn` na loja; não vem com o Norte) mexe nas abas pelo depurador (`chrome.debugger`) e cria um grupo de abas "Claude". Três coisas do Norte pra ela (-63), em `navegador/browser/containers/claude.*` (sem interface, compilado no //navegador/browser/containers) e `navegador/browser/ui/claude.*` (o cartão):
+
+- **Cartão no lugar da tarja preta**: o Chromium avisa "começou a depurar este navegador" numa tarja em todas as abas (`ExtensionDevToolsInfoBarDelegate`). Pra essa extensão, e só pra ela (pelo id: outra extensão não se passa pelo Claude e as outras continuam com a tarja, que é proteção), o `CreateWarningInfobar` do `debugger_api.cc` (patch 0020) chama `claude::ComecouUso` com o mesmo `WarningUiDestroyed` que a tarja chamaria. O cartão (no pé da lateral, antes do "tocando agora", em toda janela normal) aparece do começo da primeira sessão até 5 s depois da última, como a tarja (a extensão desliga e liga o depurador entre passos); "Parar" chama todas as sessões (`canceled_by_user`, como o "Cancelar" da tarja) e some na hora. Laranja do Claude (#D97757), ícone "sparkle" do Lucide (o logo é marca da Anthropic).
+- **Container das abas dele**: o `OpenTabHelper::OpenTab` (`chrome.tabs.create`) põe uma `claude::AbaDoClaude` viva durante o `Navigate`, e o `SiteInstanceForNewTab` usa o container escolhido (`navegador.claude.container`: vazio = o do espaço em que a pessoa está, como antes; `*nenhum*`; ou o id) antes da aba de origem (o `Navigate` põe a aba ativa como origem de quem não tem uma, e era daí que a aba do Claude herdava o container Pessoal). Troca em Configurações → Containers → "Container do Claude" e no seletor do cartão (`EscolherContainer`, que também passa os espaços do Claude abertos pro container novo).
+- **Espaço laranja**: o grupo "Claude" vira espaço temporário (`LigarGruposNovos`, desde a -27); agora na cor #D97757 e no container da primeira aba do grupo, pra uma aba nova nele cair no mesmo lugar.
+- **Testar sem a extensão de verdade**: uma extensão de teste com a mesma `key` do manifesto da instalada (o id sai da chave pública) que abre aba, cria o grupo e liga o depurador; comandos pelo service worker dela via CDP (`Runtime.evaluate` com `awaitPromise`). Container conferido por cookie (`document.cookie` gravado numa aba comum e lido na do Claude).
+
 ## Prévia de link (Shift+clique)
 
 `navegador/browser/ui/previa.*`, como o Glance do Zen e o Peek do Arc: Shift+clique num link abre a página num cartão por cima da aba, com a de trás escurecida e desfocada (`SetBackgroundBlur` na camada).

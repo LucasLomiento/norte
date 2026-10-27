@@ -55,6 +55,7 @@
 #include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
+#include "navegador/browser/containers/claude.h"
 #include "navegador/browser/containers/containers.h"
 #include "navegador/browser/containers/espacos_dados.h"
 #include "navegador/browser/containers/fixos.h"
@@ -62,6 +63,7 @@
 #include "navegador/browser/ui/abas/abas.h"
 #include "navegador/browser/ui/atalhos.h"
 #include "navegador/browser/ui/barra.h"
+#include "navegador/browser/ui/claude.h"
 #include "navegador/browser/ui/configuracoes.h"
 #include "navegador/browser/ui/containers/containers_ui.h"
 #include "navegador/browser/ui/cores.h"
@@ -1699,10 +1701,26 @@ class FaixaDeEspacos : public views::View,
           })) {
         continue;
       }
+      // O grupo do Claude: o espaço dele no laranja do Claude e no container
+      // das abas que ele abriu (o escolhido pra ele, ou o do espaço de onde a
+      // aba veio), pra uma aba nova nele cair no mesmo lugar.
+      const bool do_claude = claude::NomeDoClaude(base::UTF16ToUTF8(nome));
+      std::string container;
+      if (do_claude) {
+        for (int i = 0; i < model_->count(); ++i) {
+          if (model_->GetTabGroupForTab(i) == id) {
+            container =
+                containers::IdForWebContents(model_->GetWebContentsAt(i))
+                    .value_or(std::string());
+            break;
+          }
+        }
+      }
       const Espaco espaco =
           Criar(perfil, base::UTF16ToUTF8(nome), "",
-                CorDaPaleta(grupo->visual_data()->color()), "",
-                /*temporario=*/true);
+                do_claude ? std::string(claude::kCor)
+                          : CorDaPaleta(grupo->visual_data()->color()),
+                container, /*temporario=*/true);
       Ligar(id, espaco.id);
       // A aba em uso está nele (a janela que a extensão abriu): a janela
       // mostra o espaço novo.
@@ -2328,6 +2346,9 @@ void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
       views::kFlexBehaviorKey,
       views::FlexSpecification(views::MinimumFlexSizeRule::kScaleToZero,
                                views::MaximumFlexSizeRule::kUnbounded));
+  // A extensão do Claude mexendo no navegador (no lugar da tarja preta do
+  // Chromium; escondido quando não está).
+  lateral->AddChildView(claude::CriarCartao(browser));
   // O que toca em outra aba (escondido quando não há).
   lateral->AddChildView(tocando::CriarCartao(browser));
   // Aviso de versão nova, logo acima da faixa (escondido quando não há).

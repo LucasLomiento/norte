@@ -1,0 +1,26 @@
+// Copyright 2026 The Chromium Authors
+// Use of this source code is governed by a BSD-style license that can be
+// found in the LICENSE file.
+
+// navegador: "sparkle" do Lucide (https://lucide.dev, licença ISC),
+// convertido por tools/lucide.py.
+
+CANVAS_DIMENSIONS, 24,
+STROKE, 2.1f,
+MOVE_TO, 11.017f, 2.814f,
+ARC_TO, 1, 1, 0, 0, 1, 12.983f, 2.814f,
+LINE_TO, 14.034f, 8.372f,
+ARC_TO, 2, 2, 0, 0, 0, 15.628f, 9.966f,
+LINE_TO, 21.186f, 11.017f,
+ARC_TO, 1, 1, 0, 0, 1, 21.186f, 12.983f,
+LINE_TO, 15.628f, 14.034f,
+ARC_TO, 2, 2, 0, 0, 0, 14.034f, 15.628f,
+LINE_TO, 12.983f, 21.186f,
+ARC_TO, 1, 1, 0, 0, 1, 11.017f, 21.186f,
+LINE_TO, 9.966f, 15.628f,
+ARC_TO, 2, 2, 0, 0, 0, 8.372f, 14.034f,
+LINE_TO, 2.814f, 12.983f,
+ARC_TO, 1, 1, 0, 0, 1, 2.814f, 11.017f,
+LINE_TO, 8.372f, 9.966f,
+ARC_TO, 2, 2, 0, 0, 0, 9.966f, 8.372f,
+CLOSE,
