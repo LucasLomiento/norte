@@ -167,6 +167,14 @@ Os ícones do Chromium (Material) são trocados pelos do Lucide (licença ISC, o
 - Ícones `tocar`, `pausar` e `proxima` (do Lucide, preenchidos) em `navegador/icones/menu`.
 - O botão de mídia do Chromium no canto da barra saiu no Linux (`toolbar_view.cc`): o cartão faz o papel dele, e a barra do Dia não tem.
 
+## Nome do app no sistema (Mission Center)
+
+Ao abrir, o Chromium cria um grupo do systemd pro processo principal, `app-<app>-<pid>.scope`, pra o portal do sistema saber que app é ele (`components/dbus/xdg/systemd.cc`, chamado pelo registro do portal na partida). O nome vinha de `version_info::nix::GetAppName` ("org.chromium.Chromium"), e o Mission Center (e outros gerenciadores de tarefas) acha o app pelo grupo: não existe app "org.chromium.Chromium", e o Norte sumia da lista de apps. Desde a -64 o grupo é `app-norte-<pid>.scope` (o id do `norte.desktop`). O `Register` do portal (`portal.cc`) continua com "org.chromium.Chromium", que o portal aceita (ele quer id invertido). Só o processo principal muda de grupo; os outros ficam no de quem abriu o Norte (aberto pelo lançador, também com "norte" no nome). Com o "Reiniciar", o processo novo nasce no grupo do antigo.
+
+## Diagnóstico (Norte pesado ou travando)
+
+`tools/diagnostico.sh` (mandar pra quem tiver o problema): versão, sessão, placa de vídeo, CPU de cada processo do Norte medida em 5 s (pelo `/proc`, com o tipo), memória, estado do processo principal, o `top`, as mensagens mais repetidas do registro do Norte (`journalctl --user -t norte`, o lançador manda o stderr pra lá) e as últimas 300 linhas. Com `--pilha`, fecha o Norte travado com SIGABRT e guarda o `coredumpctl info` (os endereços se traduzem aqui com o `out/release/chrome` da mesma versão: mesmo Build ID). Grava `~/norte-diagnostico-<data>.txt`. No registro, "Frame latency is negative" (viz) e "Requested load of chrome://newtab/ for incorrect profile type" (a cada aba nova numa janela normal, vem do `NewTabUIConfig::IsWebUIEnabled`) são normais.
+
 ## Claude (a extensão)
 
 A extensão do Claude (Claude in Chrome, id `fcoeoabgfenejglbffodgkkbkcdhcgfn` na loja; não vem com o Norte) mexe nas abas pelo depurador (`chrome.debugger`) e cria um grupo de abas "Claude". Três coisas do Norte pra ela (-63), em `navegador/browser/containers/claude.*` (sem interface, compilado no //navegador/browser/containers) e `navegador/browser/ui/claude.*` (o cartão):

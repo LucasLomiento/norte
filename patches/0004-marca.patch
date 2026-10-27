@@ -249,6 +249,24 @@ index 5575c049b2..d983631799 100644
    return true;
  }
  
+diff --git i/components/dbus/xdg/systemd.cc w/components/dbus/xdg/systemd.cc
+index ff947a52f0..224d63efd4 100644
+--- i/components/dbus/xdg/systemd.cc
++++ w/components/dbus/xdg/systemd.cc
+@@ -187,8 +187,11 @@ void OnNameHasOwnerResponse(scoped_refptr<dbus::Bus> bus,
+     return;
+   }
+ 
+-  std::string app_name =
+-      version_info::nix::GetAppName(*base::Environment::Create());
++  // navegador: o grupo do processo leva o id do app do Norte (norte.desktop):
++  // o Mission Center e outros gerenciadores de tarefas acham o app por ele, e
++  // "org.chromium.Chromium" não é app nenhum instalado. O registro no portal
++  // (portal.cc) continua com o nome do Chromium, que é um id que ele aceita.
++  std::string app_name = "norte";
+ 
+   // The unit naming format is specified in
+   // https://systemd.io/DESKTOP_ENVIRONMENTS/
 diff --git i/components/omnibox/browser/vector_icons/chrome_product.icon w/components/omnibox/browser/vector_icons/chrome_product.icon
 index bf0481342d..f08b6f0f3c 100644
 --- i/components/omnibox/browser/vector_icons/chrome_product.icon
