@@ -366,17 +366,16 @@ BEGIN_METADATA(LinhaDoSite)
 END_METADATA
 
 // Cabeçalho de uma pasta: ícone, nome em cinza e a seta, como o grupo no Dia.
+// Cada clique abre ou fecha; renomear é pelo menu do botão direito (o clique
+// duplo, que renomeava, abria e fechava a pasta no caminho).
 class CabecalhoDaPasta : public views::Button {
   METADATA_HEADER(CabecalhoDaPasta, views::Button)
 
  public:
   CabecalhoDaPasta(const Entrada& pasta,
                    int recuo,
-                   base::RepeatingClosure alternar,
-                   base::RepeatingCallback<bool()> clique_duplo)
-      : views::Button(std::move(alternar)),
-        aberta_(pasta.aberta),
-        clique_duplo_(std::move(clique_duplo)) {
+                   base::RepeatingClosure alternar)
+      : views::Button(std::move(alternar)), aberta_(pasta.aberta) {
     auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kHorizontal,
         gfx::Insets::TLBR(0, 8 + recuo, 0, 8), 8));
@@ -414,36 +413,6 @@ class CabecalhoDaPasta : public views::Button {
         cor, 14));
   }
 
-  views::Label& rotulo() { return *nome_; }
-
-  // Clique duplo renomeia. Quem conta é a área (clique_duplo_): o primeiro
-  // clique pode refazer a linha (a pasta abre ou fecha), e aí o Views não
-  // marca o segundo como duplo.
-  bool OnMousePressed(const ui::MouseEvent& event) override {
-    if (event.IsOnlyLeftMouseButton() && clique_duplo_.Run()) {
-      ignorar_soltar_ = true;
-      return true;
-    }
-    return views::Button::OnMousePressed(event);
-  }
-
-  // As teclas do campo de renomear não clicam a linha (abas::Editando).
-  bool OnKeyPressed(const ui::KeyEvent& event) override {
-    return !abas::Editando(this) && views::Button::OnKeyPressed(event);
-  }
-
-  bool OnKeyReleased(const ui::KeyEvent& event) override {
-    return !abas::Editando(this) && views::Button::OnKeyReleased(event);
-  }
-
-  void OnMouseReleased(const ui::MouseEvent& event) override {
-    if (std::exchange(ignorar_soltar_, false)) {
-      SetState(IsMouseHovered() ? STATE_HOVERED : STATE_NORMAL);
-      return;
-    }
-    views::Button::OnMouseReleased(event);
-  }
-
   void PaintButtonContents(gfx::Canvas* canvas) override {
     PintarFundo(canvas, *this, /*ativa=*/false, IsMouseHovered());
   }
@@ -460,8 +429,6 @@ class CabecalhoDaPasta : public views::Button {
 
  private:
   bool aberta_;
-  base::RepeatingCallback<bool()> clique_duplo_;
-  bool ignorar_soltar_ = false;
   raw_ptr<views::ImageView> icone_ = nullptr;
   raw_ptr<views::Label> nome_ = nullptr;
   raw_ptr<views::ImageView> seta_ = nullptr;
@@ -1475,17 +1442,14 @@ class AreaDeFixos : public views::View,
                                : nullptr);
     AtualizarEstados();
     PreferredSizeChanged();
-    // Renomear pasta pedido antes da reconstrução (ver EditarPasta).
-    if (!edicao_pendente_.empty()) {
-      EditarPastaAgora(std::exchange(edicao_pendente_, std::string()));
-    }
   }
 
   // --- Renomear no lugar (clique duplo) -------------------------------------
 
-  // Cada clique (esquerdo) num site ou pasta passa aqui: o segundo no mesmo
-  // item, dentro do tempo do clique duplo, abre o campo de renomear.
-  bool CliqueDuplo(const std::string& id, bool pasta) {
+  // Cada clique (esquerdo) num site passa aqui: o segundo no mesmo site,
+  // dentro do tempo do clique duplo, abre o campo de renomear. A pasta só
+  // renomeia pelo menu.
+  bool CliqueDuplo(const std::string& id) {
     const base::TimeTicks agora = base::TimeTicks::Now();
     const bool duplo =
         id == ultimo_clique_ &&
@@ -1494,11 +1458,7 @@ class AreaDeFixos : public views::View,
     ultimo_clique_ = duplo ? std::string() : id;
     quando_ultimo_clique_ = agora;
     if (duplo) {
-      if (pasta) {
-        EditarPasta(id);
-      } else {
-        EditarSite(id);
-      }
+      EditarSite(id);
     }
     return duplo;
   }
@@ -1512,37 +1472,6 @@ class AreaDeFixos : public views::View,
                 [](Profile* perfil, std::string id, std::u16string nome) {
                   // Vazio volta o endereço (NomeDoSite).
                   RenomearSite(perfil, id, base::UTF16ToUTF8(nome));
-                },
-                Perfil(), id));
-        return;
-      }
-    }
-  }
-
-  // O primeiro clique do duplo já abriu (ou fechou) a pasta e pediu pra
-  // reconstruir: desfaz, e o campo entra no cabeçalho novo.
-  void EditarPasta(const std::string& id) {
-    const std::vector<Entrada> entradas = Do(Perfil(), EspacoAtual());
-    if (const Entrada* pasta = PastaPorId(entradas, id)) {
-      edicao_pendente_ = id;
-      AbrirPasta(Perfil(), id, !pasta->aberta);
-      if (!reconstrucao_pendente_) {
-        EditarPastaAgora(std::exchange(edicao_pendente_, std::string()));
-      }
-    }
-  }
-
-  void EditarPastaAgora(const std::string& id) {
-    for (views::View* filho : children()) {
-      auto* cabecalho = views::AsViewClass<CabecalhoDaPasta>(filho);
-      if (cabecalho && ids_[cabecalho] == id) {
-        abas::EditarNoLugar(
-            cabecalho, cabecalho->rotulo(), cabecalho->rotulo().GetText(),
-            base::BindOnce(
-                [](Profile* perfil, std::string id, std::u16string nome) {
-                  if (!nome.empty()) {
-                    RenomearPasta(perfil, id, base::UTF16ToUTF8(nome));
-                  }
                 },
                 Perfil(), id));
         return;
@@ -1568,10 +1497,7 @@ class AreaDeFixos : public views::View,
               [](Profile* perfil, std::string id, bool aberta) {
                 AbrirPasta(perfil, id, !aberta);
               },
-              Perfil(), entrada.id, entrada.aberta),
-          base::BindRepeating(&AreaDeFixos::CliqueDuplo,
-                              base::Unretained(this), entrada.id,
-                              /*pasta=*/true)));
+              Perfil(), entrada.id, entrada.aberta)));
       cabecalho->set_context_menu_controller(this);
       ids_[cabecalho] = entrada.id;
       niveis_[cabecalho] = nivel;
@@ -1616,7 +1542,7 @@ class AreaDeFixos : public views::View,
         base::BindRepeating(&AreaDeFixos::FecharAbaDoSite,
                             base::Unretained(this), site.id),
         base::BindRepeating(&AreaDeFixos::CliqueDuplo, base::Unretained(this),
-                            site.id, /*pasta=*/false)));
+                            site.id)));
     linha->set_context_menu_controller(this);
     linhas_.push_back(linha);
     ids_[linha] = site.id;
@@ -1844,9 +1770,7 @@ class AreaDeFixos : public views::View,
   std::unique_ptr<ui::SimpleMenuModel> submenu_;
   std::unique_ptr<views::MenuRunner> runner_;
   bool reconstrucao_pendente_ = false;
-  // Pasta pra abrir o "renomear" depois da próxima reconstrução.
-  std::string edicao_pendente_;
-  // O último clique num site ou pasta (CliqueDuplo).
+  // O último clique num site (CliqueDuplo).
   std::string ultimo_clique_;
   base::TimeTicks quando_ultimo_clique_;
   bool atualizacao_pendente_ = false;

@@ -226,10 +226,10 @@ Testar no Xvfb: janela do Norte no canto de baixo (`--window-position=950,580 --
 
 ## Renomear no lugar (clique duplo)
 
-Clique duplo no nome de uma aba da lateral, de um site fixado ou de uma pasta abre um campo por cima do nome (`navegador::abas::EditarNoLugar`): Enter ou clicar fora grava, Esc cancela.
+Clique duplo no nome de uma aba da lateral ou de um site fixado abre um campo por cima do nome (`navegador::abas::EditarNoLugar`): Enter ou clicar fora grava, Esc cancela. A pasta não: cada clique abre ou fecha, e renomear é pelo botão direito ("Renomear pasta…", numa janelinha). Até a -61 o duplo clique também renomeava a pasta, e o usuário pediu pra tirar (abrir e fechar rápido virava renomear).
 
 - **Aba**: o nome fica na aba (`navegador/browser/containers/titulos.*`, dado do `WebContents`) e vale no lugar do título da página no `TabUIHelper::GetTitle` (lateral, cartão do hover, título da janela). Vazio volta o título da página. `TabUIHelper::Renomear` grava na sessão (`navegador_titulo` no extra_data, como o container) e avisa a aba; volta ao reabrir o navegador e no "reabrir aba fechada". As abas (`tabs/common`) não enxergam o `TabUIHelper`: chamam a ponte `abas::RenomearAba`, ligada em `espacos.cc`. Fixar uma aba renomeada leva o nome dado.
-- **Site fixado / pasta**: grava com `RenomearSite` / `RenomearPasta` (o site vazio volta a mostrar o endereço). Na pasta, o primeiro clique do duplo já abriu ou fechou: o segundo desfaz e o campo entra no cabeçalho novo depois da reconstrução (`edicao_pendente_`). O arrasto da área ignora o campo.
+- **Site fixado**: grava com `RenomearSite` (vazio volta a mostrar o endereço). O arrasto da área ignora o campo.
 
 ## Interface dos containers
 
