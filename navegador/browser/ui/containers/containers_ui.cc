@@ -211,16 +211,14 @@ class SubmenuFixar : public ui::SimpleMenuModel,
                    .value_or(espaco);
     }
     AddItem(kSolto, u"Fora das pastas");
-    for (const fixos::Entrada& entrada :
-         fixos::Do(tab_strip->profile(), espaco)) {
-      if (entrada.pasta) {
-        AddItemWithIcon(kPrimeiraPasta + pastas_.size(),
-                        base::UTF8ToUTF16(entrada.nome),
-                        ui::ImageModel::FromVectorIcon(
-                            vector_icons::kFolderFlippableIcon, ui::kColorMenuIcon,
-                            16));
-        pastas_.push_back(entrada.id);
-      }
+    // As de dentro de outras com o caminho ("Trabalho › Clientes").
+    for (const fixos::PastaNoMenu& pasta :
+         fixos::PastasDoEspaco(tab_strip->profile(), espaco)) {
+      AddItemWithIcon(kPrimeiraPasta + pastas_.size(), pasta.caminho,
+                      ui::ImageModel::FromVectorIcon(
+                          vector_icons::kFolderFlippableIcon, ui::kColorMenuIcon,
+                          16));
+      pastas_.push_back(pasta.id);
     }
     AddSeparator(ui::NORMAL_SEPARATOR);
     AddItem(kNovaPasta, u"Nova pasta…");

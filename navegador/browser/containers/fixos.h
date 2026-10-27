@@ -35,8 +35,11 @@ namespace navegador::fixos {
 
 // { "<id do espaço>": [ site | pasta ] }, na ordem da lateral.
 //   site:  { "id", "url", "titulo" }
-//   pasta: { "id", "nome", "aberta", "itens": [ site ] }
+//   pasta: { "id", "nome", "aberta", "itens": [ site | pasta ] }
 inline constexpr char kFixosPref[] = "navegador.espacos.fixos";
+// Pastas dentro de pastas: no máximo 5 numa fila (cada uma recua os itens
+// dela na lateral).
+inline constexpr int kNiveisDePasta = 5;
 // Chave no extra_data da aba na sessão: id do site ligado.
 inline constexpr char kSessionKey[] = "navegador_fixo";
 
@@ -48,17 +51,48 @@ struct Site {
 
 // Uma linha do alto da lateral: um site solto ou uma pasta.
 struct Entrada {
+  Entrada();
+  Entrada(const Entrada&);
+  Entrada(Entrada&&);
+  Entrada& operator=(const Entrada&);
+  Entrada& operator=(Entrada&&);
+  ~Entrada();
+
   std::string id;
   bool pasta = false;
   Site site;  // só quando !pasta
   std::string nome;  // pasta
   bool aberta = true;  // pasta
-  std::vector<Site> itens;  // pasta
+  std::vector<Entrada> itens;  // pasta: sites e pastas
+};
+
+// Uma pasta pros menus ("Mover para a pasta"), em profundidade.
+struct PastaNoMenu {
+  std::string id;
+  // "Trabalho › Clientes".
+  std::u16string caminho;
+  // Quantas pastas tem em volta dela (0 = solta).
+  int nivel = 0;
+  // Quantas pastas numa fila ela tem, contando ela (1 = sem pastas dentro).
+  int altura = 1;
 };
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry);
 
 std::vector<Entrada> Do(Profile* profile, std::string_view espaco);
+
+// A pasta `id` em `entradas`, procurando também dentro das pastas.
+const Entrada* PastaPorId(const std::vector<Entrada>& entradas,
+                          std::string_view id);
+// Os sites de dentro da pasta, inclusive os das pastas de dentro dela.
+std::vector<Site> SitesDaPasta(const Entrada& pasta);
+// Todas as pastas do espaço, em profundidade.
+std::vector<PastaNoMenu> PastasDoEspaco(Profile* profile,
+                                        std::string_view espaco);
+// Dá pra pôr a pasta (ou o site) `id` dentro da pasta `pasta` (vazia =
+// solta)? Pasta não entra nela mesma nem numa de dentro dela, nem passa de
+// kNiveisDePasta numa fila.
+bool CabeEm(Profile* profile, std::string_view id, std::string_view pasta);
 
 // Favoritos do espaço: os ladrilhos no alto da lateral (como os favoritos do
 // Dia, que são do perfil, e os "essentials" do Zen por container). Ficam no
@@ -93,10 +127,20 @@ std::string Fixar(Profile* profile,
                   const GURL& url,
                   std::string_view titulo,
                   std::string_view pasta);
-// Pasta nova no fim dos fixados do espaço. Devolve o id.
+// Fixa no espaço do lado (`depois` ou antes) de `vizinho`, na lista dele
+// (solto, dentro de uma pasta). Devolve o id.
+std::string FixarPerto(Profile* profile,
+                       std::string_view espaco,
+                       const GURL& url,
+                       std::string_view titulo,
+                       std::string_view vizinho,
+                       bool depois);
+// Pasta nova no fim dos fixados do espaço, ou no fim da pasta `dentro`.
+// Devolve o id (vazio se não coube: kNiveisDePasta).
 std::string CriarPasta(Profile* profile,
                        std::string_view espaco,
-                       std::string_view nome);
+                       std::string_view nome,
+                       std::string_view dentro = {});
 void RenomearPasta(Profile* profile, std::string_view id, std::string_view nome);
 void AbrirPasta(Profile* profile, std::string_view id, bool aberta);
 void RenomearSite(Profile* profile,
@@ -108,15 +152,16 @@ void Remover(Profile* profile, std::string_view id);
 // Sobe (-1) ou desce (+1) dentro da lista em que está.
 void Mover(Profile* profile, std::string_view id, int sentido);
 // Arrastar: põe o site ou a pasta `id` antes (ou `depois`) de `vizinho`, na
-// lista dele (solto, dentro de uma pasta ou nos favoritos). Pasta não entra
-// em pasta: com o vizinho dentro de uma, vai pro lado da pasta dele; nem vai
-// pros favoritos.
-void Posicionar(Profile* profile,
+// lista dele (solto, dentro de uma pasta ou nos favoritos). Pasta não vai
+// pros favoritos, nem pra dentro dela mesma, nem passa de kNiveisDePasta.
+// Devolve se mudou.
+bool Posicionar(Profile* profile,
                 std::string_view id,
                 std::string_view vizinho,
                 bool depois);
-// Leva o site pra uma pasta (ou pra fora, com `pasta` vazia), no fim.
-void MoverParaPasta(Profile* profile,
+// Leva o site ou a pasta pra dentro de uma pasta (ou pra fora, com `pasta`
+// vazia), no fim. Com as mesmas regras do Posicionar.
+bool MoverParaPasta(Profile* profile,
                     std::string_view id,
                     std::string_view pasta);
 // O espaço foi apagado: os fixados vão junto.

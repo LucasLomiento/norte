@@ -891,7 +891,7 @@ index 6641560e2f..a90ab6403b 100644
    }
  
 diff --git i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
-index 63ca8403e9..5f0de2ad5b 100644
+index 63ca8403e9..18c4c38d93 100644
 --- i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
 +++ w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
 @@ -533,6 +533,15 @@ TabDragController::Liveness TabDragController::Init(
@@ -910,7 +910,19 @@ index 63ca8403e9..5f0de2ad5b 100644
    ref->initial_selection_model_ = std::move(initial_selection_model);
  
    ref->window_finder_ = std::make_unique<WindowFinder>();
-@@ -1054,13 +1063,19 @@ TabDragController::Liveness TabDragController::ContinueDragging(
+@@ -629,6 +638,11 @@ void TabDragController::OnSystemDnDEnded() {
+   g_tab_drag_controller->EndDrag(EndDragReason::kComplete);
+ }
+ 
++// static
++const TabDragController* TabDragController::NavegadorAtual() {
++  return IsActive() ? g_tab_drag_controller : nullptr;
++}
++
+ // static
+ TabDragContext* TabDragController::GetSourceContext() {
+   return g_tab_drag_controller ? g_tab_drag_controller->source_context_.get()
+@@ -1054,13 +1068,19 @@ TabDragController::Liveness TabDragController::ContinueDragging(
                         base::Unretained(this), point_in_screen));
    }
  
@@ -931,7 +943,7 @@ index 63ca8403e9..5f0de2ad5b 100644
  TabDragController::Liveness TabDragController::DragBrowserToNewTabStrip(
      TabDragContext* target_context,
      const gfx::Point& point_in_screen) {
-@@ -2025,12 +2040,35 @@ void TabDragController::EndDragImpl(EndDragType type) {
+@@ -2025,12 +2045,35 @@ void TabDragController::EndDragImpl(EndDragType type) {
            // Make the hidden window containing the dragged tabs visible. Show()
            // may trigger platform event handlers that synchronously close the
            // window and destroy `this`.
@@ -971,10 +983,22 @@ index 63ca8403e9..5f0de2ad5b 100644
      }
    } else if (drag_data_.tab_drag_data_.size() > 1) {
 diff --git i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
-index 2c3baaa924..da284583d3 100644
+index 2c3baaa924..0b19e1a75e 100644
 --- i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
 +++ w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
-@@ -227,6 +227,7 @@ class TabDragController : public views::WidgetObserver,
+@@ -165,6 +165,11 @@ class TabDragController : public views::WidgetObserver,
+   // Returns the pointer of `source_context_`.
+   static TabDragContext* GetSourceContext();
+ 
++  // navegador: o arrasto de abas em andamento (nulo sem arrasto), pros alvos
++  // nossos (navegador/browser/ui/fixos.cc) conferirem o que está sendo
++  // arrastado antes de se oferecer.
++  static const TabDragController* NavegadorAtual();
++
+   ui::mojom::DragEventSource event_source() const { return event_source_; }
+ 
+   // See description above fields for details on these.
+@@ -227,6 +232,7 @@ class TabDragController : public views::WidgetObserver,
        int drag_idx) override;
    const DragSessionData& GetSessionData() const override;
    const TabDragContext* GetAttachedContext() const override;
@@ -982,7 +1006,7 @@ index 2c3baaa924..da284583d3 100644
  
   private:
    friend class TabDragControllerTest;
-@@ -632,6 +633,12 @@ class TabDragController : public views::WidgetObserver,
+@@ -632,6 +638,12 @@ class TabDragController : public views::WidgetObserver,
    // details.
    ui::ListSelectionModel initial_selection_model_;
  

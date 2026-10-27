@@ -1,5 +1,6 @@
 #include "navegador/browser/containers/fixos.h"
 
+#include <algorithm>
 #include <memory>
 #include <utility>
 
@@ -7,6 +8,7 @@
 #include "base/no_destructor.h"
 #include "base/rand_util.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/supports_user_data.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
@@ -92,11 +94,38 @@ base::DictValue DictDoSite(const Site& site) {
   return dict;
 }
 
-// Onde um id está: a lista que o contém e a posição nela.
+// Onde um id está: a lista que o contém, a posição nela, a pasta em volta
+// (vazia = solto) e quantas pastas tem em volta.
 struct Lugar {
   raw_ptr<base::ListValue> lista = nullptr;
   size_t indice = 0;
+  std::string pasta;
+  int nivel = 0;
 };
+
+std::optional<Lugar> AcharNaLista(base::ListValue& lista,
+                                  std::string_view id,
+                                  const std::string& pasta,
+                                  int nivel) {
+  for (size_t i = 0; i < lista.size(); ++i) {
+    base::DictValue* dict = lista[i].GetIfDict();
+    if (!dict) {
+      continue;
+    }
+    const std::string* atual = dict->FindString(kId);
+    if (atual && *atual == id) {
+      return Lugar{&lista, i, pasta, nivel};
+    }
+    base::ListValue* itens = dict->FindList(kItens);
+    if (itens && atual) {
+      if (std::optional<Lugar> dentro =
+              AcharNaLista(*itens, id, *atual, nivel + 1)) {
+        return dentro;
+      }
+    }
+  }
+  return std::nullopt;
+}
 
 std::optional<Lugar> Achar(base::DictValue& todos,
                            std::string_view id,
@@ -107,39 +136,134 @@ std::optional<Lugar> Achar(base::DictValue& todos,
     if (!lista) {
       continue;
     }
-    for (size_t i = 0; i < lista->size(); ++i) {
-      base::DictValue* dict = (*lista)[i].GetIfDict();
-      if (!dict) {
-        continue;
+    if (std::optional<Lugar> lugar = AcharNaLista(*lista, id, "", 0)) {
+      if (espaco) {
+        *espaco = EspacoDaChave(chave);
       }
-      const std::string* atual = dict->FindString(kId);
-      if (atual && *atual == id) {
-        if (espaco) {
-          *espaco = EspacoDaChave(chave);
-        }
-        if (pasta) {
-          pasta->clear();
-        }
-        return Lugar{lista, i};
+      if (pasta) {
+        *pasta = lugar->pasta;
       }
-      if (base::ListValue* itens = dict->FindList(kItens)) {
-        for (size_t j = 0; j < itens->size(); ++j) {
-          const base::DictValue* item = (*itens)[j].GetIfDict();
-          const std::string* item_id = item ? item->FindString(kId) : nullptr;
-          if (item_id && *item_id == id) {
-            if (espaco) {
-              *espaco = EspacoDaChave(chave);
-            }
-            if (pasta && atual) {
-              *pasta = *atual;
-            }
-            return Lugar{itens, j};
-          }
-        }
-      }
+      return lugar;
     }
   }
   return std::nullopt;
+}
+
+bool EPasta(const base::Value& valor) {
+  return valor.is_dict() && valor.GetDict().FindList(kItens);
+}
+
+// Quantas pastas numa fila: 0 pra um site, 1 pra pasta sem pasta dentro.
+int Altura(const base::Value& valor) {
+  if (!EPasta(valor)) {
+    return 0;
+  }
+  int dentro = 0;
+  for (const base::Value& item : *valor.GetDict().FindList(kItens)) {
+    dentro = std::max(dentro, Altura(item));
+  }
+  return 1 + dentro;
+}
+
+// `id` está dentro da pasta `valor` (em qualquer nível)?
+bool Contem(const base::Value& valor, std::string_view id) {
+  if (!EPasta(valor)) {
+    return false;
+  }
+  for (const base::Value& item : *valor.GetDict().FindList(kItens)) {
+    const std::string* item_id =
+        item.is_dict() ? item.GetDict().FindString(kId) : nullptr;
+    if ((item_id && *item_id == id) || Contem(item, id)) {
+      return true;
+    }
+  }
+  return false;
+}
+
+// Pode `valor` ir pra uma lista com `nivel` pastas em volta? Pasta não entra
+// nela mesma nem numa de dentro dela (`pasta_de_destino`) nem passa do limite.
+bool Cabe(const base::Value& valor,
+          std::string_view id,
+          std::string_view pasta_de_destino,
+          int nivel) {
+  if (!EPasta(valor)) {
+    return true;
+  }
+  if (!pasta_de_destino.empty() &&
+      (pasta_de_destino == id || Contem(valor, pasta_de_destino))) {
+    return false;
+  }
+  return nivel + Altura(valor) <= kNiveisDePasta;
+}
+
+std::optional<Entrada> EntradaDe(const base::Value& valor) {
+  const base::DictValue* dict = valor.GetIfDict();
+  if (!dict) {
+    return std::nullopt;
+  }
+  if (const base::ListValue* itens = dict->FindList(kItens)) {
+    const std::string* id = dict->FindString(kId);
+    if (!id || id->empty()) {
+      return std::nullopt;
+    }
+    Entrada pasta;
+    pasta.id = *id;
+    pasta.pasta = true;
+    const std::string* nome = dict->FindString(kNome);
+    pasta.nome = nome ? *nome : std::string();
+    pasta.aberta = dict->FindBool(kAberta).value_or(true);
+    for (const base::Value& item : *itens) {
+      if (std::optional<Entrada> dentro = EntradaDe(item)) {
+        pasta.itens.push_back(std::move(*dentro));
+      }
+    }
+    return pasta;
+  }
+  std::optional<Site> site = SiteDe(valor);
+  if (!site) {
+    return std::nullopt;
+  }
+  Entrada solto;
+  solto.id = site->id;
+  solto.site = std::move(*site);
+  return solto;
+}
+
+void JuntarSites(const Entrada& entrada, std::vector<Site>& sites) {
+  if (!entrada.pasta) {
+    sites.push_back(entrada.site);
+    return;
+  }
+  for (const Entrada& item : entrada.itens) {
+    JuntarSites(item, sites);
+  }
+}
+
+int AlturaDa(const Entrada& entrada) {
+  if (!entrada.pasta) {
+    return 0;
+  }
+  int dentro = 0;
+  for (const Entrada& item : entrada.itens) {
+    dentro = std::max(dentro, AlturaDa(item));
+  }
+  return 1 + dentro;
+}
+
+void JuntarPastas(const std::vector<Entrada>& entradas,
+                  const std::u16string& caminho,
+                  int nivel,
+                  std::vector<PastaNoMenu>& pastas) {
+  for (const Entrada& entrada : entradas) {
+    if (!entrada.pasta) {
+      continue;
+    }
+    const std::u16string nome = base::UTF8ToUTF16(entrada.nome);
+    const std::u16string meu =
+        caminho.empty() ? nome : caminho + u" \u203A " + nome;
+    pastas.push_back({entrada.id, meu, nivel, AlturaDa(entrada)});
+    JuntarPastas(entrada.itens, meu, nivel + 1, pastas);
+  }
 }
 
 base::ListValue& ListaDoEspaco(base::DictValue& todos, std::string_view espaco) {
@@ -150,6 +274,13 @@ base::ListValue& ListaDoEspaco(base::DictValue& todos, std::string_view espaco) 
 }
 
 }  // namespace
+
+Entrada::Entrada() = default;
+Entrada::Entrada(const Entrada&) = default;
+Entrada::Entrada(Entrada&&) = default;
+Entrada& Entrada::operator=(const Entrada&) = default;
+Entrada& Entrada::operator=(Entrada&&) = default;
+Entrada::~Entrada() = default;
 
 void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
   registry->RegisterDictionaryPref(kFixosPref);
@@ -163,35 +294,57 @@ std::vector<Entrada> Do(Profile* profile, std::string_view espaco) {
     return resultado;
   }
   for (const base::Value& valor : *lista) {
-    const base::DictValue* dict = valor.GetIfDict();
-    if (!dict) {
-      continue;
-    }
-    if (const base::ListValue* itens = dict->FindList(kItens)) {
-      const std::string* id = dict->FindString(kId);
-      if (!id || id->empty()) {
-        continue;
-      }
-      Entrada pasta;
-      pasta.id = *id;
-      pasta.pasta = true;
-      const std::string* nome = dict->FindString(kNome);
-      pasta.nome = nome ? *nome : std::string();
-      pasta.aberta = dict->FindBool(kAberta).value_or(true);
-      for (const base::Value& item : *itens) {
-        if (std::optional<Site> site = SiteDe(item)) {
-          pasta.itens.push_back(std::move(*site));
-        }
-      }
-      resultado.push_back(std::move(pasta));
-    } else if (std::optional<Site> site = SiteDe(valor)) {
-      Entrada solto;
-      solto.id = site->id;
-      solto.site = std::move(*site);
-      resultado.push_back(std::move(solto));
+    if (std::optional<Entrada> entrada = EntradaDe(valor)) {
+      resultado.push_back(std::move(*entrada));
     }
   }
   return resultado;
+}
+
+const Entrada* PastaPorId(const std::vector<Entrada>& entradas,
+                          std::string_view id) {
+  for (const Entrada& entrada : entradas) {
+    if (!entrada.pasta) {
+      continue;
+    }
+    if (entrada.id == id) {
+      return &entrada;
+    }
+    if (const Entrada* dentro = PastaPorId(entrada.itens, id)) {
+      return dentro;
+    }
+  }
+  return nullptr;
+}
+
+std::vector<Site> SitesDaPasta(const Entrada& pasta) {
+  std::vector<Site> sites;
+  JuntarSites(pasta, sites);
+  return sites;
+}
+
+std::vector<PastaNoMenu> PastasDoEspaco(Profile* profile,
+                                        std::string_view espaco) {
+  std::vector<PastaNoMenu> pastas;
+  JuntarPastas(Do(profile, espaco), std::u16string(), 0, pastas);
+  return pastas;
+}
+
+bool CabeEm(Profile* profile, std::string_view id, std::string_view pasta) {
+  base::DictValue todos = Prefs(profile)->GetDict(kFixosPref).Clone();
+  std::optional<Lugar> origem = Achar(todos, id);
+  if (!origem) {
+    return false;
+  }
+  int nivel = 0;
+  if (!pasta.empty()) {
+    std::optional<Lugar> destino = Achar(todos, pasta);
+    if (!destino || !EPasta((*destino->lista)[destino->indice])) {
+      return false;
+    }
+    nivel = destino->nivel + 1;
+  }
+  return Cabe((*origem->lista)[origem->indice], id, pasta, nivel);
 }
 
 std::vector<Site> Favoritos(Profile* profile, std::string_view espaco) {
@@ -285,9 +438,28 @@ std::string Fixar(Profile* profile,
   return site.id;
 }
 
+std::string FixarPerto(Profile* profile,
+                       std::string_view espaco,
+                       const GURL& url,
+                       std::string_view titulo,
+                       std::string_view vizinho,
+                       bool depois) {
+  const Site site{NovoId("s"), url, std::string(titulo)};
+  ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
+  if (std::optional<Lugar> lugar = Achar(update.Get(), vizinho)) {
+    lugar->lista->Insert(
+        lugar->lista->begin() + lugar->indice + (depois ? 1 : 0),
+        base::Value(DictDoSite(site)));
+  } else {
+    ListaDoEspaco(update.Get(), espaco).Append(DictDoSite(site));
+  }
+  return site.id;
+}
+
 std::string CriarPasta(Profile* profile,
                        std::string_view espaco,
-                       std::string_view nome) {
+                       std::string_view nome,
+                       std::string_view dentro) {
   const std::string id = NovoId("p");
   base::DictValue pasta;
   pasta.Set(kId, id);
@@ -295,7 +467,19 @@ std::string CriarPasta(Profile* profile,
   pasta.Set(kAberta, true);
   pasta.Set(kItens, base::ListValue());
   ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
-  ListaDoEspaco(update.Get(), espaco).Append(std::move(pasta));
+  base::ListValue* destino = &ListaDoEspaco(update.Get(), espaco);
+  if (!dentro.empty()) {
+    std::optional<Lugar> lugar = Achar(update.Get(), dentro);
+    base::Value* de_fora =
+        lugar ? &(*lugar->lista)[lugar->indice] : nullptr;
+    if (!de_fora || !EPasta(*de_fora) ||
+        lugar->nivel + 2 > kNiveisDePasta) {
+      return std::string();
+    }
+    de_fora->GetDict().Set(kAberta, true);
+    destino = de_fora->GetDict().FindList(kItens);
+  }
+  destino->Append(std::move(pasta));
   return id;
 }
 
@@ -353,57 +537,62 @@ void Mover(Profile* profile, std::string_view id, int sentido) {
   lugar->lista->Insert(lugar->lista->begin() + destino, std::move(valor));
 }
 
-void Posicionar(Profile* profile,
+bool Posicionar(Profile* profile,
                 std::string_view id,
                 std::string_view vizinho,
                 bool depois) {
   if (id == vizinho) {
-    return;
+    return false;
   }
   ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   std::string espaco;
   std::optional<Lugar> origem = Achar(update.Get(), id, &espaco);
-  std::string pasta_do_vizinho;
-  std::optional<Lugar> alvo =
-      Achar(update.Get(), vizinho, nullptr, &pasta_do_vizinho);
+  std::optional<Lugar> alvo = Achar(update.Get(), vizinho);
   if (!origem || !alvo) {
-    return;
+    return false;
   }
-  const bool e_pasta =
-      (*origem->lista)[origem->indice].GetDict().FindList(kItens) != nullptr;
-  std::string ancora(vizinho);
-  if (e_pasta) {
-    if (!pasta_do_vizinho.empty()) {
-      if (pasta_do_vizinho == id) {
-        return;  // pra dentro dela mesma
-      }
-      ancora = pasta_do_vizinho;
-    }
-    if (alvo->lista == update->FindList(ChaveDosFavoritos(espaco))) {
-      return;
-    }
+  const base::Value& arrastado = (*origem->lista)[origem->indice];
+  if (EPasta(arrastado) &&
+      (alvo->lista == update->FindList(ChaveDosFavoritos(espaco)) ||
+       !Cabe(arrastado, id, alvo->pasta, alvo->nivel) ||
+       Contem(arrastado, vizinho))) {
+    return false;
   }
   base::Value valor = std::move((*origem->lista)[origem->indice]);
   origem->lista->erase(origem->lista->begin() + origem->indice);
-  // Os índices mudaram com a retirada: procura o vizinho de novo.
-  std::optional<Lugar> lugar = Achar(update.Get(), ancora);
+  // Os índices (e as listas de dentro das pastas) mudaram com a retirada:
+  // procura o vizinho de novo.
+  std::optional<Lugar> lugar = Achar(update.Get(), vizinho);
   if (!lugar) {
+    // A retirada só mexe nos itens da lista de origem, não nela.
     origem->lista->Insert(origem->lista->begin() + origem->indice,
                           std::move(valor));
-    return;
+    return false;
   }
   lugar->lista->Insert(lugar->lista->begin() + lugar->indice + (depois ? 1 : 0),
                        std::move(valor));
+  return true;
 }
 
-void MoverParaPasta(Profile* profile,
+bool MoverParaPasta(Profile* profile,
                     std::string_view id,
                     std::string_view pasta) {
   ScopedDictPrefUpdate update(Prefs(profile), kFixosPref);
   std::string espaco;
   std::optional<Lugar> lugar = Achar(update.Get(), id, &espaco);
-  if (!lugar || !SiteDe((*lugar->lista)[lugar->indice])) {
-    return;
+  if (!lugar) {
+    return false;
+  }
+  int nivel = 0;
+  if (!pasta.empty()) {
+    std::optional<Lugar> destino = Achar(update.Get(), pasta);
+    if (!destino || !EPasta((*destino->lista)[destino->indice])) {
+      return false;
+    }
+    nivel = destino->nivel + 1;
+  }
+  if (!Cabe((*lugar->lista)[lugar->indice], id, pasta, nivel)) {
+    return false;
   }
   base::Value valor = std::move((*lugar->lista)[lugar->indice]);
   lugar->lista->erase(lugar->lista->begin() + lugar->indice);
@@ -418,6 +607,7 @@ void MoverParaPasta(Profile* profile,
     }
   }
   destino->Append(std::move(valor));
+  return true;
 }
 
 void RemoverEspaco(Profile* profile, std::string_view espaco) {

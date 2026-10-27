@@ -82,6 +82,7 @@ struct PastaDoZen {
   std::string id;
   std::string nome;
   std::string espaco;
+  std::string pai;  // id da pasta do Zen em volta (vazio = solta)
 };
 
 struct FixadoDoZen {
@@ -385,19 +386,6 @@ void LerSessao(const base::FilePath& copia, DadosDoZen& dados) {
         }
       }
     }
-    for (const auto& [id, d] : por_id) {
-      if (d->FindBool("splitViewGroup").value_or(false)) {
-        continue;
-      }
-      PastaDoZen p;
-      p.id = id;
-      const std::string* nome = d->FindString("name");
-      p.nome = nome && !nome->empty() ? *nome : "Pasta";
-      if (const std::string* espaco = d->FindString("workspaceId")) {
-        p.espaco = *espaco;
-      }
-      dados.pastas.push_back(std::move(p));
-    }
   }
   auto pasta_de_cima = [&](std::string id) {
     for (int volta = 0; volta < 8 && !id.empty(); ++volta) {
@@ -413,6 +401,23 @@ void LerSessao(const base::FilePath& copia, DadosDoZen& dados) {
     }
     return std::string();
   };
+  for (const auto& [id, d] : por_id) {
+    if (d->FindBool("splitViewGroup").value_or(false)) {
+      continue;
+    }
+    PastaDoZen p;
+    p.id = id;
+    const std::string* nome = d->FindString("name");
+    p.nome = nome && !nome->empty() ? *nome : "Pasta";
+    if (const std::string* espaco = d->FindString("workspaceId")) {
+      p.espaco = *espaco;
+    }
+    // Pasta dentro de pasta (a de fora de uma vista dividida conta).
+    if (const std::string* pai = d->FindString("parentId")) {
+      p.pai = pasta_de_cima(*pai);
+    }
+    dados.pastas.push_back(std::move(p));
+  }
   if (const base::ListValue* abas = raiz.FindList("tabs")) {
     for (const base::Value& item : *abas) {
       if (!item.is_dict()) {
@@ -674,23 +679,38 @@ void Aplicar(Profile* perfil,
     espaco_daqui[e.uuid] = achado->id;
   }
 
-  // Fixados e pastas (sem repetir o que já está fixado no espaço).
+  // Fixados e pastas (sem repetir o que já está fixado no espaço). As de
+  // dentro de outras depois da de fora (umas voltas, no máximo uma por
+  // nível).
   std::map<std::string, std::string> pasta_daqui;
-  for (const PastaDoZen& p : dados->pastas) {
-    auto it = espaco_daqui.find(p.espaco);
-    if (it == espaco_daqui.end()) {
-      continue;
-    }
-    std::string id;
-    for (const fixos::Entrada& entrada : fixos::Do(perfil, it->second)) {
-      if (entrada.pasta && MesmoNome(entrada.nome, p.nome)) {
-        id = entrada.id;
+  for (int volta = 0; volta <= fixos::kNiveisDePasta; ++volta) {
+    for (const PastaDoZen& p : dados->pastas) {
+      auto it = espaco_daqui.find(p.espaco);
+      if (it == espaco_daqui.end() || pasta_daqui.count(p.id) ||
+          (!p.pai.empty() && !pasta_daqui.count(p.pai) &&
+           volta < fixos::kNiveisDePasta)) {
+        continue;
       }
+      // Sem a de fora (funda demais, ou de outro espaço): fica solta.
+      const std::string dentro =
+          pasta_daqui.count(p.pai) ? pasta_daqui[p.pai] : std::string();
+      const std::vector<fixos::Entrada> todas = fixos::Do(perfil, it->second);
+      const fixos::Entrada* de_fora =
+          dentro.empty() ? nullptr : fixos::PastaPorId(todas, dentro);
+      std::string id;
+      for (const fixos::Entrada& entrada : de_fora ? de_fora->itens : todas) {
+        if (entrada.pasta && MesmoNome(entrada.nome, p.nome)) {
+          id = entrada.id;
+        }
+      }
+      if (id.empty()) {
+        id = fixos::CriarPasta(perfil, it->second, p.nome, dentro);
+      }
+      if (id.empty()) {
+        id = fixos::CriarPasta(perfil, it->second, p.nome);
+      }
+      pasta_daqui[p.id] = id;
     }
-    if (id.empty()) {
-      id = fixos::CriarPasta(perfil, it->second, p.nome);
-    }
-    pasta_daqui[p.id] = id;
   }
   for (const FixadoDoZen& f : dados->fixados) {
     std::string espaco;
@@ -715,8 +735,10 @@ void Aplicar(Profile* perfil,
       if (!entrada.pasta) {
         ja.insert(entrada.site.url.spec());
       }
-      for (const fixos::Site& site : entrada.itens) {
-        ja.insert(site.url.spec());
+      if (entrada.pasta) {
+        for (const fixos::Site& site : fixos::SitesDaPasta(entrada)) {
+          ja.insert(site.url.spec());
+        }
       }
     }
     for (const fixos::Site& site : fixos::Favoritos(perfil, espaco)) {

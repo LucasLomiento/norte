@@ -17,6 +17,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/task/single_thread_task_runner.h"
+#include "base/timer/timer.h"
 #include "base/time/time.h"
 #include "cc/paint/paint_flags.h"
 #include "cc/paint/path_effect.h"
@@ -35,7 +36,10 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/views/tabs/dragging/drag_session_data.h"
+#include "chrome/browser/ui/views/tabs/dragging/tab_drag_context.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
+#include "chrome/browser/ui/views/tabs/dragging/tab_drag_target.h"
 #include "components/constrained_window/constrained_window_views.h"
 #include "components/favicon/core/favicon_service.h"
 #include "components/keyed_service/core/service_access_type.h"
@@ -367,6 +371,7 @@ class CabecalhoDaPasta : public views::Button {
 
  public:
   CabecalhoDaPasta(const Entrada& pasta,
+                   int recuo,
                    base::RepeatingClosure alternar,
                    base::RepeatingCallback<bool()> clique_duplo)
       : views::Button(std::move(alternar)),
@@ -374,7 +379,7 @@ class CabecalhoDaPasta : public views::Button {
         clique_duplo_(std::move(clique_duplo)) {
     auto* layout = SetLayoutManager(std::make_unique<views::BoxLayout>(
         views::BoxLayout::Orientation::kHorizontal,
-        gfx::Insets::TLBR(0, 8, 0, 8), 8));
+        gfx::Insets::TLBR(0, 8 + recuo, 0, 8), 8));
     layout->set_cross_axis_alignment(
         views::BoxLayout::CrossAxisAlignment::kCenter);
     icone_ = AddChildView(std::make_unique<views::ImageView>());
@@ -728,6 +733,52 @@ class Divisor : public views::View {
 BEGIN_METADATA(Divisor)
 END_METADATA
 
+// Sem nada fixado no espaço, enquanto uma aba é arrastada pela lateral: o
+// lugar de soltar pra fixar (tracejado, como o quadro dos favoritos).
+class ZonaDeFixar : public views::View {
+  METADATA_HEADER(ZonaDeFixar, views::View)
+
+ public:
+  ZonaDeFixar() {
+    SetLayoutManager(std::make_unique<views::FillLayout>());
+    texto_ = AddChildView(std::make_unique<views::Label>(u"Solte aqui pra fixar"));
+    texto_->SetFontList(gfx::FontList().DeriveWithSizeDelta(
+        12 - gfx::FontList().GetFontSize()));
+    texto_->SetCanProcessEventsWithinSubtree(false);
+    SetPreferredSize(gfx::Size(0, kAlturaLinha));
+    SetProperty(views::kMarginsKey,
+                gfx::Insets::TLBR(0, 0, visual::kEspacoEntreAbas, 0));
+  }
+
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    texto_->SetEnabledColor(SkColorSetA(
+        GetColorProvider()->GetColor(kColorTabForegroundInactiveFrameActive),
+        0xB3));
+  }
+
+  void OnPaint(gfx::Canvas* canvas) override {
+    const SkColor cor = GetColorProvider()->GetColor(
+        kColorTabForegroundInactiveFrameActive);
+    gfx::RectF caixa(GetLocalBounds());
+    caixa.Inset(0.5f);
+    cc::PaintFlags flags;
+    flags.setAntiAlias(true);
+    flags.setStyle(cc::PaintFlags::kStroke_Style);
+    flags.setStrokeWidth(1);
+    flags.setColor(SkColorSetA(cor, 0x66));
+    const SkScalar tracos[] = {3, 3};
+    flags.setPathEffect(cc::PathEffect::MakeDash(tracos, 2, 0));
+    canvas->DrawRoundRect(caixa, kRaio, flags);
+  }
+
+ private:
+  raw_ptr<views::Label> texto_ = nullptr;
+};
+
+BEGIN_METADATA(ZonaDeFixar)
+END_METADATA
+
 class AreaDeFixos : public views::View,
                     public TabStripModelObserver,
                     public views::ContextMenuController,
@@ -890,7 +941,8 @@ class AreaDeFixos : public views::View,
 
   void PaintChildren(const views::PaintInfo& info) override {
     views::View::PaintChildren(info);
-    if (!arrastando_ || !arrastado_) {
+    const bool interno = arrastando_ && arrastado_;
+    if (!interno && !vizinho_) {
       return;
     }
     ui::PaintRecorder recorder(info.context(), size());
@@ -899,7 +951,7 @@ class AreaDeFixos : public views::View,
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
     // O que está sendo arrastado: contorno tracejado.
-    {
+    if (interno) {
       gfx::RectF origem(AreaDe(arrastado_));
       origem.Inset(1);
       cc::PaintFlags traco;
@@ -928,11 +980,53 @@ class AreaDeFixos : public views::View,
       canvas->DrawRoundRect(
           gfx::RectF(x, area.y() + 6, 2, area.height() - 12), 1, flags);
     } else {
+      // Recuada como a linha (dentro das pastas de dentro, mais).
+      auto nivel = niveis_.find(vizinho_);
+      const int recuo =
+          nivel == niveis_.end() ? 0 : nivel->second * kRecuoDaPasta;
       const float y = onde_ == Onde::kAntes ? area.y() - 3.0f
                                             : area.bottom() + 1.0f;
-      canvas->DrawRoundRect(gfx::RectF(area.x() + 6, y, area.width() - 12, 2),
-                            1, flags);
+      canvas->DrawRoundRect(
+          gfx::RectF(area.x() + 6 + recuo, y, area.width() - 12 - recuo, 2), 1,
+          flags);
     }
+  }
+
+  // --- Aba da lista arrastada pra cá (AlvoDosFixos) -------------------------
+
+  TabDragTarget* AlvoEm(const gfx::Point& ponto_na_tela) {
+    const TabDragController* arrasto = TabDragController::NavegadorAtual();
+    if (!arrasto) {
+      return nullptr;
+    }
+    TabDragContext* const anexado =
+        const_cast<TabDragContext*>(arrasto->GetAttachedContext());
+    const DragSessionData& dados = arrasto->GetSessionData();
+    // Uma aba comum desta janela: não um espaço, uma divisão, uma fixada do
+    // Chromium nem uma que já é de um site.
+    if (!anexado || anexado->GetTabStripModel() != model_ ||
+        dados.num_dragging_tabs() != 1 || !dados.dragging_groups.empty() ||
+        dados.group_header_drag_data_.has_value() ||
+        dados.source_view_index_ >= dados.tab_drag_data_.size()) {
+      return nullptr;
+    }
+    content::WebContents* aba = dados.source_dragged_contents();
+    const int index =
+        aba ? model_->GetIndexOfWebContents(aba) : TabStripModel::kNoTab;
+    if (index == TabStripModel::kNoTab || model_->IsTabPinned(index) ||
+        model_->GetTabAtIndex(index)->IsSplit() || SiteDaAba(aba)) {
+      return nullptr;
+    }
+    LigarZona();
+    views::View* rolagem = parent();
+    while (rolagem && rolagem->GetID() != visual::kIdAreaDeFixos) {
+      rolagem = rolagem->parent();
+    }
+    if (!rolagem || !rolagem->IsDrawn() ||
+        !rolagem->GetBoundsInScreen().Contains(ponto_na_tela)) {
+      return nullptr;
+    }
+    return &alvo_de_aba_;
   }
 
   // --- views::ContextMenuController ----------------------------------------
@@ -977,23 +1071,7 @@ class AreaDeFixos : public views::View,
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
       menu_->AddItem(kSubir, u"Mover pra cima");
       menu_->AddItem(kDescer, u"Mover pra baixo");
-      submenu_ = std::make_unique<ui::SimpleMenuModel>(this);
-      if (!pasta_do_alvo.empty()) {
-        submenu_->AddItem(kForaDaPasta, u"Fora das pastas");
-      }
-      for (const Entrada& entrada : Do(Perfil(), EspacoAtual())) {
-        if (entrada.pasta && entrada.id != pasta_do_alvo) {
-          submenu_->AddItemWithIcon(
-              kPrimeiraPasta + pastas_.size(), base::UTF8ToUTF16(entrada.nome),
-              ui::ImageModel::FromVectorIcon(vector_icons::kFolderFlippableIcon,
-                                             ui::kColorMenuIcon, 16));
-          pastas_.push_back(entrada.id);
-        }
-      }
-      if (submenu_->GetItemCount() > 0) {
-        menu_->AddSubMenu(kMoverParaPasta, u"Mover para a pasta",
-                          submenu_.get());
-      }
+      AdicionarMoverParaPasta(id, pasta_do_alvo);
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
       menu_->AddItem(kNovaPastaCmd, u"Nova pasta…");
       menu_->AddItem(kDesafixarCmd, u"Desafixar");
@@ -1005,7 +1083,17 @@ class AreaDeFixos : public views::View,
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
       menu_->AddItem(kSubir, u"Mover pra cima");
       menu_->AddItem(kDescer, u"Mover pra baixo");
+      AdicionarMoverParaPasta(id, pasta_do_alvo);
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
+      int nivel = 0;
+      for (const PastaNoMenu& pasta : PastasDoEspaco(Perfil(), EspacoAtual())) {
+        if (pasta.id == id) {
+          nivel = pasta.nivel;
+        }
+      }
+      if (nivel + 2 <= kNiveisDePasta) {
+        menu_->AddItem(kNovaSubpasta, u"Nova pasta aqui dentro…");
+      }
       menu_->AddItem(kNovaPastaCmd, u"Nova pasta…");
       menu_->AddItem(kExcluirPasta, u"Excluir a pasta");
     } else {
@@ -1021,6 +1109,31 @@ class AreaDeFixos : public views::View,
                        views::MenuAnchorPosition::kTopLeft, source_type);
   }
 
+  // "Mover para a pasta ›" de um site ou de uma pasta: as pastas do espaço
+  // (as de dentro com o caminho), menos a em que ele já está e, pra uma
+  // pasta, ela mesma, as de dentro dela e as fundas demais.
+  void AdicionarMoverParaPasta(const std::string& id,
+                               const std::string& pasta_do_alvo) {
+    submenu_ = std::make_unique<ui::SimpleMenuModel>(this);
+    if (!pasta_do_alvo.empty()) {
+      submenu_->AddItem(kForaDaPasta, u"Fora das pastas");
+    }
+    for (const PastaNoMenu& pasta : PastasDoEspaco(Perfil(), EspacoAtual())) {
+      if (pasta.id == pasta_do_alvo || !CabeEm(Perfil(), id, pasta.id)) {
+        continue;
+      }
+      submenu_->AddItemWithIcon(
+          kPrimeiraPasta + pastas_.size(), pasta.caminho,
+          ui::ImageModel::FromVectorIcon(vector_icons::kFolderFlippableIcon,
+                                         ui::kColorMenuIcon, 16));
+      pastas_.push_back(pasta.id);
+    }
+    if (submenu_->GetItemCount() > 0) {
+      menu_->AddSubMenu(kMoverParaPasta, u"Mover para a pasta",
+                        submenu_.get());
+    }
+  }
+
   // --- ui::SimpleMenuModel::Delegate ---------------------------------------
 
   void ExecuteCommand(int command_id, int event_flags) override {
@@ -1030,14 +1143,11 @@ class AreaDeFixos : public views::View,
       case kRenomear: {
         std::optional<Site> site = SitePorId(perfil, id);
         std::u16string atual;
+        const std::vector<Entrada> entradas = Do(perfil, EspacoAtual());
         if (site) {
           atual = NomeDoSite(*site);
-        } else {
-          for (const Entrada& entrada : Do(perfil, EspacoAtual())) {
-            if (entrada.id == id) {
-              atual = base::UTF8ToUTF16(entrada.nome);
-            }
-          }
+        } else if (const Entrada* pasta = PastaPorId(entradas, id)) {
+          atual = base::UTF8ToUTF16(pasta->nome);
         }
         PedirNome(browser_, site ? u"Renomear" : u"Renomear pasta", atual,
                   base::BindOnce(
@@ -1085,13 +1195,15 @@ class AreaDeFixos : public views::View,
         MoverParaPasta(perfil, id, "");
         return;
       case kNovaPastaCmd:
+      case kNovaSubpasta:
         PedirNome(browser_, u"Nova pasta", u"Pasta",
                   base::BindOnce(
                       [](Profile* perfil, std::string espaco,
-                         const std::string& nome) {
-                        CriarPasta(perfil, espaco, nome);
+                         std::string dentro, const std::string& nome) {
+                        CriarPasta(perfil, espaco, nome, dentro);
                       },
-                      perfil, EspacoAtual()));
+                      perfil, EspacoAtual(),
+                      command_id == kNovaSubpasta ? id : std::string()));
         return;
       case kDesafixarCmd:
         if (content::WebContents* aba = AbaDoSite(id)) {
@@ -1100,12 +1212,11 @@ class AreaDeFixos : public views::View,
         Remover(perfil, id);
         return;
       case kAbrirTodas:
-      case kFecharTodas:
-        for (const Entrada& entrada : Do(perfil, EspacoAtual())) {
-          if (entrada.id != id) {
-            continue;
-          }
-          for (const Site& site : entrada.itens) {
+      case kFecharTodas: {
+        // Os das pastas de dentro também.
+        const std::vector<Entrada> entradas = Do(perfil, EspacoAtual());
+        if (const Entrada* pasta = PastaPorId(entradas, id)) {
+          for (const Site& site : SitesDaPasta(*pasta)) {
             if (command_id == kFecharTodas) {
               FecharAbaDoSite(site.id);
             } else if (!AbaDoSite(site.id)) {
@@ -1114,19 +1225,21 @@ class AreaDeFixos : public views::View,
           }
         }
         return;
-      case kExcluirPasta:
-        // As abas abertas dos sites da pasta continuam, como abas comuns.
-        for (const Entrada& entrada : Do(perfil, EspacoAtual())) {
-          if (entrada.id == id) {
-            for (const Site& site : entrada.itens) {
-              if (content::WebContents* aba = AbaDoSite(site.id)) {
-                Desligar(aba);
-              }
+      }
+      case kExcluirPasta: {
+        // As abas abertas dos sites da pasta (e das de dentro dela)
+        // continuam, como abas comuns.
+        const std::vector<Entrada> entradas = Do(perfil, EspacoAtual());
+        if (const Entrada* pasta = PastaPorId(entradas, id)) {
+          for (const Site& site : SitesDaPasta(*pasta)) {
+            if (content::WebContents* aba = AbaDoSite(site.id)) {
+              Desligar(aba);
             }
           }
         }
         Remover(perfil, id);
         return;
+      }
     }
     const size_t i = command_id - kPrimeiraPasta;
     if (i < pastas_.size()) {
@@ -1316,18 +1429,23 @@ class AreaDeFixos : public views::View,
     linhas_.clear();
     ladrilhos_.clear();
     ids_.clear();
+    niveis_.clear();
+    pais_.clear();
+    quadro_ = nullptr;
+    divisor_ = nullptr;
+    zona_ = nullptr;
     const std::vector<Site> favoritos = Favoritos(Perfil(), EspacoAtual());
     if (favoritos.empty()) {
       if (espacos::MostrarQuadroDeFavoritos(Perfil())) {
-        AddChildView(std::make_unique<SemFavoritos>(base::BindRepeating(
+        quadro_ = AddChildView(std::make_unique<SemFavoritos>(base::BindRepeating(
             [](AreaDeFixos* area) {
               if (content::WebContents* aba =
                       area->model_->GetActiveWebContents()) {
                 area->AlternarFavoritoDaAba(aba);
               }
             },
-            base::Unretained(this))))
-            ->set_context_menu_controller(this);
+            base::Unretained(this))));
+        quadro_->set_context_menu_controller(this);
       }
     } else {
       auto* grade = AddChildView(std::make_unique<GradeDeFavoritos>());
@@ -1343,34 +1461,13 @@ class AreaDeFixos : public views::View,
     }
     const std::vector<Entrada> entradas = Do(Perfil(), EspacoAtual());
     tem_pasta_fechada_ = false;
-    for (const Entrada& entrada : entradas) {
-      tem_pasta_fechada_ |= entrada.pasta && !entrada.aberta;
-      if (!entrada.pasta) {
-        AdicionarSite(entrada.site, /*recuo=*/0);
-        continue;
-      }
-      auto* cabecalho = AddChildView(std::make_unique<CabecalhoDaPasta>(
-          entrada,
-          base::BindRepeating(
-              [](Profile* perfil, std::string id, bool aberta) {
-                AbrirPasta(perfil, id, !aberta);
-              },
-              Perfil(), entrada.id, entrada.aberta),
-          base::BindRepeating(&AreaDeFixos::CliqueDuplo,
-                              base::Unretained(this), entrada.id,
-                              /*pasta=*/true)));
-      cabecalho->set_context_menu_controller(this);
-      ids_[cabecalho] = entrada.id;
-      for (const Site& site : entrada.itens) {
-        // Pasta fechada: só o site da aba ativa fica à vista (como no Zen).
-        if (entrada.aberta || SiteDaAba(model_->GetActiveWebContents()) ==
-                                  site.id) {
-          AdicionarSite(site, kRecuoDaPasta);
-        }
-      }
-    }
+    AdicionarEntradas(entradas, /*nivel=*/0, /*pasta=*/std::string(),
+                      SiteDaAba(model_->GetActiveWebContents()));
     if (!entradas.empty()) {
-      AddChildView(std::make_unique<Divisor>(browser_));
+      divisor_ = AddChildView(std::make_unique<Divisor>(browser_));
+    } else if (zona_ligada_) {
+      // Aba sendo arrastada na janela sem nada fixado: o lugar de soltar.
+      zona_ = AddChildView(std::make_unique<ZonaDeFixar>());
     }
     // Sem a linha no fim, a folga de uma aba até a lista.
     SetBorder(entradas.empty() ? views::CreateEmptyBorder(gfx::Insets::TLBR(
@@ -1425,14 +1522,12 @@ class AreaDeFixos : public views::View,
   // O primeiro clique do duplo já abriu (ou fechou) a pasta e pediu pra
   // reconstruir: desfaz, e o campo entra no cabeçalho novo.
   void EditarPasta(const std::string& id) {
-    for (const Entrada& entrada : Do(Perfil(), EspacoAtual())) {
-      if (entrada.pasta && entrada.id == id) {
-        edicao_pendente_ = id;
-        AbrirPasta(Perfil(), id, !entrada.aberta);
-        if (!reconstrucao_pendente_) {
-          EditarPastaAgora(std::exchange(edicao_pendente_, std::string()));
-        }
-        return;
+    const std::vector<Entrada> entradas = Do(Perfil(), EspacoAtual());
+    if (const Entrada* pasta = PastaPorId(entradas, id)) {
+      edicao_pendente_ = id;
+      AbrirPasta(Perfil(), id, !pasta->aberta);
+      if (!reconstrucao_pendente_) {
+        EditarPastaAgora(std::exchange(edicao_pendente_, std::string()));
       }
     }
   }
@@ -1455,9 +1550,67 @@ class AreaDeFixos : public views::View,
     }
   }
 
-  void AdicionarSite(const Site& site, int recuo) {
+  // Os itens de uma lista (a do espaço ou a de dentro de uma pasta), com as
+  // pastas de dentro recuadas mais um passo cada.
+  void AdicionarEntradas(const std::vector<Entrada>& entradas,
+                         int nivel,
+                         const std::string& pasta,
+                         const std::optional<std::string>& site_ativo) {
+    for (const Entrada& entrada : entradas) {
+      if (!entrada.pasta) {
+        AdicionarSite(entrada.site, nivel, pasta);
+        continue;
+      }
+      tem_pasta_fechada_ |= !entrada.aberta;
+      auto* cabecalho = AddChildView(std::make_unique<CabecalhoDaPasta>(
+          entrada, nivel * kRecuoDaPasta,
+          base::BindRepeating(
+              [](Profile* perfil, std::string id, bool aberta) {
+                AbrirPasta(perfil, id, !aberta);
+              },
+              Perfil(), entrada.id, entrada.aberta),
+          base::BindRepeating(&AreaDeFixos::CliqueDuplo,
+                              base::Unretained(this), entrada.id,
+                              /*pasta=*/true)));
+      cabecalho->set_context_menu_controller(this);
+      ids_[cabecalho] = entrada.id;
+      niveis_[cabecalho] = nivel;
+      pais_[cabecalho] = pasta;
+      if (entrada.aberta) {
+        AdicionarEntradas(entrada.itens, nivel + 1, entrada.id, site_ativo);
+      } else if (site_ativo) {
+        // Pasta fechada: só o site da aba ativa fica à vista (como no Zen),
+        // mesmo vindo de uma pasta de dentro dela.
+        std::string de_quem;
+        if (const Entrada* site = SiteNaPasta(entrada, *site_ativo, &de_quem)) {
+          AdicionarSite(site->site, nivel + 1, de_quem);
+        }
+      }
+    }
+  }
+
+  // O site `id` dentro da pasta (em qualquer nível); `pasta` recebe a pasta
+  // em que ele está.
+  static const Entrada* SiteNaPasta(const Entrada& de_fora,
+                                    const std::string& id,
+                                    std::string* pasta) {
+    for (const Entrada& item : de_fora.itens) {
+      if (!item.pasta && item.id == id) {
+        *pasta = de_fora.id;
+        return &item;
+      }
+      if (item.pasta) {
+        if (const Entrada* achado = SiteNaPasta(item, id, pasta)) {
+          return achado;
+        }
+      }
+    }
+    return nullptr;
+  }
+
+  void AdicionarSite(const Site& site, int nivel, const std::string& pasta) {
     auto* linha = AddChildView(std::make_unique<LinhaDoSite>(
-        site, recuo,
+        site, nivel * kRecuoDaPasta,
         base::BindRepeating(&AreaDeFixos::Abrir, base::Unretained(this),
                             site.id),
         base::BindRepeating(&AreaDeFixos::FecharAbaDoSite,
@@ -1467,6 +1620,8 @@ class AreaDeFixos : public views::View,
     linha->set_context_menu_controller(this);
     linhas_.push_back(linha);
     ids_[linha] = site.id;
+    niveis_[linha] = nivel;
+    pais_[linha] = pasta;
   }
 
   // Aba aberta/ativa e ícone de cada site; e arruma as ligações: aba ligada
@@ -1657,6 +1812,7 @@ class AreaDeFixos : public views::View,
   static constexpr int kExcluirPasta = 12;
   static constexpr int kOcultarQuadro = 13;
   static constexpr int kVoltarAoEndereco = 14;
+  static constexpr int kNovaSubpasta = 15;
   static constexpr int kPrimeiraPasta = 100;
 
   raw_ptr<BrowserWindowInterface> browser_;
@@ -1668,6 +1824,17 @@ class AreaDeFixos : public views::View,
   std::vector<raw_ptr<LinhaDoSite>> linhas_;
   std::vector<raw_ptr<Ladrilho>> ladrilhos_;
   std::map<views::View*, std::string> ids_;
+  // De cada linha de site ou pasta: quantas pastas em volta e a pasta em que
+  // está (vazia = solta).
+  std::map<views::View*, int> niveis_;
+  std::map<views::View*, std::string> pais_;
+  // Lugares de soltar uma aba arrastada da lista: o quadro dos favoritos, a
+  // linha embaixo dos fixados e, sem nada fixado, a zona que aparece
+  // durante o arrasto.
+  raw_ptr<views::View> quadro_ = nullptr;
+  raw_ptr<views::View> divisor_ = nullptr;
+  raw_ptr<views::View> zona_ = nullptr;
+  bool zona_ligada_ = false;
   std::map<GURL, ui::ImageModel> icones_;
   std::set<GURL> buscando_;
   base::CancelableTaskTracker rastreador_;
@@ -1704,6 +1871,48 @@ class AreaDeFixos : public views::View,
   Onde onde_ = Onde::kAntes;
   gfx::Point inicio_;
   bool arrastando_ = false;
+  // Uma aba da lista está sendo arrastada por cima (sem `arrastado_`).
+  bool externo_ = false;
+  base::RepeatingTimer vigia_da_zona_;
+
+  // O alvo do TabDragController pra aba da lista (BrowserView::
+  // GetTabDragTarget, via AlvoDosFixos).
+  class AlvoDeAba : public TabDragTarget {
+   public:
+    explicit AlvoDeAba(AreaDeFixos* area) : area_(area) {}
+    ~AlvoDeAba() override { ao_destruir_.Notify(); }
+
+    void OnTabDragEntered() override {}
+    // A aba fica parada no lugar dela na lista enquanto passa por cima
+    // (o ContinueDragging não move a aba com um alvo).
+    TabDragContext* OnTabDragUpdated(
+        TabDragTarget::DragController& controller,
+        const gfx::Point& point_in_screen) override {
+      area_->ArrastoDeAba(point_in_screen);
+      return const_cast<TabDragContext*>(controller.GetAttachedContext());
+    }
+    void OnTabDragExited(const gfx::Point& point_in_screen) override {
+      area_->FimDoArrastoDeAba();
+    }
+    void OnTabDragEnded() override { area_->FimDoArrastoDeAba(); }
+    bool CanDropTab() override { return area_->PodeSoltarAba(); }
+    void HandleTabDrop(TabDragTarget::DragController& controller) override {
+      const DragSessionData& dados = controller.GetSessionData();
+      area_->SoltarAba(dados.source_view_index_ < dados.tab_drag_data_.size()
+                           ? dados.source_dragged_contents()
+                           : nullptr);
+    }
+    base::CallbackListSubscription RegisterWillDestroyCallback(
+        base::OnceClosure callback) override {
+      return ao_destruir_.Add(std::move(callback));
+    }
+
+   private:
+    raw_ptr<AreaDeFixos> area_;
+    base::OnceClosureList ao_destruir_;
+  };
+  // Por último: some antes do resto da área (avisa o TabDragController).
+  AlvoDeAba alvo_de_aba_{this};
 
   gfx::Rect AreaDe(views::View* view) {
     return gfx::ToEnclosingRect(views::View::ConvertRectToTarget(
@@ -1721,9 +1930,12 @@ class AreaDeFixos : public views::View,
 
   void CalcularDestino(const gfx::Point& ponto) {
     vizinho_ = nullptr;
+    auto arrastado = arrastado_ ? ids_.find(arrastado_) : ids_.end();
+    const std::string id =
+        arrastado == ids_.end() ? std::string() : arrastado->second;
     const bool pasta_arrastada =
         views::IsViewClass<CabecalhoDaPasta>(arrastado_);
-    for (const auto& [view, id] : ids_) {
+    for (const auto& [view, outro] : ids_) {
       if (view == arrastado_) {
         continue;
       }
@@ -1742,30 +1954,144 @@ class AreaDeFixos : public views::View,
       if (ponto.y() < area.y() || ponto.y() >= area.bottom()) {
         continue;
       }
-      vizinho_ = view;
-      if (views::IsViewClass<CabecalhoDaPasta>(view) && !pasta_arrastada) {
-        // Metade de cima: antes da pasta; de baixo: pra dentro dela.
-        onde_ = ponto.y() < area.CenterPoint().y() ? Onde::kAntes
-                                                   : Onde::kDentro;
-      } else {
-        onde_ = ponto.y() < area.CenterPoint().y() ? Onde::kAntes
-                                                   : Onde::kDepois;
+      // Pasta: metade de cima é antes dela; de baixo, pra dentro.
+      const Onde onde = ponto.y() < area.CenterPoint().y() ? Onde::kAntes
+                        : views::IsViewClass<CabecalhoDaPasta>(view)
+                            ? Onde::kDentro
+                            : Onde::kDepois;
+      // Uma pasta não entra nela mesma (nem numa de dentro dela) nem passa
+      // do limite de pastas numa fila.
+      if (pasta_arrastada &&
+          !CabeEm(Perfil(), id, onde == Onde::kDentro ? outro : pais_[view])) {
+        return;
       }
+      vizinho_ = view;
+      onde_ = onde;
+      return;
+    }
+    // A linha embaixo dos fixados: vai pro fim, fora das pastas. Uma aba da
+    // lista também vai pro quadro dos favoritos e pra zona de soltar.
+    for (views::View* lugar :
+         {divisor_.get(), externo_ ? quadro_.get() : nullptr, zona_.get()}) {
+      if (!lugar || !AreaDe(lugar).Contains(ponto)) {
+        continue;
+      }
+      if (pasta_arrastada && !CabeEm(Perfil(), id, std::string())) {
+        return;
+      }
+      vizinho_ = lugar;
+      onde_ = lugar == divisor_ ? Onde::kAntes : Onde::kDentro;
       return;
     }
   }
 
   void Soltar() {
-    if (!vizinho_ || !ids_.count(arrastado_) || !ids_.count(vizinho_)) {
+    if (!vizinho_ || !ids_.count(arrastado_)) {
       return;
     }
     const std::string id = ids_[arrastado_];
+    if (vizinho_ == divisor_) {
+      MoverParaPasta(Perfil(), id, std::string());
+      return;
+    }
+    if (!ids_.count(vizinho_)) {
+      return;
+    }
     const std::string outro = ids_[vizinho_];
     if (onde_ == Onde::kDentro) {
-      MoverParaPasta(Perfil(), id, outro);
-      AbrirPasta(Perfil(), outro, true);
+      if (MoverParaPasta(Perfil(), id, outro)) {
+        AbrirPasta(Perfil(), outro, true);
+      }
     } else {
       Posicionar(Perfil(), id, outro, onde_ == Onde::kDepois);
+    }
+  }
+
+  // A cada movimento de uma aba da lista por cima da área.
+  void ArrastoDeAba(const gfx::Point& ponto_na_tela) {
+    externo_ = true;
+    gfx::Point ponto = ponto_na_tela;
+    views::View::ConvertPointFromScreen(this, &ponto);
+    views::View* antes = vizinho_;
+    const Onde onde_antes = onde_;
+    CalcularDestino(ponto);
+    if (vizinho_ != antes || onde_ != onde_antes) {
+      SchedulePaint();
+    }
+  }
+
+  void FimDoArrastoDeAba() {
+    externo_ = false;
+    if (vizinho_) {
+      SchedulePaint();
+    }
+    vizinho_ = nullptr;
+  }
+
+  bool PodeSoltarAba() const { return externo_ && vizinho_; }
+
+  // A aba (da lista desta janela) solta aqui vira um site fixado, ligado a
+  // ela: sai da lista e aparece no lugar onde caiu.
+  void SoltarAba(content::WebContents* aba) {
+    views::View* lugar = vizinho_;
+    const Onde onde = onde_;
+    FimDoArrastoDeAba();
+    if (!lugar || !aba || SiteDaAba(aba)) {
+      return;
+    }
+    Profile* perfil = Perfil();
+    const std::string espaco = EspacoAtual();
+    const GURL url = EnderecoDaAba(aba);
+    const std::string titulo = TituloParaFixar(aba);
+    std::string id;
+    if (lugar == quadro_) {
+      id = Favoritar(perfil, espaco, url, titulo);
+    } else if (lugar == divisor_ || lugar == zona_) {
+      id = Fixar(perfil, espaco, url, titulo, std::string());
+    } else if (auto it = ids_.find(lugar); it != ids_.end()) {
+      const std::string outro = it->second;
+      if (views::IsViewClass<Ladrilho>(lugar)) {
+        id = Favoritar(perfil, espaco, url, titulo);
+        Posicionar(perfil, id, outro, onde == Onde::kDepois);
+      } else if (onde == Onde::kDentro) {
+        id = Fixar(perfil, espaco, url, titulo, outro);
+        AbrirPasta(perfil, outro, true);
+      } else {
+        id = FixarPerto(perfil, espaco, url, titulo, outro,
+                        onde == Onde::kDepois);
+      }
+    }
+    if (id.empty()) {
+      return;
+    }
+    Ligar(aba, id);
+    InvalidarLista();
+    ReconstruirDepois();
+  }
+
+  // Sem nada fixado, a zona de soltar aparece enquanto uma aba é arrastada
+  // pela lateral (e some quando o arrasto acaba).
+  void LigarZona() {
+    if (zona_ligada_) {
+      return;
+    }
+    zona_ligada_ = true;
+    if (Do(Perfil(), EspacoAtual()).empty()) {
+      ReconstruirDepois();
+    }
+    vigia_da_zona_.Start(FROM_HERE, base::Milliseconds(200),
+                         base::BindRepeating(&AreaDeFixos::ConferirZona,
+                                             base::Unretained(this)));
+  }
+
+  void ConferirZona() {
+    if (TabDragController::IsActive()) {
+      return;
+    }
+    vigia_da_zona_.Stop();
+    zona_ligada_ = false;
+    if (zona_) {
+      ReconstruirDepois();
     }
   }
 
@@ -1785,6 +2111,12 @@ BEGIN_METADATA(AreaDeFixos)
 END_METADATA
 
 }  // namespace
+
+TabDragTarget* AlvoDosFixos(BrowserWindowInterface* browser,
+                            const gfx::Point& ponto_na_tela) {
+  auto it = Areas().find(browser);
+  return it == Areas().end() ? nullptr : it->second->AlvoEm(ponto_na_tela);
+}
 
 void AdicionarArea(views::View* tab_strip_view,
                    BrowserWindowInterface* browser) {
