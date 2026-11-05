@@ -42,6 +42,10 @@ Compilar o Chromium do zero leva algumas horas e pede uns 16 GB de RAM livres. `
 
 Como cada parte funciona: [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
+## Contribuir
+
+Bugs, sugestões e pull requests são bem-vindos: veja o [CONTRIBUTING.md](CONTRIBUTING.md). Toda mudança entra por pull request, com revisão. Falha de segurança vai pelo caminho privado do [SECURITY.md](SECURITY.md).
+
 ## Licenças
 
 - **Código do Norte:** BSD-3-Clause ([LICENSE](LICENSE)), a mesma do Chromium.

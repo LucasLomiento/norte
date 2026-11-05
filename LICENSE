@@ -1,4 +1,6 @@
-Copyright 2026 Lucas Lomiento
+BSD 3-Clause License
+
+Copyright (c) 2026, Lucas Lomiento
 
 Redistribution and use in source and binary forms, with or without
 modification, are permitted provided that the following conditions are met:
@@ -10,9 +12,9 @@ modification, are permitted provided that the following conditions are met:
    this list of conditions and the following disclaimer in the documentation
    and/or other materials provided with the distribution.
 
-3. Neither the name of the copyright holder nor the names of its contributors
-   may be used to endorse or promote products derived from this software
-   without specific prior written permission.
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
 
 THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
 AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
@@ -25,10 +27,3 @@ CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
 OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
----
-
-Este repositório contém só o que é do Navegador (patches, código novo e
-ferramentas). O Chromium, as fontes (navegador/app/fontes: SIL Open Font
-License 1.1), os ícones do Lucide (navegador/icones: ISC) e as listas do
-bloqueador (baixadas na hora de empacotar: GPL v3 / CC BY-SA 3.0) têm as
-licenças deles.
