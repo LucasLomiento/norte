@@ -1,0 +1,27 @@
+name: Sugestão
+description: Uma melhoria ou um recurso novo para o Norte
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problema
+    attributes:
+      label: Qual problema isso resolve?
+      description: Conte a situação em que você sentiu falta disso.
+    validations:
+      required: true
+  - type: textarea
+    id: proposta
+    attributes:
+      label: Como você imagina que funcione?
+      description: Se outro navegador já faz assim, diga qual.
+    validations:
+      required: true
+  - type: dropdown
+    id: pr
+    attributes:
+      label: Você quer fazer o PR?
+      options:
+        - Não, é só a sugestão
+        - Sim, se a ideia for aceita
+    validations:
+      required: true

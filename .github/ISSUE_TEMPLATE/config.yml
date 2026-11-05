@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Dúvida ou ideia ainda solta
+    url: https://github.com/LucasLomiento/norte/discussions
+    about: Para conversar antes de virar issue.
+  - name: Falha de segurança
+    url: https://github.com/LucasLomiento/norte/security/advisories/new
+    about: Aviso privado. Não abra issue pública.

@@ -1,0 +1,44 @@
+name: Bug
+description: Algo no Norte não funciona como deveria
+labels: [bug]
+body:
+  - type: input
+    id: versao
+    attributes:
+      label: Versão do Norte
+      description: Está em Configurações do Norte → Geral → Atualizações.
+      placeholder: 155.0.8059.79-64
+    validations:
+      required: true
+  - type: input
+    id: sistema
+    attributes:
+      label: Sistema
+      description: Distro, ambiente gráfico, Wayland ou X11 e placa de vídeo.
+      placeholder: CachyOS, KDE Plasma, Wayland, NVIDIA
+    validations:
+      required: true
+  - type: textarea
+    id: aconteceu
+    attributes:
+      label: O que aconteceu
+      description: O que você viu e o que esperava ver. Print ou vídeo ajudam muito.
+    validations:
+      required: true
+  - type: textarea
+    id: passos
+    attributes:
+      label: Como reproduzir
+      placeholder: |
+        1. Abrir…
+        2. Clicar em…
+        3. Ver o erro
+    validations:
+      required: true
+  - type: textarea
+    id: diagnostico
+    attributes:
+      label: Diagnóstico (se pesou ou travou)
+      description: |
+        Com o Norte aberto, rode o [diagnostico.sh](https://github.com/LucasLomiento/norte/blob/main/tools/diagnostico.sh) e anexe o arquivo que ele grava na sua pasta pessoal.
+        Issue é pública e o registro pode ter endereços de sites: confira o arquivo antes de anexar.
