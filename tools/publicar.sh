@@ -49,10 +49,19 @@ if ! gpg --list-secret-keys "$CHAVE" >/dev/null 2>&1; then
   echo "A parte secreta da chave $CHAVE não está neste computador." >&2
   exit 1
 fi
-if [[ -z "$ENSAIO" ]] &&
-   ! curl -fsS -o /dev/null "https://keyserver.ubuntu.com/pks/lookup?op=get&search=0x$CHAVE"; then
-  echo "A chave $CHAVE não está no keyserver.ubuntu.com: publicar agora quebraria o pacman de quem já instalou." >&2
-  exit 1
+# O servidor é um conjunto de máquinas e uma chave nova demora pra chegar em todas:
+# uma resposta só pode dar certo por sorte. O pacman faz as duas consultas.
+if [[ -z "$ENSAIO" ]]; then
+  for _ in {1..8}; do
+    for pedido in "op=get&search=0x$CHAVE" "op=index&options=mr&fingerprint=on&search=0x$CHAVE"; do
+      if ! curl -fsS -o /dev/null "https://keyserver.ubuntu.com/pks/lookup?$pedido"; then
+        echo "A chave $CHAVE ainda não está em todo o keyserver.ubuntu.com: publicar agora" >&2
+        echo "poderia quebrar o pacman de quem já instalou. Reenvie e espere uns minutos:" >&2
+        echo "  gpg --keyserver hkps://keyserver.ubuntu.com --send-keys $CHAVE" >&2
+        exit 1
+      fi
+    done
+  done
 fi
 
 if [[ -z "$ENSAIO" ]] && gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
