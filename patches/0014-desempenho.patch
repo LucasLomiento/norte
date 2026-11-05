@@ -19,7 +19,7 @@ index a91851e30e..cf7782c7b8 100644
  #else
    // Crash outside official builds (outside user-facing builds) to detect
 diff --git i/build/config/compiler/BUILD.gn w/build/config/compiler/BUILD.gn
-index ccfe9692ba..69e71fb72a 100644
+index c106acfca9..6df870925c 100644
 --- i/build/config/compiler/BUILD.gn
 +++ w/build/config/compiler/BUILD.gn
 @@ -1123,6 +1123,15 @@ config("linker") {

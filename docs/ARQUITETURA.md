@@ -8,7 +8,8 @@ O produto se chama **Norte** desde a versão 21 (até a 20, "Navegador"). Por de
 
 ## Base
 
-- **Versão**: `CHROMIUM_VERSION` (tag estável do Chromium). Atualizar = trocar a versão, `tools/fonte.sh`, reaplicar os patches, compilar.
+- **Versão**: `CHROMIUM_VERSION` (tag estável do Chromium). Atualizar: `tools/atualizar-chromium.sh <versão>` guarda a árvore, troca a versão, reaplica os patches com merge de 3 vias e lista os conflitos; `--continuar` regenera os patches e mostra o que mudou na lista de experimentos e os recursos de IA novos. Tem que ser rotina: a issue "Chromium novo" (`.github/workflows/chromium-novo.yml`) avisa quando sai estável mais nova. Do 155 pro 157, 196 arquivos entraram limpos e 40 tiveram conflito.
+- **Alvos**: desde o 157 o código de interface do Norte fica no `//navegador/browser/ui`, ligado em `//chrome:dependencies`. O `static_library("ui")` do Chromium, onde ele morava, deixou de existir.
 - **Compilação**: GN + autoninja do depot_tools, toolchain e sysroot do próprio Chromium (baixados pelo `gclient runhooks`). Args de desenvolvimento em `tools/args-dev.gn` (component build, sem símbolos). O pacote final usa uma compilação estática otimizada (args próprios no PKGBUILD).
 - **DRM (Netflix)**: `enable_widevine = true`, `proprietary_codecs = true`, `ffmpeg_branding = "Chrome"`. O módulo Widevine não vem junto: o component updater baixa do Google na primeira vez (é o que o Chromium do Arch faz; ele fica em `~/.config/<produto>/WidevineCdm`). No Linux, o Netflix limita a resolução em qualquer navegador.
 - **Sem chaves de API do Google**: sem sincronização com a conta Google e sem a barra de "chaves ausentes" (removida por patch).

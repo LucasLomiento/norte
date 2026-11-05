@@ -200,41 +200,41 @@ index 0c145046f3..4f04218cea 100644
 +  ts_definitions = [ "//tools/typescript/definitions/chrome_send.d.ts" ]
  }
 diff --git i/chrome/browser/ui/webui/new_tab_page_third_party/BUILD.gn w/chrome/browser/ui/webui/new_tab_page_third_party/BUILD.gn
-index f9e2c12d86..720f372415 100644
+index 964590c8ee..8d4e9be0c4 100644
 --- i/chrome/browser/ui/webui/new_tab_page_third_party/BUILD.gn
 +++ w/chrome/browser/ui/webui/new_tab_page_third_party/BUILD.gn
-@@ -41,6 +41,10 @@ if (!is_android) {
-     sources = [
-       "new_tab_page_third_party_handler.cc",
-       "new_tab_page_third_party_ui.cc",
+@@ -36,6 +36,10 @@ source_set("impl") {
+   sources = [
+     "new_tab_page_third_party_handler.cc",
+     "new_tab_page_third_party_ui.cc",
 +
-+      # navegador: o que aparece na nova aba.
-+      "//navegador/browser/ui/inicio.cc",
-+      "//navegador/browser/ui/inicio.h",
-     ]
-     public_deps = [ "//chrome/browser:browser_public_dependencies" ]
-     deps = [
++    # navegador: o que aparece na nova aba.
++    "//navegador/browser/ui/inicio.cc",
++    "//navegador/browser/ui/inicio.h",
+   ]
+   deps = [
+     ":mojo_bindings",
 diff --git i/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc w/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc
-index 151c14c9ab..63d76c3ddb 100644
+index bfc7d44eb6..7f33ecdb92 100644
 --- i/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc
 +++ w/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc
-@@ -14,6 +14,7 @@
+@@ -15,6 +15,7 @@
  #include "chrome/browser/ui/color/chrome_color_id.h"
  #include "chrome/browser/ui/search/ntp_user_data_logger.h"
  #include "chrome/browser/ui/webui/cr_components/most_visited/most_visited_handler.h"
 +#include "chrome/browser/ui/webui/cr_components/most_visited/most_visited_pref_observer.h"
  #include "chrome/browser/ui/webui/favicon_source.h"
  #include "chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_handler.h"
- #include "chrome/browser/ui/webui/ntp/ntp_resource_cache.h"
-@@ -38,6 +39,7 @@
+ #include "chrome/browser/ui/webui/page_not_available_for_guest/page_not_available_for_guest_ui.h"
+@@ -37,6 +38,7 @@
  #include "ui/color/color_provider.h"
  #include "ui/gfx/color_utils.h"
  #include "ui/webui/webui_util.h"
 +#include "navegador/browser/ui/inicio.h"
  #include "url/url_util.h"
  
- using content::BrowserContext;
-@@ -155,6 +157,9 @@ void CreateAndAddNewTabPageThirdPartyUiHtmlSource(Profile* profile,
+ #if !BUILDFLAG(IS_ANDROID)
+@@ -178,6 +180,9 @@ void CreateAndAddNewTabPageThirdPartyUiHtmlSource(Profile* profile,
    source->AddString("shortcutAlreadyExists", "");
    source->AddString("urlField", "");
  
@@ -244,7 +244,7 @@ index 151c14c9ab..63d76c3ddb 100644
    webui::SetupWebUIDataSource(
        source, kNewTabPageThirdPartyResources,
        IDR_NEW_TAB_PAGE_THIRD_PARTY_NEW_TAB_PAGE_THIRD_PARTY_HTML);
-@@ -162,7 +167,8 @@ void CreateAndAddNewTabPageThirdPartyUiHtmlSource(Profile* profile,
+@@ -185,7 +190,8 @@ void CreateAndAddNewTabPageThirdPartyUiHtmlSource(Profile* profile,
  }  // namespace
  
  NewTabPageThirdPartyUI::NewTabPageThirdPartyUI(content::WebUI* web_ui)
@@ -254,7 +254,7 @@ index 151c14c9ab..63d76c3ddb 100644
        page_factory_receiver_(this),
        most_visited_page_factory_receiver_(this),
        profile_(Profile::FromWebUI(web_ui)),
-@@ -175,6 +181,7 @@ NewTabPageThirdPartyUI::NewTabPageThirdPartyUI(content::WebUI* web_ui)
+@@ -198,6 +204,7 @@ NewTabPageThirdPartyUI::NewTabPageThirdPartyUI(content::WebUI* web_ui)
                      profile_, chrome::FaviconUrlFormat::kFavicon2));
    content::URLDataSource::Add(profile_,
                                std::make_unique<ThemeSource>(profile_));
@@ -262,7 +262,7 @@ index 151c14c9ab..63d76c3ddb 100644
  }
  
  WEB_UI_CONTROLLER_TYPE_IMPL(NewTabPageThirdPartyUI)
-@@ -232,7 +239,8 @@ void NewTabPageThirdPartyUI::CreatePageHandler(
+@@ -255,7 +262,8 @@ void NewTabPageThirdPartyUI::CreatePageHandler(
            profile_, GURL(chrome::kChromeUINewTabPageThirdPartyURL),
            navigation_start_time_ticks_),
        navigation_start_time_);

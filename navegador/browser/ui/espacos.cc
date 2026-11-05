@@ -630,10 +630,10 @@ class FaixaDeEspacos : public views::View,
           model_->ActivateTabAt(index);
         }
         if (model_->GetFocusedGroup() != *grupo) {
-          model_->SetFocusedGroup(*grupo);
+          model_->EnterFocusMode(*grupo);
         }
       } else {
-        model_->SetFocusedGroup(*grupo);
+        model_->EnterFocusMode(*grupo);
       }
     } else {
       CriarAbaNoEspaco(espaco, GURL(chrome::kChromeUINewTabURL));
@@ -767,9 +767,15 @@ class FaixaDeEspacos : public views::View,
   }
 
   views::View* ListaDeAbas() const {
+    // Filha da coluna de conteúdo da lateral, não da lateral (desde o Chromium 157).
     for (views::View* filho : lateral_->children()) {
       if (views::IsViewClass<TabStripView>(filho)) {
         return filho;
+      }
+      for (views::View* neto : filho->children()) {
+        if (views::IsViewClass<TabStripView>(neto)) {
+          return neto;
+        }
       }
     }
     return nullptr;
@@ -1641,7 +1647,7 @@ class FaixaDeEspacos : public views::View,
     }
     const tab_groups::TabGroupId grupo = model_->AddToNewGroup({index});
     Ligar(grupo, espaco);
-    model_->SetFocusedGroup(grupo);
+    model_->EnterFocusMode(grupo);
     model_->ActivateTabAt(model_->GetIndexOfWebContents(aba));
   }
 
@@ -1726,7 +1732,7 @@ class FaixaDeEspacos : public views::View,
       // mostra o espaço novo.
       if (model_->active_index() != TabStripModel::kNoTab &&
           model_->GetTabGroupForTab(model_->active_index()) == id) {
-        model_->SetFocusedGroup(id);
+        model_->EnterFocusMode(id);
         espaco_visivel_ = espaco.id;
         espaco_a_manter_.clear();
       }
@@ -1916,12 +1922,12 @@ class FaixaDeEspacos : public views::View,
           // Foco antes: o grupo de onde elas saem some, e sumir o grupo
           // focado reabria o espaço dele (espaco_a_manter_).
           const std::vector<tabs::TabHandle> abas = Abas(mover);
-          model_->SetFocusedGroup(*destino);
+          model_->EnterFocusMode(*destino);
           MoverParaGrupo(abas, *destino, /*no_fim=*/false);
         } else {
           const tab_groups::TabGroupId novo = model_->AddToNewGroup(mover);
           Ligar(novo, espaco_visivel_);
-          model_->SetFocusedGroup(novo);
+          model_->EnterFocusMode(novo);
         }
         espaco_a_manter_.clear();
         if (tabs::TabInterface* aba = ativa.Get()) {
@@ -1977,7 +1983,7 @@ class FaixaDeEspacos : public views::View,
         MoverParaGrupo(Abas(abas), fica, /*no_fim=*/false);
       }
       if (focado && std::ranges::find(grupos, *focado) != grupos.end()) {
-        model_->SetFocusedGroup(fica);
+        model_->EnterFocusMode(fica);
       }
     }
 
@@ -2018,7 +2024,7 @@ class FaixaDeEspacos : public views::View,
         foco = model_->group_model()->ListTabGroups().front();
       }
       if (foco) {
-        model_->SetFocusedGroup(*foco);
+        model_->EnterFocusMode(*foco);
       }
     }
 
@@ -2282,7 +2288,9 @@ std::optional<SkColor> CorDaJanela(BrowserWindowInterface* browser) {
                                              : std::nullopt;
 }
 
-void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
+void AdicionarFaixa(views::View* lateral,
+                    views::View* conteudo,
+                    BrowserWindowInterface* browser) {
   // Os espaços usam grupos de abas; o Chromium não guarda mais esses grupos
   // na lista de salvos (ver grupos_salvos.h).
   grupos_salvos::Desligar(browser->GetProfile());
@@ -2340,7 +2348,7 @@ void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
   // No KDE e no GNOME ele é barra de título: a barra de cima é quase toda
   // endereço, e a janela precisa de onde ser arrastada. Sem receber eventos,
   // o VerticalTabStripRegionView::IsPositionInWindowCaption não conta com ele.
-  auto* espacador = lateral->AddChildView(std::make_unique<views::View>());
+  auto* espacador = conteudo->AddChildView(std::make_unique<views::View>());
   espacador->SetCanProcessEventsWithinSubtree(!JanelasPeloMouse());
   espacador->SetProperty(
       views::kFlexBehaviorKey,
@@ -2348,12 +2356,12 @@ void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser) {
                                views::MaximumFlexSizeRule::kUnbounded));
   // A extensão do Claude mexendo no navegador (no lugar da tarja preta do
   // Chromium; escondido quando não está).
-  lateral->AddChildView(claude::CriarCartao(browser));
+  conteudo->AddChildView(claude::CriarCartao(browser));
   // O que toca em outra aba (escondido quando não há).
-  lateral->AddChildView(tocando::CriarCartao(browser));
+  conteudo->AddChildView(tocando::CriarCartao(browser));
   // Aviso de versão nova, logo acima da faixa (escondido quando não há).
-  lateral->AddChildView(atualizador::CriarAviso(browser));
-  lateral->AddChildView(std::make_unique<FaixaDeEspacos>(lateral, browser));
+  conteudo->AddChildView(atualizador::CriarAviso(browser));
+  conteudo->AddChildView(std::make_unique<FaixaDeEspacos>(lateral, browser));
 }
 
 std::unique_ptr<views::View> CriarTitulo(BrowserWindowInterface* browser) {

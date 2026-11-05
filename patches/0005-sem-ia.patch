@@ -1,17 +1,17 @@
 diff --git i/chrome/browser/metrics/BUILD.gn w/chrome/browser/metrics/BUILD.gn
-index 34da8786ae..a1085836d7 100644
+index a7d7369374..23b333ea0e 100644
 --- i/chrome/browser/metrics/BUILD.gn
 +++ w/chrome/browser/metrics/BUILD.gn
-@@ -272,6 +272,7 @@ source_set("impl") {
-   ]
+@@ -269,6 +269,7 @@ source_set("impl") {
+   public_deps = [ ":metrics" ]
  
    deps = [
 +    "//navegador/browser/sem_ia",  # navegador
      "//build/config/compiler:compiler_buildflags",
      "//chrome/browser:browser_process_platform_part",
-     "//chrome/browser:chrome_browser_main",
+     "//chrome/browser:buildflags",
 diff --git i/chrome/browser/metrics/chrome_feature_list_creator.cc w/chrome/browser/metrics/chrome_feature_list_creator.cc
-index 90e572fe4e..073932ff1d 100644
+index f45f66f62c..986c46f282 100644
 --- i/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ w/chrome/browser/metrics/chrome_feature_list_creator.cc
 @@ -4,6 +4,8 @@
@@ -20,10 +20,10 @@ index 90e572fe4e..073932ff1d 100644
  
 +#include "navegador/browser/sem_ia/sem_ia.h"
 +
+ #include <memory>
+ #include <utility>
  #include <vector>
- 
- #include "base/command_line.h"
-@@ -63,6 +65,10 @@ ChromeFeatureListCreator::~ChromeFeatureListCreator() = default;
+@@ -69,6 +71,10 @@ ChromeFeatureListCreator::~ChromeFeatureListCreator() = default;
  void ChromeFeatureListCreator::CreateFeatureList() {
    CreatePrefService();
    ConvertFlagsToSwitches();
@@ -35,18 +35,18 @@ index 90e572fe4e..073932ff1d 100644
    SetupInitialPrefs();
    SetUpFieldTrials();
 diff --git i/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc w/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
-index bae1eb7a8a..2179aaf604 100644
+index 2fcf49e588..e706ffeb3e 100644
 --- i/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
 +++ w/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
-@@ -24,6 +24,7 @@
- #include "components/optimization_guide/core/model_execution/manifest_broker/manifest_broker_state.h"
+@@ -30,6 +30,7 @@
  #include "components/optimization_guide/core/model_execution/manifest_broker/override_manifest_asset_manager_delegate.h"
+ #include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
  #include "components/optimization_guide/core/model_execution/performance_class.h"
 +#include "components/optimization_guide/core/optimization_guide_features.h"
+ #include "components/prefs/pref_service.h"
  #include "components/services/unzip/content/unzip_service.h"
  #include "content/public/browser/service_process_host.h"
- #include "mojo/public/cpp/bindings/pending_receiver.h"
-@@ -116,7 +117,11 @@ OptimizationGuideGlobalState::OptimizationGuideGlobalState(
+@@ -176,7 +177,11 @@ OptimizationGuideGlobalState::OptimizationGuideGlobalState(
        .ListenForPerformanceClassAvailable(
            base::BindOnce(&ChromeOnDeviceModelServiceController::
                               RegisterPerformanceClassSyntheticTrial));
@@ -77,10 +77,10 @@ index 220db2ad86..8ad8b171ef 100644
    policy::CloudPolicyManager* policy_manager = profile->GetCloudPolicyManager();
  
 diff --git i/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc w/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
-index a514402e94..a9746af92b 100644
+index aedbca990b..560afd7b37 100644
 --- i/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
 +++ w/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
-@@ -1360,7 +1360,9 @@ class PromoStateProvider : public StateProvider {
+@@ -1292,7 +1292,9 @@ class PromoStateProvider : public StateProvider {
  
    // StateProvider:
    bool IsActive() const override {
@@ -92,11 +92,11 @@ index a514402e94..a9746af92b 100644
  
    std::u16string GetText() const override {
 diff --git i/chrome/browser/ui/webui/history/browsing_history_handler.cc w/chrome/browser/ui/webui/history/browsing_history_handler.cc
-index 8fe5e39335..8254d681ee 100644
+index 6735f3ff24..26f0c52ea1 100644
 --- i/chrome/browser/ui/webui/history/browsing_history_handler.cc
 +++ w/chrome/browser/ui/webui/history/browsing_history_handler.cc
-@@ -643,6 +643,12 @@ void BrowsingHistoryHandler::TurnOnHistorySync() {
- #if !BUILDFLAG(IS_CHROMEOS)
+@@ -728,6 +728,12 @@ void BrowsingHistoryHandler::IncrementHistoryPageHistorySyncPromoShownCount() {}
+ #elif !BUILDFLAG(IS_CHROMEOS)
  void BrowsingHistoryHandler::ShouldShowHistoryPageHistorySyncPromo(
      ShouldShowHistoryPageHistorySyncPromoCallback callback) {
 +  // navegador: login na conta Google desligado, sem convite pra sincronizar.
@@ -109,22 +109,23 @@ index 8fe5e39335..8254d681ee 100644
  
    // If the promo has been shown more than the threshold, the promo should not
 diff --git i/chrome/browser/ui/webui/settings/settings_ui.cc w/chrome/browser/ui/webui/settings/settings_ui.cc
-index 781744f9cf..80b2bf1520 100644
+index 0e2111a106..d212dc7ed4 100644
 --- i/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ w/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -658,9 +658,12 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
-   // Within the AI subpage are separate sections for Glic and for all other AI
-   // features, the visibility of these are separately controlled but we want to
-   // show the subpage if any of the AI features or Glic are enabled.
--  html_source->AddBoolean("showAiPage", show_glic_section ||
--                                            show_ai_features_section ||
--                                            enable_ai_mode_search);
+@@ -679,9 +679,13 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
+   // Within the AI subpage are separate sections for Glic, for GEIC, and for all
+   // other AI features. The visibility of these is separately controlled, but
+   // we want to show the subpage if any of them are enabled.
+-  html_source->AddBoolean("showAiPage",
+-                          show_glic_section || show_ai_features_section ||
+-                              enable_ai_mode_search || show_geic_section);
 +  // navegador: sem IA, sem a página "IA no Navegador" nas configurações.
 +  constexpr bool kNavegadorSemIa = true;
 +  html_source->AddBoolean("showAiPage", !kNavegadorSemIa &&
 +                                            (show_glic_section ||
 +                                             show_ai_features_section ||
-+                                             enable_ai_mode_search));
++                                             enable_ai_mode_search ||
++                                             show_geic_section));
    html_source->AddBoolean("showAiPageAiFeatureSection",
                            show_ai_features_section);
  

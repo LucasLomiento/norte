@@ -19,7 +19,7 @@ index f8363d5b29..0fa14484b8 100644
  MAC_CREATOR_CODE=Cr24
  MAC_TEAM_ID=
 diff --git i/chrome/browser/extensions/api/messaging/launch_context_posix.cc w/chrome/browser/extensions/api/messaging/launch_context_posix.cc
-index ebc06e1203..86a547de44 100644
+index 686da41336..9c737d36b9 100644
 --- i/chrome/browser/extensions/api/messaging/launch_context_posix.cc
 +++ w/chrome/browser/extensions/api/messaging/launch_context_posix.cc
 @@ -8,6 +8,7 @@
@@ -30,10 +30,10 @@ index ebc06e1203..86a547de44 100644
  #include "base/files/file_util.h"
  #include "base/files/scoped_file.h"
  #include "base/logging.h"
-@@ -16,6 +17,10 @@
- #include "base/process/launch.h"
+@@ -17,6 +18,10 @@
  #include "build/build_config.h"
  #include "build/chromeos_buildflags.h"
+ #include "chrome/browser/extensions/api/messaging/native_messaging_logging.h"
 +
 +#if BUILDFLAG(IS_LINUX)
 +#include "base/nix/xdg_util.h"
@@ -41,7 +41,7 @@ index ebc06e1203..86a547de44 100644
  #include "chrome/common/chrome_paths.h"
  #include "net/base/file_stream.h"
  
-@@ -47,6 +52,33 @@ base::FilePath LaunchContext::FindManifest(const std::string& host_name,
+@@ -48,6 +53,33 @@ base::FilePath LaunchContext::FindManifest(const std::string& host_name,
    if (result.empty()) {
      result = FindManifestInDir(chrome::DIR_NATIVE_MESSAGING, host_name);
    }
@@ -92,7 +92,7 @@ index e039d51157..c38cbf4870 100644
    if (!base::PathService::Get(chrome::DIR_USER_DATA, &user_data_dir)) {
      return false;
 diff --git i/chrome/browser/shell_integration_linux.cc w/chrome/browser/shell_integration_linux.cc
-index 2c071e6ba8..08b03d5b86 100644
+index bc6dc20d5b..26b976048f 100644
 --- i/chrome/browser/shell_integration_linux.cc
 +++ w/chrome/browser/shell_integration_linux.cc
 @@ -471,7 +471,8 @@ std::string GetIconName() {

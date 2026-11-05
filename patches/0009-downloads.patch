@@ -1,8 +1,8 @@
 diff --git i/chrome/browser/ui/views/download/BUILD.gn w/chrome/browser/ui/views/download/BUILD.gn
-index 0f3d97ac4c..173235b942 100644
+index 8135562ac6..e9e07a8eb2 100644
 --- i/chrome/browser/ui/views/download/BUILD.gn
 +++ w/chrome/browser/ui/views/download/BUILD.gn
-@@ -101,6 +101,7 @@ source_set("download") {
+@@ -102,6 +102,7 @@ source_set("download") {
        "//components/safe_browsing/core/common:features",
        "//components/safe_browsing/core/common:safe_browsing_policy_handler",
        "//components/safe_browsing/core/common:safe_browsing_prefs",
@@ -11,7 +11,7 @@ index 0f3d97ac4c..173235b942 100644
      ]
      if (is_mac) {
 diff --git i/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc w/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
-index 68ff793722..30580d9262 100644
+index 10b7682418..220a01d6d0 100644
 --- i/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
 +++ w/chrome/browser/ui/views/download/bubble/download_toolbar_ui_controller.cc
 @@ -4,6 +4,8 @@
@@ -23,7 +23,7 @@ index 68ff793722..30580d9262 100644
  #include "ui/base/unowned_user_data/scoped_unowned_user_data.h"
  
  DEFINE_USER_DATA(DownloadToolbarUIController);
-@@ -476,6 +478,12 @@ void DownloadToolbarUIController::TearDownPreBrowserWindowDestruction() {
+@@ -144,6 +146,12 @@ void DownloadToolbarUIController::TearDownPreBrowserWindowDestruction() {
  }
  
  void DownloadToolbarUIController::Show() {
@@ -36,7 +36,7 @@ index 68ff793722..30580d9262 100644
    auto* container = GetPinnedToolbarActions(browser_view_);
    if (!container) {
      return;
-@@ -560,6 +568,16 @@ void DownloadToolbarUIController::UpdateDownloadIcon(
+@@ -228,6 +236,16 @@ void DownloadToolbarUIController::UpdateDownloadIcon(
      UpdateIcon();
      redraw_progress_soon_ = false;
    }
@@ -53,7 +53,7 @@ index 68ff793722..30580d9262 100644
  }
  
  void DownloadToolbarUIController::AnnounceAccessibleAlertNow(
-@@ -960,6 +978,20 @@ void DownloadToolbarUIController::ShowBubble(
+@@ -609,6 +627,20 @@ void DownloadToolbarUIController::ShowBubble(
      return;
    }
  
@@ -74,7 +74,7 @@ index 68ff793722..30580d9262 100644
    auto* container = GetPinnedToolbarActions(browser_view_);
    if (!container) {
      return;
-@@ -995,8 +1027,15 @@ void DownloadToolbarUIController::OnBubbleAnchorAssembled(
+@@ -644,8 +676,15 @@ void DownloadToolbarUIController::OnBubbleAnchorAssembled(
            ImmersiveModeController::ANIMATE_REVEAL_YES);
      }
    }

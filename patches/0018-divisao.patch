@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/sessions/session_restore.cc w/chrome/browser/sessions/session_restore.cc
-index 684340e2ae..c10ec422fb 100644
+index 816c2a017b..1dba5ead0e 100644
 --- i/chrome/browser/sessions/session_restore.cc
 +++ w/chrome/browser/sessions/session_restore.cc
 @@ -4,6 +4,8 @@
@@ -11,7 +11,7 @@ index 684340e2ae..c10ec422fb 100644
  #include <stddef.h>
  
  #include <algorithm>
-@@ -1071,7 +1073,9 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+@@ -1124,7 +1126,9 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
  
        // The number of supported split tabs is 2. Do not attempt to restore
        // more than this to future proof it.
@@ -22,7 +22,7 @@ index 684340e2ae..c10ec422fb 100644
          browser->GetTabStripModel()->RestoreSplit(
              split_id, tab_index_list, split_tabs::SplitTabVisualData());
        }
-@@ -1174,12 +1178,9 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
+@@ -1227,12 +1231,9 @@ class SessionRestoreImpl : public BrowserCollectionObserver {
        }
  
        CHECK(browser->GetTabStripModel()->GetSplitData(session_split_tab->id_));
@@ -39,10 +39,10 @@ index 684340e2ae..c10ec422fb 100644
    }
  
 diff --git i/chrome/browser/ui/browser_commands.cc w/chrome/browser/ui/browser_commands.cc
-index 19b58e1126..d316529a79 100644
+index 365dcd789d..7a936df850 100644
 --- i/chrome/browser/ui/browser_commands.cc
 +++ w/chrome/browser/ui/browser_commands.cc
-@@ -1461,9 +1461,22 @@ void CloseTab(BrowserWindowInterface* browser) {
+@@ -1474,9 +1474,22 @@ void CloseTab(BrowserWindowInterface* browser) {
    // If the selection model consists of only the indices of a single split tab,
    // decide if just the active tab in the split is closed instead of all tabs in
    // the split.
@@ -68,7 +68,7 @@ index 19b58e1126..d316529a79 100644
  
    if (only_active_split_tab_selected) {
      RecordTabCloseCount(1);
-@@ -1761,6 +1774,12 @@ void DuplicateSplit(BrowserWindowInterface* browser,
+@@ -1774,6 +1787,12 @@ void DuplicateSplit(BrowserWindowInterface* browser,
    duplicated_tab_indices.erase(std::find(duplicated_tab_indices.begin(),
                                           duplicated_tab_indices.end(),
                                           active_index));
@@ -214,10 +214,10 @@ index 6382385b3f..c21c656a15 100644
    const int last_active_index =
        GetIndexOfLastActiveTab(tab_strip_model, split_id);
 diff --git i/chrome/browser/ui/tabs/tab_strip_model.h w/chrome/browser/ui/tabs/tab_strip_model.h
-index b51d7b38fe..5360383b4f 100644
+index 479fe42eb6..4ce1cf301c 100644
 --- i/chrome/browser/ui/tabs/tab_strip_model.h
 +++ w/chrome/browser/ui/tabs/tab_strip_model.h
-@@ -707,6 +707,20 @@ class TabStripModel {
+@@ -710,6 +710,20 @@ class TabStripModel {
    // maintain their group and pin properties.
    void RemoveSplit(split_tabs::SplitTabId split_id);
  
@@ -238,7 +238,7 @@ index b51d7b38fe..5360383b4f 100644
    TabGroupModel* group_model() const { return group_model_.get(); }
  
    bool SupportsTabGroups() const { return group_model_.get() != nullptr; }
-@@ -1208,6 +1222,22 @@ class TabStripModel {
+@@ -1240,6 +1254,22 @@ class TabStripModel {
                              int update_index,
                              SplitUpdateType update_type);
  
@@ -260,8 +260,8 @@ index b51d7b38fe..5360383b4f 100644
 +
    // Adds tabs to newly-allocated group id `new_group`. This group must be new
    // and have no tabs in it.
-   void AddToNewGroupImpl(
-@@ -1473,6 +1503,9 @@ class TabStripModel {
+   void AddToNewGroupImpl(const std::vector<int>& indices,
+@@ -1505,6 +1535,9 @@ class TabStripModel {
    // methods that mutate state of `selection_model_` or `contents_data_`.
    bool reentrancy_guard_ = false;
  
@@ -287,7 +287,7 @@ index d4cf5067cc..e74973fd58 100644
      CHECK(mini_toolbar_.get());
      mini_toolbar_size = gfx::SizeF(mini_toolbar_->size());
 diff --git i/chrome/browser/ui/views/frame/contents_container_view.cc w/chrome/browser/ui/views/frame/contents_container_view.cc
-index 099b89a24c..8db8e50f54 100644
+index 5407bd717c..472baae750 100644
 --- i/chrome/browser/ui/views/frame/contents_container_view.cc
 +++ w/chrome/browser/ui/views/frame/contents_container_view.cc
 @@ -54,7 +54,9 @@
@@ -423,7 +423,7 @@ index 460c40a7c5..9e5803b3a1 100644
  
  #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_MULTI_CONTENTS_RESIZE_AREA_H_
 diff --git i/chrome/browser/ui/views/frame/multi_contents_view.h w/chrome/browser/ui/views/frame/multi_contents_view.h
-index 6ecb49a239..9ff79f9d42 100644
+index e39f000c2a..bc5c858bcc 100644
 --- i/chrome/browser/ui/views/frame/multi_contents_view.h
 +++ w/chrome/browser/ui/views/frame/multi_contents_view.h
 @@ -12,11 +12,13 @@
@@ -652,7 +652,7 @@ index 7ad0e2b5aa..6460f761ff 100644
 +             multi_contents_view->contents_container_views()[1];
  }
 diff --git i/chrome/browser/ui/views/tabs/common/split_tab_view.cc w/chrome/browser/ui/views/tabs/common/split_tab_view.cc
-index a0df4945de..3000339d66 100644
+index cd06136594..20b2baf987 100644
 --- i/chrome/browser/ui/views/tabs/common/split_tab_view.cc
 +++ w/chrome/browser/ui/views/tabs/common/split_tab_view.cc
 @@ -4,6 +4,7 @@
@@ -663,7 +663,7 @@ index a0df4945de..3000339d66 100644
  #include <vector>
  
  #include "chrome/browser/ui/color/chrome_color_id.h"
-@@ -145,27 +146,26 @@ std::optional<BrowserRootView::DropIndex> SplitTabView::GetLinkDropIndex(
+@@ -152,27 +153,26 @@ std::optional<BrowserRootView::DropIndex> SplitTabView::GetLinkDropIndex(
      return std::nullopt;
    }
  
@@ -704,17 +704,15 @@ index a0df4945de..3000339d66 100644
  }
  
  double SplitTabView::GetHoverAnimationValue() const {
-@@ -246,7 +246,8 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
+@@ -253,6 +253,7 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
    views::ProposedLayout layouts;
    const auto children = collection_node_ ? collection_node_->GetDirectChildren()
                                           : TabCollectionNode::ChildViews();
--  if (children.size() != 2) {
 +  // navegador: até 4 abas (navegador/browser/divisao).
-+  if (children.size() < 2) {
+   if (children.empty()) {
      layouts.host_size = gfx::Size(0, 0);
      return layouts;
-   }
-@@ -256,7 +257,7 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
+@@ -263,7 +264,7 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
  
    // Layout children horizontally side-by-side in order.
    int x = 0;
@@ -723,13 +721,17 @@ index a0df4945de..3000339d66 100644
    for (size_t i = 0; i < children.size(); ++i) {
      views::View* child = children[i];
      gfx::Rect bounds = gfx::Rect(child->GetPreferredSize());
-@@ -265,11 +266,15 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
+@@ -272,15 +273,15 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
  
      // Fill available width evenly if bounded.
      if (size_bounds.width().is_bounded()) {
--      const int available_width = size_bounds.width().value() + tab_overlap;
--      bounds.set_width(i == 0 ? std::floor(available_width / 2)
--                              : available_width - first_child_width);
+-      if (children.size() == 1) {
+-        bounds.set_width(size_bounds.width().value());
+-      } else {
+-        const int available_width = size_bounds.width().value() + tab_overlap;
+-        bounds.set_width(i == 0 ? std::floor(available_width / 2)
+-                                : available_width - first_child_width);
+-      }
 +      const int available_width =
 +          size_bounds.width().value() +
 +          tab_overlap * static_cast<int>(children.size() - 1);
@@ -743,7 +745,7 @@ index a0df4945de..3000339d66 100644
      if (i < children.size() - 1) {
        x += bounds.width() - tab_overlap;
      } else {
-@@ -285,12 +290,11 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
+@@ -296,12 +297,11 @@ views::ProposedLayout SplitTabView::CalculateHorizontalLayout(
  views::ProposedLayout SplitTabView::CalculateVerticalLayout(
      const views::SizeBounds& size_bounds) const {
    views::ProposedLayout layouts;
@@ -758,7 +760,7 @@ index a0df4945de..3000339d66 100644
      layouts.host_size = gfx::Size(0, 0);
      return layouts;
    }
-@@ -300,53 +304,65 @@ views::ProposedLayout SplitTabView::CalculateVerticalLayout(
+@@ -311,53 +311,65 @@ views::ProposedLayout SplitTabView::CalculateVerticalLayout(
            ? GetLayoutConstant(LayoutConstant::kVerticalTabPinnedBorderThickness)
            : 0;
  
@@ -861,19 +863,19 @@ index a0df4945de..3000339d66 100644
  }
  
 diff --git i/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc w/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
-index 6641560e2f..a90ab6403b 100644
+index d2b935e0c8..d5675c1ae8 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_view_vertical_layout.cc
 @@ -7,6 +7,8 @@
  #include "chrome/browser/glic/browser_ui/tab_underline_view.h"
  #include "chrome/browser/ui/layout_constants.h"
- #include "chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h"
+ #include "chrome/browser/ui/tabs/vertical_tab_strip_state.h"
 +#include "chrome/browser/ui/views/tabs/common/split_tab_view.h"
 +#include "chrome/browser/ui/views/tabs/common/tab_collection_node.h"
  #include "chrome/browser/ui/views/tabs/common/tab_view.h"
  #include "chrome/browser/ui/views/tabs/shared/tab_strip_types.h"
  #include "chrome/browser/ui/views/tabs/tab/alert_indicator_button.h"
-@@ -184,6 +186,16 @@ bool TabViewVerticalLayout::IsChildVisible(const views::View* child_view,
+@@ -186,6 +188,16 @@ bool TabViewVerticalLayout::IsChildVisible(const views::View* child_view,
        return TabView().active_ && hovered_or_focused;
      }
  
@@ -891,10 +893,10 @@ index 6641560e2f..a90ab6403b 100644
    }
  
 diff --git i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
-index 63ca8403e9..18c4c38d93 100644
+index ae7f210dc7..cc93af45e8 100644
 --- i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
 +++ w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.cc
-@@ -533,6 +533,15 @@ TabDragController::Liveness TabDragController::Init(
+@@ -576,6 +576,15 @@ TabDragController::Liveness TabDragController::Init(
          static_cast<float>(offset_from_source_view.y()) /
          source_view->height());
    }
@@ -910,7 +912,7 @@ index 63ca8403e9..18c4c38d93 100644
    ref->initial_selection_model_ = std::move(initial_selection_model);
  
    ref->window_finder_ = std::make_unique<WindowFinder>();
-@@ -629,6 +638,11 @@ void TabDragController::OnSystemDnDEnded() {
+@@ -700,6 +709,11 @@ void TabDragController::OnSystemDnDEnded() {
    g_tab_drag_controller->EndDrag(EndDragReason::kComplete);
  }
  
@@ -922,7 +924,7 @@ index 63ca8403e9..18c4c38d93 100644
  // static
  TabDragContext* TabDragController::GetSourceContext() {
    return g_tab_drag_controller ? g_tab_drag_controller->source_context_.get()
-@@ -1054,13 +1068,19 @@ TabDragController::Liveness TabDragController::ContinueDragging(
+@@ -1125,13 +1139,19 @@ TabDragController::Liveness TabDragController::ContinueDragging(
                         base::Unretained(this), point_in_screen));
    }
  
@@ -943,7 +945,7 @@ index 63ca8403e9..18c4c38d93 100644
  TabDragController::Liveness TabDragController::DragBrowserToNewTabStrip(
      TabDragContext* target_context,
      const gfx::Point& point_in_screen) {
-@@ -2025,12 +2045,35 @@ void TabDragController::EndDragImpl(EndDragType type) {
+@@ -2116,12 +2136,35 @@ void TabDragController::EndDragImpl(EndDragType type) {
            // Make the hidden window containing the dragged tabs visible. Show()
            // may trigger platform event handlers that synchronously close the
            // window and destroy `this`.
@@ -983,10 +985,10 @@ index 63ca8403e9..18c4c38d93 100644
      }
    } else if (drag_data_.tab_drag_data_.size() > 1) {
 diff --git i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
-index 2c3baaa924..0b19e1a75e 100644
+index a08a5a5b76..4e74ed30a4 100644
 --- i/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
 +++ w/chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h
-@@ -165,6 +165,11 @@ class TabDragController : public views::WidgetObserver,
+@@ -172,6 +172,11 @@ class TabDragController : public views::WidgetObserver,
    // Returns the pointer of `source_context_`.
    static TabDragContext* GetSourceContext();
  
@@ -998,7 +1000,7 @@ index 2c3baaa924..0b19e1a75e 100644
    ui::mojom::DragEventSource event_source() const { return event_source_; }
  
    // See description above fields for details on these.
-@@ -227,6 +232,7 @@ class TabDragController : public views::WidgetObserver,
+@@ -234,6 +239,7 @@ class TabDragController : public views::WidgetObserver,
        int drag_idx) override;
    const DragSessionData& GetSessionData() const override;
    const TabDragContext* GetAttachedContext() const override;
@@ -1006,7 +1008,7 @@ index 2c3baaa924..0b19e1a75e 100644
  
   private:
    friend class TabDragControllerTest;
-@@ -632,6 +638,12 @@ class TabDragController : public views::WidgetObserver,
+@@ -646,6 +652,12 @@ class TabDragController : public views::WidgetObserver,
    // details.
    ui::ListSelectionModel initial_selection_model_;
  
@@ -1044,10 +1046,10 @@ index 3bd8c25ee8..cfdceabea8 100644
  
    virtual ~TabDragTarget() = default;
 diff --git i/chrome/browser/ui/views/tabs/tab.cc w/chrome/browser/ui/views/tabs/tab.cc
-index 3eab59926d..d74b342ac2 100644
+index 96d48ee0fe..7c6edccedf 100644
 --- i/chrome/browser/ui/views/tabs/tab.cc
 +++ w/chrome/browser/ui/views/tabs/tab.cc
-@@ -1519,7 +1519,8 @@ void Tab::CloseButtonPressed(const ui::Event& event) {
+@@ -1539,7 +1539,8 @@ void Tab::CloseButtonPressed(const ui::Event& event) {
  
    const std::vector<Tab*>& tabs_in_split = controller()->GetTabsInSplit(this);
    if (tabs_in_split.size() > 0) {
@@ -1095,10 +1097,10 @@ index bb32b28f1f..86dc589e53 100644
  }
  }  // namespace
 diff --git i/components/sessions/core/session_service_commands.cc w/components/sessions/core/session_service_commands.cc
-index c7c19d9eef..7e0754f7aa 100644
+index 6832a5e8f4..1793ec1ce0 100644
 --- i/components/sessions/core/session_service_commands.cc
 +++ w/components/sessions/core/session_service_commands.cc
-@@ -845,6 +845,12 @@ void CreateTabsAndWindows(
+@@ -849,6 +849,12 @@ bool CreateTabsAndWindows(
  
          split->split_visual_data_ = split_tabs::SplitTabVisualData(
              SplitTabLayoutFromString(split_layout_str), split_ratio);
@@ -1111,7 +1113,7 @@ index c7c19d9eef..7e0754f7aa 100644
          break;
        }
  
-@@ -1211,6 +1217,8 @@ std::unique_ptr<SessionCommand> CreateSplitTabDataUpdateCommand(
+@@ -1216,6 +1222,8 @@ std::unique_ptr<SessionCommand> CreateSplitTabDataUpdateCommand(
    pickle.WriteDouble(split_tab_visual_data->split_ratio());
    pickle.WriteString(
        SplitTabLayoutToString(split_tab_visual_data->split_layout()));

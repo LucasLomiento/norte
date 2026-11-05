@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
-index a9bb896ea1..5ebc449490 100644
+index 868d7421ef..6a9e69ff76 100644
 --- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 +++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 @@ -102,6 +102,8 @@
@@ -11,7 +11,7 @@ index a9bb896ea1..5ebc449490 100644
  #include "net/base/url_util.h"
  #include "net/traffic_annotation/network_traffic_annotation.h"
  #include "services/network/public/cpp/shared_url_loader_factory.h"
-@@ -774,6 +776,58 @@ void ChromeAutocompleteProviderClient::NewIncognitoWindow() {
+@@ -782,6 +784,58 @@ void ChromeAutocompleteProviderClient::NewIncognitoWindow() {
  #endif  // !BUILDFLAG(IS_ANDROID)
  }
  
@@ -71,7 +71,7 @@ index a9bb896ea1..5ebc449490 100644
  #if !BUILDFLAG(IS_ANDROID)
    if (BrowserWindowInterface* const bwi =
 diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
-index 8ba87a1f7e..2b9ea40d90 100644
+index 6efa1d8289..ebcc6af257 100644
 --- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
 +++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
 @@ -146,9 +146,18 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
@@ -94,7 +94,7 @@ index 8ba87a1f7e..2b9ea40d90 100644
    void OpenIncognitoClearBrowsingDataDialog() override;
    void CloseIncognitoWindows() override;
 diff --git i/components/omnibox/browser/BUILD.gn w/components/omnibox/browser/BUILD.gn
-index d193e3c7c0..61c7e5c8fa 100644
+index 916f06eb1a..366521ffca 100644
 --- i/components/omnibox/browser/BUILD.gn
 +++ w/components/omnibox/browser/BUILD.gn
 @@ -282,6 +282,10 @@ static_library("browser") {
@@ -109,7 +109,7 @@ index d193e3c7c0..61c7e5c8fa 100644
      "omnibox_event_global_tracker.h",
      "omnibox_field_trial.cc",
 diff --git i/components/omnibox/browser/actions/omnibox_action.h w/components/omnibox/browser/actions/omnibox_action.h
-index 023a51c596..d34afe75fa 100644
+index 232744c14b..a87aebec41 100644
 --- i/components/omnibox/browser/actions/omnibox_action.h
 +++ w/components/omnibox/browser/actions/omnibox_action.h
 @@ -107,6 +107,10 @@ class OmniboxAction : public base::RefCountedThreadSafe<OmniboxAction> {
@@ -124,7 +124,7 @@ index 023a51c596..d34afe75fa 100644
      // and if it's false then lens is used to contextualize without showing UI.
      virtual void OpenLensOverlay(
 diff --git i/components/omnibox/browser/actions/omnibox_action_client_delegator.cc w/components/omnibox/browser/actions/omnibox_action_client_delegator.cc
-index c9e2b1ba20..9ee06e7c68 100644
+index 89a43d8754..a930a53b93 100644
 --- i/components/omnibox/browser/actions/omnibox_action_client_delegator.cc
 +++ w/components/omnibox/browser/actions/omnibox_action_client_delegator.cc
 @@ -34,6 +34,10 @@ bool OmniboxActionClientDelegator::OpenJourneys(const std::string& query) {
@@ -139,7 +139,7 @@ index c9e2b1ba20..9ee06e7c68 100644
      bool show,
      lens::LensOverlayInvocationSource invocation_source) {
 diff --git i/components/omnibox/browser/actions/omnibox_action_client_delegator.h w/components/omnibox/browser/actions/omnibox_action_client_delegator.h
-index 4d2e7d8655..a441e3c5ed 100644
+index bcbbff3b3e..6ad01a3b60 100644
 --- i/components/omnibox/browser/actions/omnibox_action_client_delegator.h
 +++ w/components/omnibox/browser/actions/omnibox_action_client_delegator.h
 @@ -39,6 +39,7 @@ class OmniboxActionClientDelegator : public OmniboxAction::Client {
@@ -151,20 +151,20 @@ index 4d2e7d8655..a441e3c5ed 100644
   protected:
    const raw_ptr<OmniboxAction::Client> delegate_;
 diff --git i/components/omnibox/browser/autocomplete_classifier.cc w/components/omnibox/browser/autocomplete_classifier.cc
-index 445caaae17..64b2652c80 100644
+index 0ed14baa0e..2f38d3f641 100644
 --- i/components/omnibox/browser/autocomplete_classifier.cc
 +++ w/components/omnibox/browser/autocomplete_classifier.cc
-@@ -59,6 +59,8 @@ int AutocompleteClassifier::DefaultOmniboxProviders(bool is_low_memory_device) {
-       // Custom search engines cannot be used on mobile.
-       AutocompleteProvider::TYPE_KEYWORD | AutocompleteProvider::TYPE_OPEN_TAB |
-       AutocompleteProvider::TYPE_FEATURED_SEARCH |
+@@ -60,6 +60,8 @@ int AutocompleteClassifier::DefaultOmniboxProviders(bool is_low_memory_device) {
+       AutocompleteProvider::Type::kKeyword |
+       AutocompleteProvider::Type::kOpenTab |
+       AutocompleteProvider::Type::kFeaturedSearch |
 +      // navegador: comandos do Norte e calculadora local.
-+      AutocompleteProvider::TYPE_NAVEGADOR |
++      AutocompleteProvider::Type::kNavegador |
        // Most visited sites for desktop.
        (omnibox_feature_configs::OmniboxUrlSuggestionsOnFocus::Get().enabled
-            ? AutocompleteProvider::TYPE_MOST_VISITED_SITES
+            ? AutocompleteProvider::Type::kMostVisitedSites
 diff --git i/components/omnibox/browser/autocomplete_controller.cc w/components/omnibox/browser/autocomplete_controller.cc
-index ddc551bbcc..b37e405570 100644
+index f847fa3bcd..2f40bb69b2 100644
 --- i/components/omnibox/browser/autocomplete_controller.cc
 +++ w/components/omnibox/browser/autocomplete_controller.cc
 @@ -98,6 +98,7 @@
@@ -175,50 +175,50 @@ index ddc551bbcc..b37e405570 100644
  #include "net/base/url_util.h"
  #include "net/http/http_util.h"
  #include "third_party/metrics_proto/omnibox_focus_type.pb.h"
-@@ -1488,6 +1489,11 @@ void AutocompleteController::InitializeSyncProviders(int provider_types) {
+@@ -1532,6 +1533,11 @@ void AutocompleteController::InitializeSyncProviders(int provider_types) {
      providers_.push_back(
          base::MakeRefCounted<CrossDeviceTabProvider>(provider_client_.get()));
    }
 +  // navegador: comandos do Norte (">") e calculadora local.
-+  if (provider_types & AutocompleteProvider::TYPE_NAVEGADOR) {
++  if (provider_types & static_cast<int>(AutocompleteProvider::Type::kNavegador)) {
 +    providers_.push_back(
 +        base::MakeRefCounted<NavegadorProvider>(provider_client_.get()));
 +  }
  #if BUILDFLAG(IS_ANDROID)
-   if (provider_types & AutocompleteProvider::TYPE_TAB_GROUP) {
-     providers_.push_back(
+   if (provider_types &
+       static_cast<int>(AutocompleteProvider::Type::kTabGroup)) {
 diff --git i/components/omnibox/browser/autocomplete_provider.cc w/components/omnibox/browser/autocomplete_provider.cc
-index 592c8a4a7e..d33d90d067 100644
+index 27654797c7..2ebe3bf8e6 100644
 --- i/components/omnibox/browser/autocomplete_provider.cc
 +++ w/components/omnibox/browser/autocomplete_provider.cc
 @@ -95,6 +95,8 @@ const char* AutocompleteProvider::TypeToString(Type type) {
        return "TabGroup";
-     case TYPE_CROSS_DEVICE_TAB:
+     case AutocompleteProvider::Type::kCrossDeviceTab:
        return "CrossDeviceTab";
-+    case TYPE_NAVEGADOR:
++    case AutocompleteProvider::Type::kNavegador:
 +      return "Navegador";
      default:
        DUMP_WILL_BE_NOTREACHED()
-           << "Unhandled AutocompleteProvider::Type " << type;
+           << "Unhandled AutocompleteProvider::Type " << static_cast<int>(type);
 @@ -213,6 +215,8 @@ AutocompleteProvider::AsOmniboxEventProviderType() const {
        return metrics::OmniboxEventProto::TAB_GROUP_PROVIDER;
-     case TYPE_CROSS_DEVICE_TAB:
+     case AutocompleteProvider::Type::kCrossDeviceTab:
        return metrics::OmniboxEventProto::CROSS_DEVICE_TAB;
-+    case TYPE_NAVEGADOR:
++    case AutocompleteProvider::Type::kNavegador:
 +      return metrics::OmniboxEventProto::UNKNOWN_PROVIDER;
      default:
        // TODO(crbug.com/40940012) This was a NOTREACHED that we converted to
        //   help debug crbug.com/1499235 since NOTREACHED's don't log their
 diff --git i/components/omnibox/browser/autocomplete_provider.h w/components/omnibox/browser/autocomplete_provider.h
-index 36ab6a1fbb..08dae9f72c 100644
+index 302f57cdc7..2c039b8d8f 100644
 --- i/components/omnibox/browser/autocomplete_provider.h
 +++ w/components/omnibox/browser/autocomplete_provider.h
-@@ -184,6 +184,8 @@ class AutocompleteProvider
-     TYPE_CONTEXTUAL_SEARCH = 1 << 25,
-     TYPE_TAB_GROUP = 1 << 26,
-     TYPE_CROSS_DEVICE_TAB = 1 << 27,
+@@ -185,6 +185,8 @@ class AutocompleteProvider
+     kContextualSearch = 1 << 25,
+     kTabGroup = 1 << 26,
+     kCrossDeviceTab = 1 << 27,
 +    // navegador: os comandos do Norte (">") e a calculadora local.
-+    TYPE_NAVEGADOR = 1 << 28,
++    kNavegador = 1 << 28,
  
      // When adding a value here, also update:
      // - omnibox_event.proto
@@ -314,7 +314,7 @@ index 1c215d2214..032bdbf76e 100644
    GetURLLoaderFactory() = 0;
    virtual PrefService* GetPrefs() const = 0;
 diff --git i/components/omnibox/browser/search_provider.cc w/components/omnibox/browser/search_provider.cc
-index e439024df9..1241f6f951 100644
+index 4fad769790..c1d4eb3f2a 100644
 --- i/components/omnibox/browser/search_provider.cc
 +++ w/components/omnibox/browser/search_provider.cc
 @@ -829,6 +829,13 @@ bool SearchProvider::IsQueryPotentiallyPrivate() const {
@@ -332,18 +332,18 @@ index e439024df9..1241f6f951 100644
    // http/https/ftp, we shouldn't send it.  Sending things like file: and data:
    // is both a waste of time and a disclosure of potentially private, local
 diff --git i/components/omnibox/browser/shortcuts_backend.cc w/components/omnibox/browser/shortcuts_backend.cc
-index 06653b4be2..9a3b3f2862 100644
+index dc48be1a64..3ecb2312e7 100644
 --- i/components/omnibox/browser/shortcuts_backend.cc
 +++ w/components/omnibox/browser/shortcuts_backend.cc
-@@ -347,6 +347,14 @@ void ShortcutsBackend::AddOrUpdateShortcut(const std::u16string& text,
-   if (match.type == AutocompleteMatchType::HISTORY_EMBEDDINGS_ANSWER)
+@@ -349,6 +349,14 @@ void ShortcutsBackend::AddOrUpdateShortcut(const std::u16string& text,
      return;
+   }
  
 +  // navegador: os comandos e a conta da NavegadorProvider rodam uma ação; o
 +  // endereço deles (chrome://norte/...) não é de abrir, e como atalho
 +  // voltariam como link.
 +  if (match.provider &&
-+      match.provider->type() == AutocompleteProvider::TYPE_NAVEGADOR) {
++      match.provider->type() == AutocompleteProvider::Type::kNavegador) {
 +    return;
 +  }
 +
