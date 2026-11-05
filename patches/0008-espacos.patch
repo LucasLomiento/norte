@@ -67,7 +67,7 @@ index 629d76ab24..abe30f0c44 100644
    // Update the local group with the new data. This will open new tabs, close
    // tabs, and navigate tabs to match the saved group.
 diff --git i/chrome/browser/ui/tabs/tab_strip_model.cc w/chrome/browser/ui/tabs/tab_strip_model.cc
-index c8c7e12466..02f4a5af63 100644
+index c8c7e12466..e334960d5a 100644
 --- i/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ w/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -4,6 +4,9 @@
@@ -172,13 +172,14 @@ index c8c7e12466..02f4a5af63 100644
    if (empty()) {
      for (auto& observer : observers_) {
        observer.TabStripEmpty();
-@@ -1030,8 +1104,22 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
+@@ -1030,14 +1104,35 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
  
    scrubbing_metrics_.IncrementPressCount(user_gesture);
  
 +  // navegador: aba de outro grupo (outro espaço) foca o grupo dela, como no
 +  // Zen: a janela vai pro espaço da aba. (A janela anônima não tem espaços:
 +  // fica o do Chromium.)
++  const std::optional<tab_groups::TabGroupId> foco_antes = GetFocusedGroup();
 +  std::optional<tab_groups::TabGroupId> grupo_da_aba;
 +  if (std::optional<tab_groups::TabGroupId> focused_group = GetFocusedGroup();
 +      focused_group.has_value() && !profile()->IsOffTheRecord() &&
@@ -195,7 +196,19 @@ index c8c7e12466..02f4a5af63 100644
    SetSelection(
        new_model,
        user_gesture.type != TabStripUserGestureDetails::GestureType::kNone
-@@ -1331,7 +1419,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
+           ? TabStripModelObserver::CHANGE_REASON_USER_GESTURE
+           : TabStripModelObserver::CHANGE_REASON_NONE,
+       /*triggered_by_other_operation=*/false);
++  // navegador: desde o Chromium 157 o SetSelection não avisa da troca de foco
++  // (só o EnterFocusMode e o ExitFocusMode avisam). Sem o aviso, o nome do
++  // espaço, os fixados e as abas à vista ficavam no espaço anterior.
++  if (grupo_da_aba.has_value()) {
++    NotifyTabGroupFocusChanged(foco_antes);
++  }
+ }
+ 
+ int TabStripModel::MoveWebContentsAt(int index,
+@@ -1331,7 +1426,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
  
    CHECK(contents);
    CHECK_NE(GetIndexOfWebContents(contents), kNoTab);
@@ -211,7 +224,7 @@ index c8c7e12466..02f4a5af63 100644
  }
  
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
-@@ -1578,7 +1674,10 @@ void TabStripModel::DeselectTabAt(int index) {
+@@ -1578,7 +1681,10 @@ void TabStripModel::DeselectTabAt(int index) {
      // If the tab is already deselected, no need to do anything.
      return;
    } else if (selection_model_.size() == 1 ||
@@ -223,7 +236,7 @@ index c8c7e12466..02f4a5af63 100644
      // One tab must be selected and this tab is currently selected so we can't
      // unselect it.
      return;
-@@ -1888,6 +1987,24 @@ void TabStripModel::UpdateSplitLayout(
+@@ -1888,6 +1994,24 @@ void TabStripModel::UpdateSplitLayout(
  
    split_tabs::SplitTabData* split_data = GetSplitData(split_id);
  
@@ -248,7 +261,7 @@ index c8c7e12466..02f4a5af63 100644
    if (split_data->visual_data()->split_layout() == tab_layout) {
      return;
    }
-@@ -1977,7 +2094,10 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
+@@ -1977,7 +2101,10 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
      split_tabs::SplitTabCreatedSource source) {
    ReentrancyCheck reentrancy_check(&reentrancy_guard_);
  
@@ -260,7 +273,7 @@ index c8c7e12466..02f4a5af63 100644
        << "Invalid index count: " << indices.size();
  
    // If there is only one entry in `indices`, use the active index as the pivot
-@@ -1985,6 +2105,8 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
+@@ -1985,6 +2112,8 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
    if (indices.size() == 1u) {
      indices.insert(indices.begin(), active_index());
    }
@@ -269,7 +282,7 @@ index c8c7e12466..02f4a5af63 100644
    int pivot_index = indices[0];
    CHECK(pivot_index != kNoTab);
    // Check that the indices are unique.
-@@ -2020,7 +2142,12 @@ void TabStripModel::RestoreSplit(split_tabs::SplitTabId split_id,
+@@ -2020,7 +2149,12 @@ void TabStripModel::RestoreSplit(split_tabs::SplitTabId split_id,
                                   split_tabs::SplitTabVisualData visual_data) {
    ReentrancyCheck reentrancy_check(&reentrancy_guard_);
    CHECK(std::ranges::is_sorted(indices));
@@ -283,7 +296,7 @@ index c8c7e12466..02f4a5af63 100644
  
    // Ideally these are consecutive indices from the restore flow and the pivot
    // index does not matter. However, given there are numerous steps in restore
-@@ -2207,6 +2334,164 @@ void TabStripModel::PromoteEphemeralTabGroup(
+@@ -2207,6 +2341,164 @@ void TabStripModel::PromoteEphemeralTabGroup(
    }
  }
  
@@ -448,7 +461,7 @@ index c8c7e12466..02f4a5af63 100644
  // Returns the ID of the group that is focused. If no group is focused,
  // returns nullopt.
  std::optional<tab_groups::TabGroupId> TabStripModel::GetFocusedGroup() const {
-@@ -2918,6 +3203,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
+@@ -2918,6 +3210,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
      }
  
      case CommandTogglePinned: {
@@ -460,7 +473,7 @@ index c8c7e12466..02f4a5af63 100644
        base::UmaHistogramCounts1000(
            "Tab.ContextMenu.TogglePinned.SelectedTabsCount",
            selection_model_.size());
-@@ -3454,6 +3744,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3454,6 +3751,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
          get_tabs_to_close,
      bool delete_groups) {
    std::vector<tabs::TabInterface*> tabs_to_close = get_tabs_to_close.Run();
@@ -471,7 +484,7 @@ index c8c7e12466..02f4a5af63 100644
    std::vector<tab_groups::TabGroupId> groups_to_delete =
        GetGroupsDestroyedFromRemovingTabs(get_tabs_to_close.Run());
  
-@@ -3477,7 +3771,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3477,7 +3778,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
      delegate_->OnGroupsDestruction(groups_to_delete, std::move(close_callback),
                                     delete_groups);
    } else {
@@ -483,7 +496,7 @@ index c8c7e12466..02f4a5af63 100644
    }
  }
  
-@@ -4981,6 +5279,36 @@ std::unique_ptr<tabs::TabModel> TabStripModel::RemoveTabFromIndexImpl(
+@@ -4981,6 +5286,36 @@ std::unique_ptr<tabs::TabModel> TabStripModel::RemoveTabFromIndexImpl(
    if (removed_tab_is_split) {
      next_selected_index = GetIndexOfTab(
          GetSplitData(tab_to_remove->GetSplit().value())->ListTabs()[0]);
@@ -520,7 +533,7 @@ index c8c7e12466..02f4a5af63 100644
      RemoveSplitImpl(tab_to_remove->GetSplit().value(),
                      SplitTabChange::SplitTabRemoveReason::kSplitTabRemoved);
    }
-@@ -5145,12 +5473,21 @@ void TabStripModel::MoveTabsToIndexImpl(
+@@ -5145,12 +5480,21 @@ void TabStripModel::MoveTabsToIndexImpl(
    CHECK(all_tabs_pinned || all_tabs_unpinned);
    CHECK(std::ranges::is_sorted(tab_indices));
  
@@ -543,7 +556,7 @@ index c8c7e12466..02f4a5af63 100644
  }
  
  void TabStripModel::TabGroupStateChanged(
-@@ -6141,7 +6478,9 @@ void TabStripModel::CreateHistoricalSplitIfClosing(
+@@ -6141,7 +6485,9 @@ void TabStripModel::CreateHistoricalSplitIfClosing(
        }
      }
      for (const auto& [split_id, count] : split_closing_counts) {
