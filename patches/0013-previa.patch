@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/ui/views/frame/multi_contents_view.cc w/chrome/browser/ui/views/frame/multi_contents_view.cc
-index 76475b5693..6589f46262 100644
+index a756f076ff..0c033f188c 100644
 --- i/chrome/browser/ui/views/frame/multi_contents_view.cc
 +++ w/chrome/browser/ui/views/frame/multi_contents_view.cc
 @@ -37,6 +37,10 @@
@@ -243,7 +243,7 @@ index 76475b5693..6589f46262 100644
    InvalidateLayout();
  }
  
-@@ -404,23 +472,322 @@ std::vector<views::View*> MultiContentsView::GetAccessiblePanes() {
+@@ -405,23 +473,322 @@ std::vector<views::View*> MultiContentsView::GetAccessiblePanes() {
  }
  
  void MultiContentsView::OnResize(int resize_amount, bool done_resizing) {
@@ -581,7 +581,7 @@ index 76475b5693..6589f46262 100644
  }
  
  double MultiContentsView::CalculateRatioWithSnapPoints(
-@@ -438,9 +805,20 @@ double MultiContentsView::CalculateRatioWithSnapPoints(
+@@ -439,9 +806,20 @@ double MultiContentsView::CalculateRatioWithSnapPoints(
  void MultiContentsView::OnThemeChanged() {
    views::View::OnThemeChanged();
    UpdateContentsBorderAndOverlay();
@@ -602,7 +602,7 @@ index 76475b5693..6589f46262 100644
    return active_index_ == 0 ? 1 : 0;
  }
  
-@@ -448,7 +826,8 @@ void MultiContentsView::OnWebContentsFocused(views::WebView* web_view) {
+@@ -449,7 +827,8 @@ void MultiContentsView::OnWebContentsFocused(views::WebView* web_view) {
    if (IsInSplitView()) {
      // Check whether the widget is visible as otherwise during browser hide,
      // inactive web contents gets focus. See crbug.com/419335827
@@ -612,7 +612,7 @@ index 76475b5693..6589f46262 100644
          GetWidget()->IsVisible()) {
        delegate_->WebContentsFocused(web_view->web_contents());
      }
-@@ -460,10 +839,10 @@ void MultiContentsView::OnActorOverlayFocused(views::WebView* web_view) {
+@@ -461,10 +840,10 @@ void MultiContentsView::OnActorOverlayFocused(views::WebView* web_view) {
      for (auto& contents_container_view : contents_container_views_) {
        if (contents_container_view->actor_overlay_web_view() &&
            contents_container_view->actor_overlay_web_view() == web_view &&
@@ -626,7 +626,7 @@ index 76475b5693..6589f46262 100644
        }
      }
    }
-@@ -474,10 +853,10 @@ void MultiContentsView::OnNtpFooterFocused(views::WebView* web_view) {
+@@ -475,10 +854,10 @@ void MultiContentsView::OnNtpFooterFocused(views::WebView* web_view) {
      for (auto& contents_container_view : contents_container_views_) {
        if (contents_container_view->new_tab_footer_view() &&
            contents_container_view->new_tab_footer_view() == web_view &&
@@ -640,7 +640,7 @@ index 76475b5693..6589f46262 100644
        }
      }
    }
-@@ -487,7 +866,7 @@ void MultiContentsView::OnReadAnythingOverlayFocused(
+@@ -488,7 +867,7 @@ void MultiContentsView::OnReadAnythingOverlayFocused(
      ContentsContainerView* container,
      views::WebView* web_view) {
    if (IsInSplitView() && GetWidget()->IsVisible()) {
@@ -649,7 +649,7 @@ index 76475b5693..6589f46262 100644
        delegate_->WebContentsFocused(container->contents_view()->web_contents());
      }
    }
-@@ -522,36 +901,68 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
+@@ -523,36 +902,68 @@ views::ProposedLayout MultiContentsView::CalculateProposedLayout(
    if (IsInSplitView()) {
      available_space.Inset(split_view_insets_);
    }
@@ -743,7 +743,7 @@ index 76475b5693..6589f46262 100644
  
    layouts.host_size = gfx::Size(width, height);
    return layouts;
-@@ -567,8 +978,14 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
+@@ -568,8 +979,14 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
  
    if (!IsInSplitView()) {
      const auto outsets = -target_content_bounds_->clipped_area.ToOutsets();
@@ -760,7 +760,7 @@ index 76475b5693..6589f46262 100644
      return;
    }
  
-@@ -594,28 +1011,25 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
+@@ -595,28 +1012,25 @@ void MultiContentsView::BeforeApplyLayout(const views::ProposedLayout& layout) {
    // edge for both split webviews. This reduces jumping/popping for very slow
    // websites.
  

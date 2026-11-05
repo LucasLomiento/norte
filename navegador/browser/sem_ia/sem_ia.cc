@@ -71,6 +71,60 @@ constexpr char kSemIA[] =
     "DevToolsConsoleInsightsTeasers,"  // IA nas ferramentas de desenvolvedor
     "DevToolsAiV2Architecture,"
     "FirstRunFeatureShowcaseGeminiStep,"
+    // Novos na lista de teste do Chromium 157 (conferido em 04/11/2026): Gemini
+    // abrindo sozinho em PDF, botão de resumir PDF, acesso de páginas do Google à
+    // API do Gemini, chips de IA na nova aba, contexto das abas pra IA.
+    "ApiGlicAccessFromPromotionPage,"
+    "LensAimSuggestions,"
+    "LensOverlaySuggestionsMigration,"
+    "LensSearchReinvocationAffordance,"
+    "ComposeProactiveNudge,"
+    "EnableComposeNudgeAtCursor,"
+    "LensSendUrlsInComposeboxes,"
+    "ComposeboxDriveContextMenuOption,"
+    "ComposeboxDriveContextMenuOptionDisclaimer,"
+    "ComposeboxDriveContextMenuOptionSigninPromo,"
+    "ContextManagementInComposebox,"
+    "ContextManagementInOmnibox,"
+    "ContextualTasksContext,"
+    "ContextualTasksContextLogging,"
+    "ContextualTasksContextMqlsLogging,"
+    "ContextualTasksEnableSpatialModelToolbarLayout,"
+    "ContextualTasksEphemeralBrandedEntryPoint,"
+    "EnableContextualTasksPinButtonInToolbar,"
+    "EphemeralPinningVisibleWhenPermanentlyPinned,"
+    "NtpRealboxDynamicAiModeButton,"
+    "EnableGlicAiAvatarRing,"
+    "ActorPageToolTimeout,"
+    "AutoOpenGlicForPdf,"
+    "EnableAutoOpenGlicSidePanel,"
+    "AnnotatedPageContentWithMediaData,"
+    "HeadlessCaptionEarlyStart,"
+    "MediaTrasncriptsFlagInPageMetadata,"
+    "PdfGlicSummarize,"
+    "GlicEmbeddedPdfBytesExtraction,"
+    "GlicHorizontalTabToolbarButton,"
+    "GlicHotkeyLocalScope,"
+    "GlicNoWebview,"
+    "GlicReuseCookies,"
+    "GlicActorUiMagicCursor,"
+    "LensComposeboxIdentityDelegation,"
+    "ContextualTasksSidePanel,"
+    "LensSidePanelUnification,"
+    "VoiceSearchCoherenceSearchbox,"
+    "NtpNextFeatures,"
+    "NtpScaledActionChips,"
+    "NtpScaledActionChipsSmall,"
+    "AiModePageActionOptimization,"
+    "LensOverlayHomeworkPageActionFocusOptimization,"
+    "PrivateInsightsFeature,"
+    "RemoteActorCredentialSharing,"
+    "ComposeboxRichImageSuggestionsRealbox,"
+    "SkillsWebViewV2Enabled,"
+    "ApiGlicAccessFromGoogleWebpage,"
+    "VoiceSearchCoherenceComposeboxes,"
+    "AutofillAiWalletServerProvidedDeepLink,"
+    "MagiChromePasskeySignIn,"
     "EnableAiSubscriptionAvatarRing";
 
 // Ligadas por padrão: "<flag>" ou "<flag>:<parâmetro>/<valor>".
@@ -158,6 +212,9 @@ constexpr const char* kLigadas[] = {
 // na partida (a lista de buscadores "voltando" de uma migração dá
 // NOTREACHED). Aqui saem só os que deram problema.
 constexpr const char* kDesligadas[] = {
+    // A paleta escura nova do Chromium 157: as cores do Norte são calculadas em
+    // cima da antiga.
+    "ChromeDarkNeutrals26",
     // Voltar, avançar, recarregar e "Início" desenhados por uma página WebUI
     // dentro da barra: com a barra escondida (Ctrl+Shift+S), ao descer por
     // cima da página eles não apareciam no Wayland.

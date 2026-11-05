@@ -1,11 +1,11 @@
 diff --git i/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc w/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
-index 1276886b4b..060d422e49 100644
+index f60bf22ea7..29c7c65cdc 100644
 --- i/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
 +++ w/chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.cc
-@@ -4,12 +4,31 @@
+@@ -6,12 +6,31 @@
  
- #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_tracker.h"
- 
+ #include "base/auto_reset.h"
+ #include "base/task/sequenced_task_runner.h"
 +#include "build/build_config.h"
  #include "chrome/browser/picture_in_picture/picture_in_picture_occlusion_observer.h"
  
@@ -34,7 +34,7 @@ index 1276886b4b..060d422e49 100644
  bool IsChildOfWidgetOrWidget(const views::Widget* widget,
                               const views::Widget* potential_ancestor) {
    const views::Widget* current = widget;
-@@ -300,7 +319,9 @@ void PictureInPictureOcclusionTracker::UpdateObserverStateForWidget(
+@@ -333,7 +352,9 @@ void PictureInPictureOcclusionTracker::UpdateObserverStateForWidget(
    for (const auto& [picture_in_picture_widget, observed_widget_data] :
         observed_widget_data_) {
      // We only care about occlusions from picture-in-picture widgets.
@@ -108,7 +108,7 @@ index 7e3c92a47b..b5b961f0bf 100644
            registry, name, std::min(version, kMaxLinuxDrmSyncobjVersion));
        if (!linux_drm_syncobj_manager_) {
 diff --git i/ui/ozone/platform/wayland/host/wayland_frame_manager.cc w/ui/ozone/platform/wayland/host/wayland_frame_manager.cc
-index 3c61db9680..f9b9322041 100644
+index b0bea4e3bd..834c893168 100644
 --- i/ui/ozone/platform/wayland/host/wayland_frame_manager.cc
 +++ w/ui/ozone/platform/wayland/host/wayland_frame_manager.cc
 @@ -45,6 +45,14 @@ constexpr uint32_t kMaxFramesInFlight = 3u;
@@ -249,7 +249,7 @@ index 59b597cec0..30e58a6362 100644
  
    // Indicates that a graphics freeze was detected from the compositor no longer
 diff --git i/ui/ozone/platform/wayland/host/wayland_window.cc w/ui/ozone/platform/wayland/host/wayland_window.cc
-index 0295967412..e34796e308 100644
+index 010e823ac1..37b146022f 100644
 --- i/ui/ozone/platform/wayland/host/wayland_window.cc
 +++ w/ui/ozone/platform/wayland/host/wayland_window.cc
 @@ -724,6 +724,20 @@ bool WaylandWindow::CanDispatchEvent(const PlatformEvent& event) {
@@ -274,7 +274,7 @@ index 0295967412..e34796e308 100644
      auto* event_grabber =
          connection_->window_manager()->located_events_grabber();
 diff --git i/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc w/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc
-index 3ced100538..fd1afc2375 100644
+index 4a49fe381c..bd6c7692b6 100644
 --- i/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc
 +++ w/ui/ozone/platform/wayland/wayland_buffer_manager_unittest.cc
 @@ -3,6 +3,7 @@

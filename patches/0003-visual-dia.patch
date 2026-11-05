@@ -503,10 +503,10 @@ index 47cdc104bb..3455db19a2 100644
 +  e.preventDefault();
 +});
 diff --git i/chrome/browser/resources/omnibox_popup/omnibox_popup_shared_style.css w/chrome/browser/resources/omnibox_popup/omnibox_popup_shared_style.css
-index 7cb613cbcf..28cf5d1ebd 100644
+index 0d455f6f6c..e472180716 100644
 --- i/chrome/browser/resources/omnibox_popup/omnibox_popup_shared_style.css
 +++ w/chrome/browser/resources/omnibox_popup/omnibox_popup_shared_style.css
-@@ -32,7 +32,9 @@
+@@ -33,7 +33,9 @@
    --color-searchbox-results-background-hovered: var(--color-omnibox-results-background-hover-overlay);
    --color-searchbox-results-background-selected: var(--color-omnibox-results-background-selected);
    --color-searchbox-results-button-hover: var(--color-omnibox-results-button-ink-drop-row-hovered);
@@ -518,10 +518,10 @@ index 7cb613cbcf..28cf5d1ebd 100644
    --color-searchbox-results-foreground-selected: var(--color-omnibox-results-text-selected);
    --color-searchbox-results-icon-focused-outline: var(--color-omnibox-results-focus-indicator);
 diff --git i/chrome/browser/search/search.cc w/chrome/browser/search/search.cc
-index 6d3e318b62..6c0187ca54 100644
+index a9fdb0a96f..4817e9854a 100644
 --- i/chrome/browser/search/search.cc
 +++ w/chrome/browser/search/search.cc
-@@ -191,9 +191,8 @@ struct NewTabURLDetails {
+@@ -196,9 +196,8 @@ struct NewTabURLDetails {
        }
      }
  #else
@@ -534,10 +534,10 @@ index 6d3e318b62..6c0187ca54 100644
        return NewTabURLDetails(local_url, NEW_TAB_URL_VALID);
      }
 diff --git i/chrome/browser/themes/theme_service.cc w/chrome/browser/themes/theme_service.cc
-index cb1dd91e6d..5517cc8945 100644
+index 404b10a09f..2d47f784fb 100644
 --- i/chrome/browser/themes/theme_service.cc
 +++ w/chrome/browser/themes/theme_service.cc
-@@ -314,9 +314,10 @@ void ThemeService::RegisterProfilePrefs(
+@@ -323,9 +323,10 @@ void ThemeService::RegisterProfilePrefs(
        prefs::kDeprecatedBrowserColorSchemeDoNotUse,
        std::to_underlying(ThemeService::BrowserColorScheme::kSystem),
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
@@ -550,10 +550,10 @@ index cb1dd91e6d..5517cc8945 100644
        prefs::kDeprecatedUserColorDoNotUse, SK_ColorTRANSPARENT,
        user_prefs::PrefRegistrySyncable::SYNCABLE_PREF);
 diff --git i/chrome/browser/ui/browser_ui_controller/browser_ui_controller.cc w/chrome/browser/ui/browser_ui_controller/browser_ui_controller.cc
-index fcf93fb913..b063e687e3 100644
+index f68bbcc884..93641121d8 100644
 --- i/chrome/browser/ui/browser_ui_controller/browser_ui_controller.cc
 +++ w/chrome/browser/ui/browser_ui_controller/browser_ui_controller.cc
-@@ -17,6 +17,8 @@
+@@ -18,6 +18,8 @@
  #include "chrome/browser/ui/browser_window.h"
  #include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
  #include "chrome/browser/ui/location_bar/location_bar.h"
@@ -562,7 +562,7 @@ index fcf93fb913..b063e687e3 100644
  #include "chrome/browser/ui/status_bubble.h"
  #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
  #include "chrome/browser/ui/tab_ui_helper.h"
-@@ -139,6 +141,20 @@ void BrowserUiController::ScheduleUIUpdate(content::WebContents* source,
+@@ -141,6 +143,20 @@ void BrowserUiController::ScheduleUIUpdate(content::WebContents* source,
      changed_flags &= ~content::INVALIDATE_TYPE_URL;
    }
  
@@ -584,7 +584,7 @@ index fcf93fb913..b063e687e3 100644
      // Update the loading state synchronously. This is so the throbber will
      // immediately start/stop, which gives a more snappy feel. We want to do
 diff --git i/chrome/browser/ui/color/BUILD.gn w/chrome/browser/ui/color/BUILD.gn
-index 0943df4390..dd2aa9e03b 100644
+index a73bb08210..9791ed68e8 100644
 --- i/chrome/browser/ui/color/BUILD.gn
 +++ w/chrome/browser/ui/color/BUILD.gn
 @@ -18,6 +18,9 @@ source_set("color_headers") {
@@ -647,7 +647,7 @@ index b925b516a9..dae3c13ccf 100644
    }
  
 diff --git i/chrome/browser/ui/layout_constants.cc w/chrome/browser/ui/layout_constants.cc
-index 7d1a2d797f..ee4b695e93 100644
+index b8206dc188..c4033c7a87 100644
 --- i/chrome/browser/ui/layout_constants.cc
 +++ w/chrome/browser/ui/layout_constants.cc
 @@ -4,6 +4,8 @@
@@ -670,7 +670,7 @@ index 7d1a2d797f..ee4b695e93 100644
    const bool touch_ui = ui::TouchUiController::Get()->touch_ui();
    switch (constant) {
      case LayoutConstant::kAppMenuProfileRowAvatarIconSize:
-@@ -184,6 +190,10 @@ int GetLayoutConstant(LayoutConstant constant) {
+@@ -196,6 +202,10 @@ int GetLayoutConstant(LayoutConstant constant) {
  }
  
  gfx::Insets GetLayoutInsets(LayoutInset inset) {
@@ -772,19 +772,35 @@ index ef9a2737f2..1ca4ccf130 100644
  
    bool ShouldThemifyFavicon();
 diff --git i/chrome/browser/ui/tabs/vertical_tab_strip_state.h w/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-index b46ad7ecdf..6c3db54f84 100644
+index 62ea6d7c9b..eae53e7ca6 100644
 --- i/chrome/browser/ui/tabs/vertical_tab_strip_state.h
 +++ w/chrome/browser/ui/tabs/vertical_tab_strip_state.h
-@@ -7,7 +7,8 @@
+@@ -5,16 +5,23 @@
+ #ifndef CHROME_BROWSER_UI_TABS_VERTICAL_TAB_STRIP_STATE_H_
+ #define CHROME_BROWSER_UI_TABS_VERTICAL_TAB_STRIP_STATE_H_
  
++#include "navegador/browser/ui/visual.h"
++
  namespace tabs {
  
 -inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 240;
 +// navegador: 190, a largura da lateral do Dia.
 +inline constexpr int kVerticalTabStripDefaultUncollapsedWidth = 190;
- 
- // Per-window state for the vertical tab strip.
- struct VerticalTabStripState {
+ // TODO(crbug.com/465833741): Replace constant with derived value based on
+ // caption buttons.
+ inline constexpr int kVerticalTabStripUncollapsedMinWidth = 126;
+ // TODO(crbug.com/465832180): Replace constant based width final max width for
+ // view.
+ inline constexpr int kVerticalTabStripUncollapsedMaxWidth = 400;
+-inline constexpr int kVerticalTabStripCollapsedWidth = 56;
++// navegador: recolhida, a lateral some (fica só uma borda pra encostar o
++// mouse) e aparece por cima da página ao passar o mouse, como a lateral
++// flutuante do Dia. O Chromium deixava uma faixa de ícones de 56.
++inline constexpr int kVerticalTabStripCollapsedWidth =
++    navegador::visual::kLateralRecolhida;
+ // TODO(crbug.com/465833741): Determine snapping behavior.
+ inline constexpr int kVerticalTabStripCollapseSnapWidth =
+     (kVerticalTabStripUncollapsedMinWidth + kVerticalTabStripCollapsedWidth) /
 diff --git i/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc w/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
 index 4e23238dea..9d2fd31993 100644
 --- i/chrome/browser/ui/toolbar/chrome_location_bar_model_delegate.cc
@@ -833,10 +849,10 @@ index b4d971dbff..86c5265c90 100644
    net::CertStatus GetCertStatus() const override;
    std::unique_ptr<security_state::VisibleSecurityState>
 diff --git i/chrome/browser/ui/ui_features.cc w/chrome/browser/ui/ui_features.cc
-index 7a0e331ded..83841e5241 100644
+index 1f958582a0..e29e487ee4 100644
 --- i/chrome/browser/ui/ui_features.cc
 +++ w/chrome/browser/ui/ui_features.cc
-@@ -551,9 +551,13 @@ BASE_FEATURE_PARAM(bool,
+@@ -547,9 +547,13 @@ BASE_FEATURE_PARAM(bool,
  BASE_FEATURE(kAiOverlayDisableNavigationContext,
               base::FEATURE_DISABLED_BY_DEFAULT);
  
@@ -853,10 +869,10 @@ index 7a0e331ded..83841e5241 100644
  bool IsTabGroupsFocusFreezingEnabled() {
    return base::FeatureList::IsEnabled(kTabGroupsFocusing) &&
 diff --git i/chrome/browser/ui/views/bubble_anchor_util_views.cc w/chrome/browser/ui/views/bubble_anchor_util_views.cc
-index bd418d5445..3f3566f27e 100644
+index c9a9e72e45..8e90e7761f 100644
 --- i/chrome/browser/ui/views/bubble_anchor_util_views.cc
 +++ w/chrome/browser/ui/views/bubble_anchor_util_views.cc
-@@ -14,6 +14,7 @@
+@@ -15,6 +15,7 @@
  #include "chrome/browser/ui/views/frame/browser_view.h"
  #include "chrome/browser/ui/views/frame/picture_in_picture_browser_frame_view.h"
  #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
@@ -864,7 +880,7 @@ index bd418d5445..3f3566f27e 100644
  #include "chrome/browser/ui/views/payments/payment_handler_web_flow_view_controller.h"
  #include "chrome/browser/ui/views/permissions/chip/permission_chip_view.h"
  #include "chrome/browser/ui/views/permissions/chip/permission_dashboard_view.h"
-@@ -66,6 +67,22 @@ AnchorConfiguration GetPageInfoAnchorConfiguration(
+@@ -67,6 +68,22 @@ AnchorConfiguration GetPageInfoAnchorConfiguration(
      }
    }
  
@@ -914,13 +930,13 @@ index 32e5c1a27f..0ab4b1f800 100644
      std::vector<gfx::Rect> opaque_region;
      if (IsShowingFrame(native_widget_->UseCustomFrame(), window_state)) {
 diff --git i/chrome/browser/ui/views/frame/browser_frame_view.cc w/chrome/browser/ui/views/frame/browser_frame_view.cc
-index fcac4fe225..f4f7d71b2f 100644
+index d046a11f01..d765d52b8a 100644
 --- i/chrome/browser/ui/views/frame/browser_frame_view.cc
 +++ w/chrome/browser/ui/views/frame/browser_frame_view.cc
-@@ -16,6 +16,11 @@
- #include "chrome/browser/ui/color/chrome_color_id.h"
+@@ -17,6 +17,11 @@
  #include "chrome/browser/ui/tabs/tab_style.h"
  #include "chrome/browser/ui/views/frame/browser_view.h"
+ #include "chrome/browser/ui/views/frame/browser_widget.h"
 +#include "chrome/browser/profiles/profile.h"
 +#include "chrome/browser/ui/exclusive_access/exclusive_access_manager.h"
 +#include "chrome/browser/ui/exclusive_access/fullscreen_controller.h"
@@ -929,7 +945,7 @@ index fcac4fe225..f4f7d71b2f 100644
  #include "chrome/browser/ui/views/frame/safe_invoke/safe_invoke.h"
  #include "chrome/browser/ui/web_applications/app_browser_controller.h"
  #include "chrome/grit/theme_resources.h"
-@@ -183,6 +188,18 @@ gfx::RoundedCornersF BrowserFrameView::GetWindowRoundedCorners() const {
+@@ -187,6 +192,18 @@ gfx::RoundedCornersF BrowserFrameView::GetWindowRoundedCorners() const {
  void BrowserFrameView::UpdateFullscreenTopUI() {}
  
  bool BrowserFrameView::ShouldHideTopUIInFullscreen() const {
@@ -991,7 +1007,7 @@ index 474b8356af..4ac1bdde83 100644
  
  BrowserFrameViewLinux::BoundsAndMargins
 diff --git i/chrome/browser/ui/views/frame/browser_widget.cc w/chrome/browser/ui/views/frame/browser_widget.cc
-index a335e2d5cc..9e1616c111 100644
+index c5fbcca726..19eaaad7e7 100644
 --- i/chrome/browser/ui/views/frame/browser_widget.cc
 +++ w/chrome/browser/ui/views/frame/browser_widget.cc
 @@ -4,6 +4,10 @@
@@ -1005,7 +1021,7 @@ index a335e2d5cc..9e1616c111 100644
  #include <memory>
  #include <utility>
  
-@@ -503,10 +507,22 @@ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
+@@ -495,12 +499,22 @@ ui::ColorProviderKey BrowserWidget::GetColorProviderKey() const {
      key.user_color = user_color_override().value();
      key.user_color_source = ui::ColorProviderKey::UserColorSource::kAccent;
    }
@@ -1017,19 +1033,19 @@ index a335e2d5cc..9e1616c111 100644
 +  }
  
    // Apply BrowserWidget overrides:
-   key.app_controller =
-       web_app::AppBrowserController::From(browser_view_->browser());
-+  // navegador: barra de navegação na cor da página ativa.
-+  if (!key.app_controller) {
-+    if (auto cor = navegador::cor_da_pagina::CorDaBarra(browser_view_)) {
-+      key.app_controller = navegador::cores::FornecedorDaBarra(*cor);
-+    }
-+  }
+   if (auto* app_controller =
+           web_app::AppBrowserController::From(browser_view_->browser())) {
+     key.app_controller = app_controller;
+     key.app_background_color = app_controller->GetBackgroundColor();
++  } else if (auto cor =
++                 navegador::cor_da_pagina::CorDaBarra(browser_view_)) {
++    // navegador: barra de navegação na cor da página ativa.
++    key.app_controller = navegador::cores::FornecedorDaBarra(*cor);
+   }
  
  #if BUILDFLAG(IS_CHROMEOS)
-   // ChromeOS SystemWebApps use the OS theme all the time.
 diff --git i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
-index 29dfbde914..a0d6de2b84 100644
+index 7764d4a472..4ad15e8204 100644
 --- i/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 +++ w/chrome/browser/ui/views/frame/layout/browser_view_tabbed_layout_impl.cc
 @@ -4,6 +4,13 @@
@@ -1046,7 +1062,7 @@ index 29dfbde914..a0d6de2b84 100644
  #include <algorithm>
  #include <memory>
  #include <optional>
-@@ -83,6 +90,13 @@ constexpr double kGlassExpandOnHoverOpacity = 0.95;
+@@ -87,6 +94,13 @@ constexpr double kGlassExpandOnHoverOpacity = 0.95;
  
  // Increases the leading or trailing exclusion padding to `minimum`.
  void IncreasePaddingToMinimum(BrowserLayoutParams& params, int minimum) {
@@ -1060,7 +1076,7 @@ index 29dfbde914..a0d6de2b84 100644
    // Default to increasing the trailing exclusion padding. On ChromeOS, the
    // leading exclusion is sometimes used for a profile avatar while the trailing
    // exclusion is used for the caption buttons. This keeps the padding
-@@ -258,6 +272,15 @@ BrowserViewTabbedLayoutImpl::CalculateSeparatorInfo() const {
+@@ -314,6 +328,15 @@ BrowserViewTabbedLayoutImpl::CalculateSeparatorInfo() const {
        break;
    }
  
@@ -1076,7 +1092,7 @@ index 29dfbde914..a0d6de2b84 100644
    return info;
  }
  
-@@ -822,13 +845,38 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -960,7 +983,37 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                                 GetVerticalTabStripContentOverlap();
        params.InsetHorizontal(inset_amount, /*leading=*/true);
  
@@ -1112,38 +1128,36 @@ index 29dfbde914..a0d6de2b84 100644
 +      // lateral por cima, ela pulava pro lugar novo no começo de recolher e
 +      // no fim de abrir.
        if (vertical_tab_strip_animation.current_motion) {
--        clip_content_for_animation =
--            vertical_tab_strip_animation.current_motion ==
--                TabStripAnimations::kExpand ||
--            vertical_tab_strip_animation.current_motion ==
--                TabStripAnimations::kCollapse;
-         unclipped_contents_region.Inset(gfx::Insets::TLBR(
-             0, VerticalTabStripRegionView::kCollapsedWidth, 0, 0));
-       } else {
-@@ -855,8 +903,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+         clip_content_for_animation =
+             vertical_tab_strip_animation.current_motion ==
+@@ -993,10 +1046,11 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
    if (IsParentedTo(views().vertical_tab_strip_top_corner,
                     views().browser_view)) {
      gfx::Rect corner_bounds;
 +    // navegador: o cartão tem cantos próprios, sem o canto côncavo.
+     const double top_corner = layout_data_->vertical_tabs_top_corner();
      const bool top_corner_visible =
          layout_data_->tab_strip_type == TabStripType::kVertical &&
-+        is_fullscreen(layout_data_->window_state) &&
-         vertical_tab_strip_animation.top_corner > 0.0;
+-        top_corner > 0.0;
++        is_fullscreen(layout_data_->window_state) && top_corner > 0.0;
  
      // The top corner is drawn when the tabstrip goes all the way to the top.
-@@ -878,8 +928,10 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+     if (top_corner_visible) {
+@@ -1016,10 +1070,11 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
    if (IsParentedTo(views().vertical_tab_strip_bottom_corner,
                     views().browser_view)) {
      gfx::Rect corner_bounds;
 +    // navegador: o cartão tem cantos próprios, sem o canto côncavo.
+     const double bottom_corner = layout_data_->vertical_tabs_bottom_corner();
      const bool bottom_corner_visible =
          layout_data_->tab_strip_type == TabStripType::kVertical &&
-+        is_fullscreen(layout_data_->window_state) &&
-         vertical_tab_strip_animation.bottom_corner > 0.0;
+-        bottom_corner > 0.0;
++        is_fullscreen(layout_data_->window_state) && bottom_corner > 0.0;
      if (bottom_corner_visible) {
        auto preferred =
-@@ -932,6 +984,33 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
-                     visible_width > 0);
+           views().vertical_tab_strip_bottom_corner->GetPreferredSize();
+@@ -1035,6 +1090,33 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+                     bottom_corner_visible);
    }
  
 +  // navegador: quanto da barra escondida (Ctrl+Shift+S) desceu por cima da
@@ -1176,7 +1190,7 @@ index 29dfbde914..a0d6de2b84 100644
    // When the tabstrip isn't at the top or in constrained widths, the top
    // container is laid out before all side panels.
    if (horizontal_layout.force_top_container_to_top &&
-@@ -947,7 +1026,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1050,7 +1132,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
          top_container_layout, top_container_params, needs_exclusion);
      top_container_layout.bounds =
          GetTopContainerBoundsInParent(top_container_local_bounds, params);
@@ -1187,7 +1201,7 @@ index 29dfbde914..a0d6de2b84 100644
  
      // Possibly bump the leading margin of the top container out to cover the
      // caption buttons, leaving all of the child views in the same absolute
-@@ -968,7 +1049,14 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1071,7 +1155,14 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
    ProposedLayout* main_background_layout = nullptr;
    if (IsParentedTo(views().main_background_region, views().browser_view)) {
      gfx::Rect main_background_bounds;
@@ -1203,7 +1217,7 @@ index 29dfbde914..a0d6de2b84 100644
        // In the future this should just be a 1px shim to avoid covering
        // transparency in the frame/tab strip, instead of extending the entire
        // background to the window edge.
-@@ -1079,7 +1167,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1182,7 +1273,9 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
          params.InLocalCoordinates(params.visual_client_area), needs_exclusion);
      top_container_layout.bounds =
          GetTopContainerBoundsInParent(top_container_local_bounds, params);
@@ -1214,7 +1228,7 @@ index 29dfbde914..a0d6de2b84 100644
    }
  
    // Lay out infobar container.
-@@ -1128,7 +1218,15 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1231,7 +1324,15 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
      const bool include_trailing_inset =
          separator_info.shadow_box ||
          !(horizontal_layout.has_side_panel() && !side_panel_leading);
@@ -1231,7 +1245,7 @@ index 29dfbde914..a0d6de2b84 100644
      const int panel_side_inset =
          base::ClampRound((1.0 - side_panel_reveal_amount) * default_inset);
  
-@@ -1174,6 +1272,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1281,6 +1382,8 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
                                  params.visual_client_area.height()));
  
    // Maybe expand and clip the web contents to avoid issues during animation.
@@ -1240,7 +1254,7 @@ index 29dfbde914..a0d6de2b84 100644
    if (features::UseSidePanelFlyoverAnimation()) {
      if (clip_content_for_animation) {
        // Vertical span is whatever it is, minus any shadow overlay insets.
-@@ -1195,6 +1295,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+@@ -1302,6 +1405,13 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        // Avoid cases where these areas are somehow misaligned (shouldn't happen,
        // but want to avoid visual artifacts if they are).
        contents_layout.bounds.Intersect(unclipped_contents_region);
@@ -1254,11 +1268,11 @@ index 29dfbde914..a0d6de2b84 100644
        const auto clip_insets =
            unclipped_contents_region.InsetsFrom(contents_layout.bounds);
  
-@@ -1231,6 +1338,20 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
-       }
+@@ -1321,6 +1431,22 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
      }
-     views().multi_contents_view->SetBackgroundRadii(content_corners);
-+  } else if (layout_data_->tab_strip_type == TabStripType::kVertical) {
+   }
+ 
++  if (layout_data_->tab_strip_type == TabStripType::kVertical) {
 +    // navegador: fim do cartão, cantos de baixo arredondados. Com a barra
 +    // escondida (Ctrl+Shift+S), a página é o cartão inteiro.
 +    gfx::RoundedCornersF content_corners;
@@ -1272,10 +1286,12 @@ index 29dfbde914..a0d6de2b84 100644
 +      }
 +    }
 +    views().multi_contents_view->SetBackgroundRadii(content_corners);
-   }
- 
++  }
++
    // Make final visual adjustments required for child views to paint.
-@@ -1253,6 +1374,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
+   if (layout_data_->tab_strip_type == TabStripType::kVertical) {
+     // Need to know the toolbar height relative to the tabstrip, so that
+@@ -1341,6 +1467,17 @@ BrowserViewTabbedLayoutImpl::CalculateProposedLayout(
        // aligned with the tabstrip (which can happen in collapsed mode with
        // leading caption buttons).
        toolbar_height = toolbar_bounds->bottom() - tabstrip_bounds->y();
@@ -1293,28 +1309,26 @@ index 29dfbde914..a0d6de2b84 100644
  
        caption_button_width =
            base::ClampCeil(browser_params.leading_exclusion.content.width()) -
-@@ -1427,9 +1559,16 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
+@@ -1515,6 +1652,16 @@ void BrowserViewTabbedLayoutImpl::ConfigureTopContainerBackground(
    // By default, this is just a flat background.
    CustomCornersBackground::Corners corners;
  
--  // Rounded corners are drawn in vertical tab strip mode when not maximized or
--  // fullscreen.
 +  // navegador: começo do cartão, os dois cantos de cima arredondados (fora
 +  // da tela cheia).
-   if (layout_data_->tab_strip_type == TabStripType::kVertical &&
++  if (layout_data_->tab_strip_type == TabStripType::kVertical &&
 +      !is_fullscreen(layout_data_->window_state)) {
 +    const CustomCornersBackground::Corner cartao{
 +        CustomCornersBackground::CornerType::kRounded,
 +        navegador::visual::kCartaoRaio};
 +    corners[CornerOrientation::kTopLeading] = cartao;
 +    corners[CornerOrientation::kTopTrailing] = cartao;
-+  } else if (layout_data_->tab_strip_type == TabStripType::kVertical &&
-       layout_data_->window_state == WindowState::kNormal) {
-     corners[CornerOrientation::kTopTrailing] =
-         background->GetWindowCorner(/*upper=*/true);
-@@ -1524,6 +1663,39 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
-           (1.0 - animation.expand_on_hover_opacity) * frame_color.opacity +
-           animation.expand_on_hover_opacity * expand_on_hover_opacity);
++  } else
+   // Round top corners when `top_container` reaches the top edge of a
+   // non-maximized, non-fullscreen window.
+   if (layout_data_->window_state == WindowState::kNormal) {
+@@ -1637,6 +1784,39 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+           (1.0 - flyover_background_base_opacity) * frame_color.opacity +
+           flyover_background_base_opacity * flyover_panel_opacity);
        vertical_tabs_background->SetPrimaryColor(vertical_tabs_background_color);
 +    } else if (navegador::cores::Vidro() &&
 +               !is_fullscreen(layout_data_->window_state)) {
@@ -1352,7 +1366,7 @@ index 29dfbde914..a0d6de2b84 100644
      } else {
        vertical_tabs_background->SetPrimaryColor(frame_color);
      }
-@@ -1707,6 +1879,16 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
+@@ -1847,6 +2027,16 @@ void BrowserViewTabbedLayoutImpl::DoPostLayoutVisualAdjustments(
        break;
      }
      case TabStripType::kVertical: {
@@ -1516,10 +1530,10 @@ index 62f69255e0..ebb9e82be0 100644
  
  OpaqueBrowserFrameView::BoundsAndMargins
 diff --git i/chrome/browser/ui/views/frame/opaque_browser_frame_view.h w/chrome/browser/ui/views/frame/opaque_browser_frame_view.h
-index cd6fa39dad..6b9401874b 100644
+index a553901ea7..e346aa7b11 100644
 --- i/chrome/browser/ui/views/frame/opaque_browser_frame_view.h
 +++ w/chrome/browser/ui/views/frame/opaque_browser_frame_view.h
-@@ -122,6 +122,8 @@ class OpaqueBrowserFrameView : public BrowserFrameView,
+@@ -123,6 +123,8 @@ class OpaqueBrowserFrameView : public BrowserFrameView,
  
    // views::View:
    void OnPaint(gfx::Canvas* canvas) override;
@@ -1529,10 +1543,10 @@ index cd6fa39dad..6b9401874b 100644
    // BrowserFrameView:
    BoundsAndMargins GetCaptionButtonBounds() const override;
 diff --git i/chrome/browser/ui/views/frame/shadow_frame_view.cc w/chrome/browser/ui/views/frame/shadow_frame_view.cc
-index 83e78744d6..d9598d43ca 100644
+index 35cb7abca4..9ae1cec1c7 100644
 --- i/chrome/browser/ui/views/frame/shadow_frame_view.cc
 +++ w/chrome/browser/ui/views/frame/shadow_frame_view.cc
-@@ -26,12 +26,14 @@ ShadowFrameView::~ShadowFrameView() = default;
+@@ -29,12 +29,14 @@ ShadowFrameView::~ShadowFrameView() = default;
  
  void ShadowFrameView::SetShadowVisible(bool visible) {
    // No-op if visible set is the same as current state.
@@ -1546,16 +1560,16 @@ index 83e78744d6..d9598d43ca 100644
 -    view_shadow_ = std::make_unique<views::ViewShadow>(this, shadow_elevation_);
 +    view_shadow_ = std::make_unique<views::ViewShadow>(
 +        navegador_no_pai_ && parent() ? parent() : this, shadow_elevation_);
-     view_shadow_->SetRoundedCornerRadius(corner_radius_);
-     view_shadow_->shadow()->layer()->SetOpacity(shadow_opacity_);
+     view_shadow_->SetRoundedCorners(corners_);
+     view_shadow_->decoration()->layer()->SetOpacity(shadow_opacity_);
      UpdateShadowColors();
 diff --git i/chrome/browser/ui/views/frame/shadow_frame_view.h w/chrome/browser/ui/views/frame/shadow_frame_view.h
-index 92fc80d903..814dfc1d93 100644
+index 273aca1faf..ff7fef2cef 100644
 --- i/chrome/browser/ui/views/frame/shadow_frame_view.h
 +++ w/chrome/browser/ui/views/frame/shadow_frame_view.h
-@@ -42,6 +42,11 @@ class ShadowFrameView : public views::View {
-   // Sets the shadow corner radius.
-   void SetShadowCornerRadius(int corner_radius);
+@@ -47,6 +47,11 @@ class ShadowFrameView : public views::View {
+   // screen space - i.e. already mirrored for RtL.
+   void SetShadowCornerRadii(const gfx::RoundedCornersF& corners);
  
 +  // navegador: a sombra pendurada no pai, não nesta view. A lateral corta o
 +  // que sai dela (SetMasksToBounds), e a sombra da lateral flutuante, filha
@@ -1565,7 +1579,7 @@ index 92fc80d903..814dfc1d93 100644
   protected:
    // views::View:
    void OnThemeChanged() override;
-@@ -60,6 +65,7 @@ class ShadowFrameView : public views::View {
+@@ -66,6 +71,7 @@ class ShadowFrameView : public views::View {
    std::optional<bool> was_dark_;
  
    std::unique_ptr<views::ViewShadow> view_shadow_;
@@ -1574,7 +1588,7 @@ index 92fc80d903..814dfc1d93 100644
  
  #endif  // CHROME_BROWSER_UI_VIEWS_FRAME_SHADOW_FRAME_VIEW_H_
 diff --git i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
-index b7cdb8f557..f1105beb1e 100644
+index f3ab4f166b..0cd8d8b6ec 100644
 --- i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 +++ w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.cc
 @@ -4,6 +4,18 @@
@@ -1595,8 +1609,8 @@ index b7cdb8f557..f1105beb1e 100644
 +
  #include <algorithm>
  #include <optional>
- 
-@@ -110,6 +122,9 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+ #include <utility>
+@@ -133,6 +145,9 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
    SetPaintToLayer();
    // Because corners may be transparent, this must be set to false.
    layer()->SetFillsBoundsOpaquely(false);
@@ -1604,18 +1618,18 @@ index b7cdb8f557..f1105beb1e 100644
 +  // os botões do layout recolhido não podem vazar pra cima da página.
 +  layer()->SetMasksToBounds(true);
  
-   const int region_horizontal_padding =
-       GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding);
-@@ -136,6 +151,8 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
-       views::kMarginsKey, gfx::Insets::VH(0, region_horizontal_padding));
+   SetLayoutManager(std::make_unique<views::DelegatingLayoutManager>(this));
  
-   top_button_separator_ = AddChildView(std::make_unique<views::Separator>());
+@@ -164,6 +179,8 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+ 
+   auto* const top_button_separator =
+       content_area_view_->AddChildView(std::make_unique<FrameSeparator>());
 +  // navegador: o Dia não tem linha entre o cabeçalho e as abas.
-+  top_button_separator_->SetVisible(false);
++  top_button_separator->SetVisible(false);
    // The TopContainer handles the padding distance to the separator so that we
    // can control how far it is in the various states.
-   top_button_separator_->SetProperty(
-@@ -147,10 +164,12 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+   top_button_separator->SetProperty(
+@@ -178,10 +195,12 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
            base::BindRepeating(
                &VerticalTabStripRegionView::RecordNewTabButtonPressed,
                base::Unretained(this))));
@@ -1629,13 +1643,14 @@ index b7cdb8f557..f1105beb1e 100644
    bottom_button_container_->SetProperty(
        views::kMarginsKey,
        gfx::Insets::TLBR(
-@@ -160,6 +179,19 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
- 
-   gemini_button_ = AddChildView(std::make_unique<views::View>());
+@@ -195,6 +214,20 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+   // Views that go into the content area above
+   // --------------
  
 +  // navegador: espaços do Dia no pé da barra lateral, e a barra de
 +  // navegação na cor do site.
-+  navegador::espacos::AdicionarFaixa(this, browser_view->browser());
++  navegador::espacos::AdicionarFaixa(this, content_area_view_,
++                                     browser_view->browser());
 +  top_button_container_->SetTituloDoEspaco(
 +      navegador::espacos::CriarTitulo(browser_view->browser()));
 +  navegador::cor_da_pagina::Acompanhar(this, browser_view);
@@ -1649,7 +1664,7 @@ index b7cdb8f557..f1105beb1e 100644
    resize_area_ = AddChildView(std::make_unique<views::ResizeArea>(this));
    resize_area_->SetProperty(views::kViewIgnoredByLayoutKey, true);
    resize_area_->SetFocusBehavior(views::View::FocusBehavior::ACCESSIBLE_ONLY);
-@@ -188,11 +220,13 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
+@@ -223,11 +256,13 @@ VerticalTabStripRegionView::VerticalTabStripRegionView(
    shadow_frame_ = AddChildView(std::make_unique<ShadowFrameView>(
        kExpandOnHoverShadowElevation, kExpandOnHoverShadowAlpha));
    shadow_frame_->SetProperty(views::kViewIgnoredByLayoutKey, true);
@@ -1666,20 +1681,33 @@ index b7cdb8f557..f1105beb1e 100644
 +  // dois, um deslizar no touchpad pulava dois espaços.
  
    SetNotifyEnterExitOnChild(true);
-   UpdateColors();
-@@ -296,8 +330,10 @@ bool VerticalTabStripRegionView::IsPositionInWindowCaption(
+ }
+@@ -330,14 +365,22 @@ bool VerticalTabStripRegionView::IsPositionInWindowCaption(
    }
  
    // For any of the other children, absorb the click as non window caption.
 +  // navegador: menos os que não recebem eventos (a sombra, que cobre a
 +  // lateral inteira, e o vazio embaixo das abas, que é título no KDE).
    for (views::View* child : children()) {
--    if (!child->GetVisible()) {
-+    if (!child->GetVisible() || !child->GetCanProcessEventsWithinSubtree()) {
-       continue;
++    // navegador: os que não recebem eventos também ficam de fora (a sombra, que
++    // cobre a lateral inteira, e o vazio embaixo das abas, que é título no KDE).
++    const auto recebe = [&](views::View* view) {
++      return view->GetVisible() && view->GetCanProcessEventsWithinSubtree() &&
++             IsHitInView(view, point);
++    };
+     if (child == content_area_view_) {
+       for (views::View* grandchild : child->children()) {
+-        if (grandchild->GetVisible() && IsHitInView(grandchild, point)) {
++        if (recebe(grandchild)) {
+           return false;
+         }
+       }
+-    } else if (child->GetVisible() && IsHitInView(child, point)) {
++    } else if (recebe(child)) {
+       return false;
      }
- 
-@@ -363,9 +399,18 @@ void VerticalTabStripRegionView::AddedToWidget() {
+   }
+@@ -394,9 +437,18 @@ void VerticalTabStripRegionView::AddedToWidget() {
    if (GetFocusManager()) {
      GetFocusManager()->AddFocusChangeListener(&focus_listener_);
    }
@@ -1698,11 +1726,11 @@ index b7cdb8f557..f1105beb1e 100644
    if (GetFocusManager()) {
      GetFocusManager()->RemoveFocusChangeListener(&focus_listener_);
    }
-@@ -373,7 +418,52 @@ void VerticalTabStripRegionView::RemovedFromWidget() {
+@@ -489,7 +541,52 @@ views::ProposedLayout VerticalTabStripRegionView::CalculateProposedLayout(
  }
  
  void VerticalTabStripRegionView::Layout(PassKey) {
--  LayoutSuperclass<views::AccessiblePaneView>(this);
+-  LayoutSuperclass<BaseTabStripRegionView>(this);
 +  // navegador: abrindo ou escondendo, os itens ficam na largura cheia e a
 +  // lateral desliza (a camada corta o que passa), como no Zen. Na largura do
 +  // meio da animação o cabeçalho, as abas e as pastas se amassavam.
@@ -1719,7 +1747,7 @@ index b7cdb8f557..f1105beb1e 100644
 +  }
 +  if (cheia > width()) {
 +    const views::ProposedLayout layout =
-+        flex_layout_->GetProposedLayout(gfx::Size(cheia, height()));
++        CalculateProposedLayout(views::SizeBounds(cheia, height()));
 +    for (const views::ChildLayout& filho : layout.child_layouts) {
 +      if (filho.visible) {
 +        gfx::Rect area = filho.bounds;
@@ -1732,7 +1760,7 @@ index b7cdb8f557..f1105beb1e 100644
 +      }
 +    }
 +  } else {
-+    LayoutSuperclass<views::AccessiblePaneView>(this);
++    LayoutSuperclass<BaseTabStripRegionView>(this);
 +  }
 +
 +  // navegador: a sombra do cartão é pintada na moldura. Com a lateral mudando
@@ -1752,7 +1780,7 @@ index b7cdb8f557..f1105beb1e 100644
  
    // Manually position the resize area as it overlaps views handled by the flex
    // layout.
-@@ -459,6 +549,7 @@ bool VerticalTabStripRegionView::OnKeyPressed(const ui::KeyEvent& event) {
+@@ -576,6 +673,7 @@ bool VerticalTabStripRegionView::OnKeyPressed(const ui::KeyEvent& event) {
  }
  
  void VerticalTabStripRegionView::OnMouseEntered(const ui::MouseEvent& event) {
@@ -1760,7 +1788,7 @@ index b7cdb8f557..f1105beb1e 100644
    if (mouse_exit_timer_.IsRunning()) {
      mouse_exit_timer_.Stop();
      return;
-@@ -467,6 +558,7 @@ void VerticalTabStripRegionView::OnMouseEntered(const ui::MouseEvent& event) {
+@@ -584,6 +682,7 @@ void VerticalTabStripRegionView::OnMouseEntered(const ui::MouseEvent& event) {
  }
  
  void VerticalTabStripRegionView::OnMouseMoved(const ui::MouseEvent& event) {
@@ -1768,7 +1796,7 @@ index b7cdb8f557..f1105beb1e 100644
    if (mouse_exit_timer_.IsRunning()) {
      mouse_exit_timer_.Stop();
    }
-@@ -491,9 +583,201 @@ void VerticalTabStripRegionView::HandleMouseExited() {
+@@ -627,9 +726,203 @@ void VerticalTabStripRegionView::HandleMouseExited() {
      return;
    }
  #endif
@@ -1875,7 +1903,8 @@ index b7cdb8f557..f1105beb1e 100644
 +  if (!GetWidget() || !state_controller_->ShouldDisplayVerticalTabs() ||
 +      !state_controller_->IsCollapsed() ||
 +      !state_controller_->IsExpandOnHoverEnabled() ||
-+      !navegador::espacos::MostrarNaBorda(Perfil()) || !IsFrameActive()) {
++      !navegador::espacos::MostrarNaBorda(Perfil()) ||
++      !GetWidget()->ShouldPaintAsActive()) {
 +    return;
 +  }
 +  // Aberta (ou abrindo pela borda): espera a folga de fora da janela.
@@ -1905,7 +1934,8 @@ index b7cdb8f557..f1105beb1e 100644
 +
 +void VerticalTabStripRegionView::AbrirPelaSaida() {
 +  if (!GetWidget() || is_expanded_on_hover_ ||
-+      !state_controller_->IsCollapsed() || !IsFrameActive()) {
++      !state_controller_->IsCollapsed() ||
++      !GetWidget()->ShouldPaintAsActive()) {
 +    return;
 +  }
 +  AnimateExpandOnHover(/*expand=*/true);
@@ -1970,9 +2000,9 @@ index b7cdb8f557..f1105beb1e 100644
  std::unique_ptr<ExpandOnHoverLock>
  VerticalTabStripRegionView::GetExpandOnHoverLock(
      ExpandOnHoverLockType lock_type) {
-@@ -744,6 +1028,10 @@ void VerticalTabStripRegionView::OnTabStripViewSet() {
-   CHECK(separator_index.has_value());
-   ReorderChildView(tab_strip_view(), separator_index.value() + 1);
+@@ -887,6 +1180,10 @@ void VerticalTabStripRegionView::AddTabStripView(
+               &VerticalTabStripRegionView::OnExpandOnHoverEnabledChanged,
+               base::Unretained(this)));
  
 +  // navegador: sites e pastas fixados do espaço, entre os favoritos e as
 +  // abas.
@@ -1981,7 +2011,7 @@ index b7cdb8f557..f1105beb1e 100644
    OnCollapseStateChanged(state_controller_->GetCollapseState());
  }
  
-@@ -768,8 +1056,11 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
+@@ -912,8 +1209,11 @@ void VerticalTabStripRegionView::OnCollapseStateChanged(
  
    resize_area_width_ = collapsed ? kCollapsedResizeAreaWidth : kResizeAreaWidth;
  
@@ -1994,17 +2024,17 @@ index b7cdb8f557..f1105beb1e 100644
    }
  
    if ((state == tabs::VerticalTabStripCollapseState::kCollapsing) ||
-@@ -875,8 +1166,27 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+@@ -1010,8 +1310,27 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
    // hover state or exit it if already expanded. We evaluate this after the
    // locks because IsFrameActive can also return false when a WebUI bubble is
    // open.
--  if (!IsFrameActive()) {
+-  if (GetWidget() && !GetWidget()->ShouldPaintAsActive()) {
 +  // navegador: menos com o ponteiro em cima da lateral. No KDE a janela só
 +  // fica ativa com um clique, e no Hyprland o foco chega depois do ponteiro:
 +  // fora de foco, encostar na borda não abria.
 +  const bool ponteiro_em_cima = navegador::espacos::MostrarNaBorda(Perfil()) &&
 +                                hovered.value_or(PonteiroEmCima());
-+  if (!IsFrameActive() && !ponteiro_em_cima) {
++  if (GetWidget() && !GetWidget()->ShouldPaintAsActive() && !ponteiro_em_cima) {
      if (is_expanded_on_hover_) {
 +      // navegador: no Hyprland o foco vai com o ponteiro pra outra janela;
 +      // recolher na hora não deixava folga nenhuma. Espera a folga de fora
@@ -2023,7 +2053,7 @@ index b7cdb8f557..f1105beb1e 100644
        AnimateExpandOnHover(/*expand=*/false);
      }
      return;
-@@ -885,11 +1195,21 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+@@ -1020,11 +1339,21 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
    const bool should_expand =
        !suppress_expand_on_hover_ &&
        state_controller_->IsExpandOnHoverEnabled() &&
@@ -2046,7 +2076,7 @@ index b7cdb8f557..f1105beb1e 100644
        AnimateExpandOnHover(/*expand=*/false);
      } else {
        ResetExpandOnHoverTimers();
-@@ -907,6 +1227,13 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
+@@ -1042,13 +1371,20 @@ void VerticalTabStripRegionView::UpdateExpandOnHoverState(
          hover_card_controller()->GetHoverCardHideLock();
    }
  
@@ -2057,10 +2087,9 @@ index b7cdb8f557..f1105beb1e 100644
 +    return;
 +  }
 +
-   if (tabs::kVerticalTabsExpandOnHoverUseVelocityHeuristic.Get()) {
-     CalculateMouseVelocityForExpandOnHover();
-   } else if (expand_on_hover_timer_.IsRunning()) {
-@@ -939,7 +1266,7 @@ void VerticalTabStripRegionView::RestartExpandOnHoverTimer(
+   CalculateMouseVelocityForExpandOnHover();
+ }
+ 
  void VerticalTabStripRegionView::OnMouseVelocityHeuristicInterval() {
    const bool should_expand =
        state_controller_->IsExpandOnHoverEnabled() &&
@@ -2069,7 +2098,7 @@ index b7cdb8f557..f1105beb1e 100644
         (GetFocusManager() && Contains(GetFocusManager()->GetFocusedView())));
  
    if (!should_expand || is_expanded_on_hover_) {
-@@ -1027,8 +1354,16 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
+@@ -1125,8 +1461,16 @@ void VerticalTabStripRegionView::ResetExpandOnHoverTimers() {
  void VerticalTabStripRegionView::AnimateExpandOnHover(bool expand) {
    is_expanded_on_hover_ = expand;
    ResetExpandOnHoverTimers();
@@ -2087,11 +2116,11 @@ index b7cdb8f557..f1105beb1e 100644
      base::RecordAction(
          base::UserMetricsAction("VerticalTabs_ExpandOnHover_Show"));
 diff --git i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-index 76f8e997d6..f31d219768 100644
+index 85f1aaa590..4bd87b03bc 100644
 --- i/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
 +++ w/chrome/browser/ui/views/frame/vertical_tab_strip_region_view.h
-@@ -7,6 +7,8 @@
- 
+@@ -8,6 +8,8 @@
+ #include <memory>
  #include <optional>
  
 +#include "navegador/browser/ui/visual.h"
@@ -2099,8 +2128,8 @@ index 76f8e997d6..f31d219768 100644
  #include "base/callback_list.h"
  #include "base/containers/flat_set.h"
  #include "base/memory/raw_ptr.h"
-@@ -32,6 +34,12 @@
- #include "ui/views/focus/focus_manager.h"
+@@ -35,6 +37,12 @@
+ #include "ui/views/layout/delegating_layout_manager.h"
  
  class BrowserView;
 +
@@ -2112,29 +2141,17 @@ index 76f8e997d6..f31d219768 100644
  class VerticalTabStripTopContainer;
  class VerticalTabStripBottomContainer;
  class VerticalTabStripFocusSwipeController;
-@@ -66,7 +74,10 @@ class VerticalTabStripRegionView final
-   // TODO(crbug.com/465832180): Replace constant based width final max width for
-   // view.
-   static constexpr int kUncollapsedMaxWidth = 400;
--  static constexpr int kCollapsedWidth = 56;
-+  // navegador: recolhida, a lateral some (fica só uma borda pra encostar o
-+  // mouse) e aparece por cima da página ao passar o mouse, como a lateral
-+  // flutuante do Dia. O Chromium deixava uma faixa de ícones de 56.
-+  static constexpr int kCollapsedWidth = navegador::visual::kLateralRecolhida;
-   // TODO(crbug.com/465833741): Determine snapping behavior.
-   static constexpr int kCollapseSnapWidth =
-       (kUncollapsedMinWidth + kCollapsedWidth) / 2;
-@@ -245,6 +256,9 @@ class VerticalTabStripRegionView final
+@@ -232,6 +240,9 @@ class VerticalTabStripRegionView final
    raw_ptr<views::ResizeArea> resize_area_ = nullptr;
    raw_ptr<ShadowFrameView> shadow_frame_ = nullptr;
    int resize_area_width_;
 +  // navegador: os limites da lateral na última vez que a moldura foi
 +  // repintada por um layout dela (ver o Layout).
 +  gfx::Rect navegador_limites_pintados_;
-   raw_ptr<views::FlexLayout> flex_layout_ = nullptr;
  
    const raw_ptr<tabs::VerticalTabStripStateController> state_controller_;
-@@ -304,6 +318,41 @@ class VerticalTabStripRegionView final
+   std::optional<base::CallbackListSubscription>
+@@ -289,6 +300,41 @@ class VerticalTabStripRegionView final
    // The mouse exit event debounce timer.
    base::OneShotTimer mouse_exit_timer_;
  
@@ -2177,7 +2194,7 @@ index 76f8e997d6..f31d219768 100644
  };
  
 diff --git i/chrome/browser/ui/views/location_bar/location_bar_view.cc w/chrome/browser/ui/views/location_bar/location_bar_view.cc
-index 9251f8590b..8f4403d28d 100644
+index d07cbfe86c..cb3c8ed568 100644
 --- i/chrome/browser/ui/views/location_bar/location_bar_view.cc
 +++ w/chrome/browser/ui/views/location_bar/location_bar_view.cc
 @@ -4,6 +4,12 @@
@@ -2193,7 +2210,7 @@ index 9251f8590b..8f4403d28d 100644
  #include <algorithm>
  #include <memory>
  #include <ranges>
-@@ -80,6 +86,7 @@
+@@ -81,6 +87,7 @@
  #include "chrome/browser/ui/views/omnibox/omnibox_popup_webui_content.h"
  #include "chrome/browser/ui/views/omnibox/omnibox_view_views.h"
  #include "chrome/browser/ui/views/page_action/page_action_container_view.h"
@@ -2201,7 +2218,7 @@ index 9251f8590b..8f4403d28d 100644
  #include "chrome/browser/ui/views/page_action/page_action_view_params.h"
  #include "chrome/browser/ui/views/page_info/page_info_bubble_specification.h"
  #include "chrome/browser/ui/views/page_info/page_info_bubble_view.h"
-@@ -120,6 +127,7 @@
+@@ -122,6 +129,7 @@
  #include "content/public/browser/render_widget_host_view.h"
  #include "content/public/browser/web_contents.h"
  #include "content/public/browser/web_contents_observer.h"
@@ -2209,7 +2226,7 @@ index 9251f8590b..8f4403d28d 100644
  #include "services/device/public/cpp/device_features.h"
  #include "third_party/metrics_proto/omnibox_event.pb.h"
  #include "third_party/skia/include/core/SkColor.h"
-@@ -179,6 +187,14 @@ int IncrementalMinimumWidth(const views::View* view) {
+@@ -182,6 +190,14 @@ int IncrementalMinimumWidth(const views::View* view) {
  // The padding between the content setting icons and other trailing decorations.
  constexpr int kContentSettingIntraItemPadding = 8;
  
@@ -2224,7 +2241,7 @@ index 9251f8590b..8f4403d28d 100644
  // Capsule dimensions and padding for the elevated page action toolbar.
  constexpr int kPageActionCapsuleEdgePadding = 2;
  constexpr int kPageActionCapsuleVerticalPadding = 2;
-@@ -274,6 +290,10 @@ LocationBarView::~LocationBarView() {
+@@ -294,6 +310,10 @@ LocationBarView::~LocationBarView() {
  }
  
  void LocationBarView::Init() {
@@ -2235,22 +2252,22 @@ index 9251f8590b..8f4403d28d 100644
    TRACE_EVENT0("omnibox", "LocationBarView::Init");
    static bool has_logged_startup_to_init = false;
    if (!has_logged_startup_to_init) {
-@@ -785,7 +805,11 @@ void LocationBarView::Layout(PassKey) {
-   //  - The popup is open.
+@@ -812,7 +832,11 @@ void LocationBarView::Layout(PassKey) {
+   //  - The popup is open, and it isn't the full WebUI popup.
    //  - The location icon view does *not* display a label.
    //  - The selected keyword view is *not* visible.
 +  // navegador: com foco o ícone e o texto já vão pro lugar de quando as
 +  // sugestões abrem. Antes andavam duas vezes: ao apertar o clique (foco) e
 +  // de novo ao soltar (sugestões).
-   const bool should_indent = (omnibox_controller_->IsPopupOpen() ||
+   const bool should_indent = (ShouldUsePopupOpenAppearance() ||
 +                              omnibox_view_->HasFocus() ||
                                omnibox_feature_configs::AdjustOmniboxIndent()
                                    .Get()
                                    .indent_input_when_popup_closed) &&
-@@ -793,6 +817,10 @@ void LocationBarView::Layout(PassKey) {
+@@ -820,6 +844,10 @@ void LocationBarView::Layout(PassKey) {
                               !ShouldShowKeywordBubble();
    if (should_indent) {
-     icon_left += 7 /*icon_indent*/;
+     icon_left += GetLayoutConstant(LayoutConstant::kLocationBarInputIconIndent);
 +    // navegador: o pop-up fica rente à barra (sem os 6 px de cada lado do
 +    // Chromium) e as linhas têm margem de 6: o ícone acompanha os das
 +    // sugestões.
@@ -2258,7 +2275,7 @@ index 9251f8590b..8f4403d28d 100644
      icon_left += omnibox_feature_configs::AdjustOmniboxIndent()
                       .Get()
                       .input_icon_indent_offset;
-@@ -853,6 +881,7 @@ void LocationBarView::Layout(PassKey) {
+@@ -880,6 +908,7 @@ void LocationBarView::Layout(PassKey) {
      }
    }
  
@@ -2266,7 +2283,7 @@ index 9251f8590b..8f4403d28d 100644
    if (ShouldShowKeywordBubble()) {
      location_icon_view_->SetVisible(false);
      leading_decorations.AddDecoration(
-@@ -862,14 +891,25 @@ void LocationBarView::Layout(PassKey) {
+@@ -889,14 +918,25 @@ void LocationBarView::Layout(PassKey) {
    } else if (location_icon_view_->GetShowText() &&
               !ShouldChipOverrideLocationIcon()) {
      location_icon_view_->SetVisible(true);
@@ -2295,7 +2312,7 @@ index 9251f8590b..8f4403d28d 100644
    } else {
      location_icon_view_->SetVisible(false);
    }
-@@ -882,6 +922,26 @@ void LocationBarView::Layout(PassKey) {
+@@ -909,6 +949,26 @@ void LocationBarView::Layout(PassKey) {
            /*max_fraction=*/0, intra_item_padding, edge_padding, view);
      }
    };
@@ -2322,7 +2339,7 @@ index 9251f8590b..8f4403d28d 100644
  
    if (features::IsPageActionsElevatedToolbarEnabled()) {
      if (page_action_container_ && page_action_container_->GetVisible()) {
-@@ -1066,6 +1126,12 @@ void LocationBarView::Update(WebContents* contents) {
+@@ -1094,6 +1154,12 @@ void LocationBarView::Update(WebContents* contents) {
    } else {
      omnibox_view_->Update();
    }
@@ -2335,7 +2352,7 @@ index 9251f8590b..8f4403d28d 100644
  
    // Ensures that the page action updates is performed after the omnibox update.
    // So we can determine whether page actions should be hidden or not.
-@@ -1417,8 +1483,16 @@ void LocationBarView::RefreshBackground() {
+@@ -1463,8 +1529,16 @@ void LocationBarView::RefreshBackground() {
      border_color = color_provider->GetColor(kColorLocationBarBorderOnMismatch);
    }
  
@@ -2352,7 +2369,7 @@ index 9251f8590b..8f4403d28d 100644
    } else {
      SetBackground(CreateRoundRectBackground(
          background_color_, border_color, size(),
-@@ -1437,6 +1511,43 @@ void LocationBarView::RefreshBackground() {
+@@ -1483,6 +1557,43 @@ void LocationBarView::RefreshBackground() {
      permission_dashboard_view_->SetDividerBackgroundColor(background_color_);
    }
  
@@ -2396,7 +2413,7 @@ index 9251f8590b..8f4403d28d 100644
    SchedulePaint();
  }
  
-@@ -1581,6 +1692,13 @@ void LocationBarView::OnPageInfoBubbleClosed(
+@@ -1621,6 +1732,13 @@ void LocationBarView::OnPageInfoBubbleClosed(
  }
  
  void LocationBarView::FocusSearch() {
@@ -2409,8 +2426,8 @@ index 9251f8590b..8f4403d28d 100644
 +  }
    // This is called by keyboard accelerator, so it's user-initiated.
    FocusLocation(/*is_user_initiated=*/true, /*clear_focus_if_failed=*/false);
-   omnibox_view_->EnterKeywordModeForDefaultSearchProvider();
-@@ -2041,6 +2159,10 @@ void LocationBarView::OnOmniboxFocused() {
+   if (IsFullWebUiOmniboxReady()) {
+@@ -2175,6 +2293,10 @@ void LocationBarView::OnOmniboxFocused() {
    // the omnibox is intentional, snapping is better than transitioning here.
    hover_animation_.Reset();
    RefreshBackground();
@@ -2421,7 +2438,7 @@ index 9251f8590b..8f4403d28d 100644
  
    // The AI mode page action should only be visible when the omnibox
    // is focused, so if there is a change in focus, refresh the icon.
-@@ -2067,6 +2189,8 @@ void LocationBarView::OnOmniboxBlurred() {
+@@ -2201,6 +2323,8 @@ void LocationBarView::OnOmniboxBlurred() {
    RefreshAiModePageAction();
  
    location_icon_view_->Update(false, false);
@@ -2430,7 +2447,7 @@ index 9251f8590b..8f4403d28d 100644
  }
  
  bool LocationBarView::IsFullWebUiOmniboxReady() const {
-@@ -2075,6 +2199,13 @@ bool LocationBarView::IsFullWebUiOmniboxReady() const {
+@@ -2209,6 +2333,13 @@ bool LocationBarView::IsFullWebUiOmniboxReady() const {
  }
  
  void LocationBarView::OnOmniboxHovered(bool is_hovering) {
@@ -2444,7 +2461,7 @@ index 9251f8590b..8f4403d28d 100644
    if (is_hovering) {
      // Only show the hover animation when omnibox is in unfocused steady state.
      if (!omnibox_view_->HasFocus()) {
-@@ -2083,6 +2214,33 @@ void LocationBarView::OnOmniboxHovered(bool is_hovering) {
+@@ -2217,6 +2348,33 @@ void LocationBarView::OnOmniboxHovered(bool is_hovering) {
    } else {
      hover_animation_.Hide();
    }
@@ -2479,10 +2496,10 @@ index 9251f8590b..8f4403d28d 100644
  
  void LocationBarView::OnTouchUiChanged() {
 diff --git i/chrome/browser/ui/views/location_bar/location_bar_view.h w/chrome/browser/ui/views/location_bar/location_bar_view.h
-index dc2ea8c236..fe6a1bd25b 100644
+index 317211c69c..e94ecbbcd0 100644
 --- i/chrome/browser/ui/views/location_bar/location_bar_view.h
 +++ w/chrome/browser/ui/views/location_bar/location_bar_view.h
-@@ -288,6 +288,10 @@ class LocationBarView
+@@ -289,6 +289,10 @@ class LocationBarView
    // |is_hovering| should be true when mouse is in omnibox; false when exited.
    void OnOmniboxHovered(bool is_hovering);
  
@@ -2493,7 +2510,7 @@ index dc2ea8c236..fe6a1bd25b 100644
    // LocationBar:
    void SetPermissionPromptShowing(bool showing) override;
    void UpdateFocusBehavior(bool toolbar_visible) override;
-@@ -607,6 +611,14 @@ class LocationBarView
+@@ -640,6 +644,14 @@ class LocationBarView
  
    bool is_initialized_ = false;
  
@@ -2509,7 +2526,7 @@ index dc2ea8c236..fe6a1bd25b 100644
  
    // The focus manager associated with this view. The focus manager is expected
 diff --git i/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc w/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
-index a9a27b7c5f..c0275f48bc 100644
+index 66378d0ace..bb182dbc09 100644
 --- i/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
 +++ w/chrome/browser/ui/views/omnibox/omnibox_placeholder_util.cc
 @@ -110,6 +110,14 @@ bool ShouldShowPlaceholderText(LocationBar* location_bar,
@@ -2524,14 +2541,14 @@ index a9a27b7c5f..c0275f48bc 100644
 +    return !controller->edit_model()->is_keyword_selected();
 +  }
 +
-   if (base::FeatureList::IsEnabled(
-           omnibox::kOmniboxAimDeferShowUntilVisualStateReady)) {
+   if (omnibox::ShouldDeferAimShowUntilVisualStateReady()) {
      // Suppress the hint text while the AIM popup is displayed or in deferred
+     // transition.
 diff --git i/chrome/browser/ui/views/omnibox/omnibox_view_views.cc w/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
-index 58337c04cc..7fba3353f4 100644
+index 5fe6c35545..754d16e9a5 100644
 --- i/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
 +++ w/chrome/browser/ui/views/omnibox/omnibox_view_views.cc
-@@ -1516,6 +1516,15 @@ bool OmniboxViewViews::OnMouseDragged(const ui::MouseEvent& event) {
+@@ -1614,6 +1614,15 @@ bool OmniboxViewViews::OnMouseDragged(const ui::MouseEvent& event) {
      return true;
    }
  
@@ -2547,7 +2564,7 @@ index 58337c04cc..7fba3353f4 100644
    if (HasTextBeingDragged()) {
      if (auto* popup_closer = controller()->client()->GetOmniboxPopupCloser()) {
        popup_closer->CloseWithReason(omnibox::PopupCloseReason::kTextDrag);
-@@ -2527,10 +2536,10 @@ void OmniboxViewViews::PerformDrop(
+@@ -2690,10 +2699,10 @@ void OmniboxViewViews::PerformDrop(
  }
  
  void OmniboxViewViews::UpdatePlaceholderTextColor() {
@@ -2562,45 +2579,33 @@ index 58337c04cc..7fba3353f4 100644
  }
  
  BEGIN_METADATA(OmniboxViewViews)
-diff --git i/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc w/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
-index debac67f17..894350686c 100644
---- i/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
-+++ w/chrome/browser/ui/views/omnibox/rounded_omnibox_results_frame.cc
-@@ -327,7 +327,10 @@ gfx::Insets RoundedOmniboxResultsFrame::GetLocationBarAlignmentInsets() {
-   }
-   return gfx::Insets::VH(5, 6);
- #else
--  return gfx::Insets::VH(5, 6);
-+  // navegador: o pop-up rente à barra em cima e dos lados (o Chromium deixa
-+  // 5 e 6 de folga): ao abrir as sugestões a caixa não cresce, só desce.
-+  // Embaixo fica a folga entre a barra e a primeira sugestão.
-+  return gfx::Insets::TLBR(0, 0, 5, 0);
- #endif
- }
- 
 diff --git i/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc w/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
-index c7c218422c..cd2172eca5 100644
+index 413c423e53..f58daa2c2a 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_group_header_view.cc
-@@ -530,6 +530,13 @@ void TabGroupHeaderView::OnDataChanged(
-         GetTabGroupTabStripColorId(tab_group_visual_data_.color(),
-                                    GetWidget()->ShouldPaintAsActive()));
-     SkColor foreground_color = GetForegroundColor();
-+    // navegador: na lateral, o grupo é só texto discreto (como no Dia), sem
-+    // etiqueta colorida; a cor do grupo fica na linha ao lado das abas.
-+    if (orientation_ == TabStripOrientation::kVertical) {
-+      background_color = SK_ColorTRANSPARENT;
-+      foreground_color = GetColorProvider()->GetColor(
-+          kColorTabForegroundInactiveFrameActive);
-+    }
+@@ -645,8 +645,15 @@ void TabGroupHeaderView::UpdateColors() {
+   if (!GetColorProvider()) {
+     return;
+   }
+-  const SkColor background_color = GetBackgroundColor();
+-  const SkColor foreground_color = GetForegroundColor();
++  SkColor background_color = GetBackgroundColor();
++  SkColor foreground_color = GetForegroundColor();
++  // navegador: na lateral, o grupo é só texto discreto (como no Dia), sem
++  // etiqueta colorida; a cor do grupo fica na linha ao lado das abas.
++  if (orientation_ == TabStripOrientation::kVertical) {
++    background_color = SK_ColorTRANSPARENT;
++    foreground_color =
++        GetColorProvider()->GetColor(kColorTabForegroundInactiveFrameActive);
++  }
  
-     // Update label.
-     group_header_label_->SetEnabledColor(foreground_color);
+   // Update label.
+   group_header_label_->SetEnabledColor(foreground_color);
 diff --git i/chrome/browser/ui/views/tabs/common/tab_group_view.cc w/chrome/browser/ui/views/tabs/common/tab_group_view.cc
-index cb782286ee..e71afa0132 100644
+index edf3ac1828..b491460fb7 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_group_view.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_group_view.cc
-@@ -35,7 +35,13 @@
+@@ -36,7 +36,13 @@
  #include "content/public/browser/navigation_controller.h"
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/base/models/list_selection_model.h"
@@ -2614,7 +2619,7 @@ index cb782286ee..e71afa0132 100644
  #include "ui/views/controls/button/label_button.h"
  #include "ui/views/controls/scroll_view.h"
  #include "ui/views/layout/delegating_layout_manager.h"
-@@ -57,6 +63,33 @@ const TabGroup* GetTabGroupFromNode(TabCollectionNode* node) {
+@@ -58,6 +64,33 @@ const TabGroup* GetTabGroupFromNode(TabCollectionNode* node) {
  
  }  // namespace
  
@@ -2648,7 +2653,7 @@ index cb782286ee..e71afa0132 100644
  TabGroupView::TabGroupView(TabCollectionNode* collection_node)
      : DraggedTabsContainer(
            static_cast<views::View&>(*this),
-@@ -109,6 +142,10 @@ TabGroupView::TabGroupView(TabCollectionNode* collection_node)
+@@ -116,6 +149,10 @@ TabGroupView::TabGroupView(TabCollectionNode* collection_node)
            base::BindRepeating(&TabGroupView::OnDataChanged,
                                base::Unretained(this)));
    OnDataChanged();
@@ -2659,8 +2664,19 @@ index cb782286ee..e71afa0132 100644
  }
  
  TabGroupView::~TabGroupView() = default;
+@@ -316,7 +353,9 @@ void TabGroupView::OnDataChanged() {
+   is_ephemeral_ = GetTabGroupFromNode(collection_node_)->is_ephemeral();
+   tab_group_visual_data_ = tab_group_data.visual_data;
+   if (unfocus_header_) {
+-    unfocus_header_->SetVisible(IsGroupFocused());
++    // navegador: grupo focado é o espaço, e não tem "sair do foco" (o botão
++    // ficava em cima da primeira aba). Sai-se de um espaço trocando de espaço.
++    unfocus_header_->SetVisible(false);
+     unfocus_header_->SetGroupColorData(tab_group_visual_data_.color(),
+                                        is_ephemeral_);
+   }
 diff --git i/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc w/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
-index c3035d4826..e082783f57 100644
+index 8116e7a09b..f08c9a276c 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_group_view_layout.cc
 @@ -4,6 +4,9 @@
@@ -2671,8 +2687,8 @@ index c3035d4826..e082783f57 100644
 +#include "navegador/browser/ui/visual.h"
 +
  #include <algorithm>
- #include <vector>
  
+ #include "chrome/browser/ui/layout_constants.h"
 @@ -25,7 +28,17 @@
  #include "ui/views/view_utils.h"
  
@@ -2692,7 +2708,35 @@ index c3035d4826..e082783f57 100644
  constexpr int kGroupLineWidth = 2;
  constexpr int kGroupLineCollapsedLeadingPadding = 6;
  constexpr int kGroupHeaderHeight = 26;
-@@ -92,12 +105,20 @@ views::ProposedLayout TabGroupViewLayout::CalculateVerticalLayout(
+@@ -85,24 +98,10 @@ views::ProposedLayout TabGroupViewLayout::CalculateVerticalLayout(
+         GetLayoutConstant(LayoutConstant::kVerticalTabStripHorizontalPadding));
+   }
+ 
++  // navegador: grupo focado é o espaço da janela, que não tem "sair do foco".
+   if (tab_group_view->unfocus_header_) {
+-    if (tab_group_view->IsGroupFocused()) {
+-      gfx::Rect unfocus_bounds;
+-      unfocus_bounds.set_x(header_bounds.x());
+-      unfocus_bounds.set_y(height);
+-      unfocus_bounds.set_height(kGroupHeaderHeight);
+-      if (size_bounds.width().is_bounded()) {
+-        unfocus_bounds.set_width(size_bounds.width().value() -
+-                                 unfocus_bounds.x());
+-      }
+-      layouts.child_layouts.emplace_back(tab_group_view->unfocus_header_.get(),
+-                                         true, unfocus_bounds);
+-      height += unfocus_bounds.height() + kFocusedHeadersGap;
+-      width = std::max(width, unfocus_bounds.width());
+-    } else {
+-      layouts.child_layouts.emplace_back(tab_group_view->unfocus_header_.get(),
+-                                         false, gfx::Rect());
+-    }
++    layouts.child_layouts.emplace_back(tab_group_view->unfocus_header_.get(),
++                                       false, gfx::Rect());
+   }
+ 
+   header_bounds.set_y(height);
+@@ -113,12 +112,20 @@ views::ProposedLayout TabGroupViewLayout::CalculateVerticalLayout(
      header_bounds.set_width(size_bounds.width().value() - header_bounds.x());
    }
  
@@ -2716,7 +2760,7 @@ index c3035d4826..e082783f57 100644
    width = std::max(width, header_bounds.width());
  
    // If the tab strip is not collapsed then the group line is below and left
-@@ -119,6 +140,16 @@ views::ProposedLayout TabGroupViewLayout::CalculateVerticalLayout(
+@@ -140,6 +147,16 @@ views::ProposedLayout TabGroupViewLayout::CalculateVerticalLayout(
    // Layout children in order. Children will have their preferred height and
    // fill available width.
    for (auto* child : children) {
@@ -2734,7 +2778,7 @@ index c3035d4826..e082783f57 100644
  
      auto drag_data = tab_group_view->GetVisualDataForDraggedView(*child);
 diff --git i/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc w/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc
-index 5dd9f7ef1a..6969f5de67 100644
+index 366f3e39e5..8c2790070d 100644
 --- i/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc
 +++ w/chrome/browser/ui/views/tabs/common/unpinned_tab_container_view_layout.cc
 @@ -4,6 +4,8 @@
@@ -2756,7 +2800,7 @@ index 5dd9f7ef1a..6969f5de67 100644
  }  // namespace
  
  UnpinnedTabContainerViewLayout::UnpinnedTabContainerViewLayout(
-@@ -344,6 +347,12 @@ gfx::Size UnpinnedTabContainerViewLayout::CalculateVerticalMinimumSize(
+@@ -363,6 +366,12 @@ gfx::Size UnpinnedTabContainerViewLayout::CalculateVerticalMinimumSize(
          should_show = false;
        }
      }
@@ -2769,7 +2813,7 @@ index 5dd9f7ef1a..6969f5de67 100644
      if (should_show) {
        num_children++;
      }
-@@ -368,6 +377,11 @@ bool UnpinnedTabContainerViewLayout::IsChildVisibleInContainer(
+@@ -387,6 +396,11 @@ bool UnpinnedTabContainerViewLayout::IsChildVisibleInContainer(
    if (drag_data && drag_data->should_hide) {
      return false;
    }
@@ -2782,22 +2826,23 @@ index 5dd9f7ef1a..6969f5de67 100644
        GetGroupIdForChild(child) != focused_group_id.value()) {
      return false;
 diff --git i/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc w/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
-index ffb1fdda20..ddcd730275 100644
+index f448c7c94a..157d3c3dad 100644
 --- i/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
 +++ w/chrome/browser/ui/views/tabs/shared/tab_strip_combo_button.cc
-@@ -379,13 +379,13 @@ void TabStripComboButton::SetTabSearchBubbleHost(TabSearchBubbleHost* host) {
+@@ -392,14 +392,13 @@ void TabStripComboButton::SetTabSearchBubbleHost(TabSearchBubbleHost* host) {
    tab_search_bubble_host_observation_.Reset();
    if (host) {
      tab_search_bubble_host_observation_.Observe(host);
+-    const bool use_vertical_strip_icon = context_ == Context::kVerticalTabStrip;
 +    // navegador: seta pra baixo também na lateral, como o "abas recentes" do
 +    // Dia (o Chromium põe uma lupa).
      GetEndButtonActionItem()->SetImage(ui::ImageModel::FromVectorIcon(
--        context_ == Context::kVerticalTabStrip
--            ? features::IsRoundedIconsEnabled() ? kManageSearchIcon
--                                                : kTabSearchTabStripOldIcon
--        : features::IsRoundedIconsEnabled()
--            ? vector_icons::kKeyboardArrowDownIcon
--            : vector_icons::kExpandMoreOldIcon));
+-        use_vertical_strip_icon
+-            ? (features::IsRoundedIconsEnabled() ? kManageSearchIcon
+-                                                 : kTabSearchTabStripOldIcon)
+-            : (features::IsRoundedIconsEnabled()
+-                   ? vector_icons::kKeyboardArrowDownIcon
+-                   : vector_icons::kExpandMoreOldIcon)));
 +        features::IsRoundedIconsEnabled() ? vector_icons::kKeyboardArrowDownIcon
 +                                          : vector_icons::kExpandMoreOldIcon));
 +    // A seta parece ser do nome do espaço, ao lado: a dica diz o que é.
@@ -2806,18 +2851,18 @@ index ffb1fdda20..ddcd730275 100644
  }
  
 diff --git i/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc w/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc
-index 52dd469d6d..6fdea3fb0c 100644
+index d53de82715..a40491bf02 100644
 --- i/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc
 +++ w/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.cc
-@@ -14,6 +14,7 @@
- #include "ui/base/ui_base_features.h"
+@@ -13,6 +13,7 @@
+ #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/compositor/layer.h"
  #include "ui/gfx/canvas.h"
 +#include "ui/gfx/font_list.h"
  #include "ui/gfx/geometry/skia_conversions.h"
  #include "ui/views/actions/action_view_interface.h"
  #include "ui/views/animation/ink_drop.h"
-@@ -160,6 +161,9 @@ void TabStripFlatEdgeButton::SetShouldShowLabel(bool show_label) {
+@@ -159,6 +160,9 @@ void TabStripFlatEdgeButton::SetShouldShowLabel(bool show_label) {
      label()->SetSkipSubpixelRenderingOpacityCheck(true);
      label()->layer()->SetFillsBoundsOpaquely(false);
      label()->SetSubpixelRenderingEnabled(false);
@@ -2827,7 +2872,7 @@ index 52dd469d6d..6fdea3fb0c 100644
    }
  }
  
-@@ -337,8 +341,20 @@ void TabStripFlatEdgeButton::UpdateLabel(bool should_show) {
+@@ -331,8 +335,20 @@ void TabStripFlatEdgeButton::UpdateLabel(bool should_show) {
    }
    if (should_show == GetText().empty()) {
      SetHorizontalAlignment(should_show ? gfx::ALIGN_LEFT : gfx::ALIGN_CENTER);
@@ -2851,7 +2896,7 @@ index 52dd469d6d..6fdea3fb0c 100644
    auto label = should_show ? label_text_ : std::u16string();
    if (label != GetText()) {
 diff --git i/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h w/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h
-index 125f2eed7c..00f08e2b47 100644
+index c2271152f4..6605cedd2f 100644
 --- i/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h
 +++ w/chrome/browser/ui/views/tabs/shared/tab_strip_flat_edge_button.h
 @@ -5,6 +5,10 @@
@@ -2865,7 +2910,7 @@ index 125f2eed7c..00f08e2b47 100644
  #include "ui/base/metadata/metadata_impl_macros.h"
  #include "ui/views/controls/button/label_button.h"
  #include "ui/views/layout/layout_types.h"
-@@ -89,6 +93,8 @@ class TabStripFlatEdgeButton : public views::LabelButton,
+@@ -87,6 +91,8 @@ class TabStripFlatEdgeButton : public views::LabelButton,
    // Whether the label should be shown, if there is space.
    bool should_show_label_ = false;
    std::u16string label_text_;
@@ -2914,10 +2959,10 @@ index b0b58ef943..5ae1de1d7b 100644
  
  BEGIN_METADATA(TabTitle)
 diff --git i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-index bc3b0459ed..ddb8a80bd4 100644
+index 64150f80cf..7a825091df 100644
 --- i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
 +++ w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_bottom_container.cc
-@@ -36,6 +36,11 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
+@@ -35,6 +35,11 @@ VerticalTabStripBottomContainer::VerticalTabStripBottomContainer(
        &VerticalTabStripBottomContainer::OnNewTabButtonContextMenuClosed,
        base::Unretained(this)));
  
@@ -2929,7 +2974,7 @@ index bc3b0459ed..ddb8a80bd4 100644
    new_tab_button_pressed_subscription_ =
        new_tab_button->RegisterWillInvokeActionCallback(
            record_new_tab_button_pressed);
-@@ -69,9 +74,11 @@ bool VerticalTabStripBottomContainer::IsPositionInWindowCaption(
+@@ -68,9 +73,11 @@ bool VerticalTabStripBottomContainer::IsPositionInWindowCaption(
  
  void VerticalTabStripBottomContainer::OnCollapseStateChanged(
      tabs::VerticalTabStripCollapseState state) {
@@ -2945,7 +2990,7 @@ index bc3b0459ed..ddb8a80bd4 100644
  
  void VerticalTabStripBottomContainer::OnNewTabButtonContextMenuWillShow() {
 diff --git i/components/bookmarks/browser/bookmark_utils.cc w/components/bookmarks/browser/bookmark_utils.cc
-index d8f32a1ca6..0f9d4e3d3b 100644
+index 0e37a3aff2..ce4c1bc399 100644
 --- i/components/bookmarks/browser/bookmark_utils.cc
 +++ w/components/bookmarks/browser/bookmark_utils.cc
 @@ -464,7 +464,8 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry) {
@@ -2993,10 +3038,10 @@ index d5c6d18f92..6cf329c54f 100644
    // in the location bar.
    virtual bool ShouldDisplayURL() const;
 diff --git i/components/omnibox/browser/location_bar_model_impl.cc w/components/omnibox/browser/location_bar_model_impl.cc
-index fceda6b642..7ae8e7bc8c 100644
+index 5445f8e535..74e9370b26 100644
 --- i/components/omnibox/browser/location_bar_model_impl.cc
 +++ w/components/omnibox/browser/location_bar_model_impl.cc
-@@ -149,6 +149,17 @@ std::u16string LocationBarModelImpl::GetFormattedURL(
+@@ -158,6 +158,17 @@ std::u16string LocationBarModelImpl::GetFormattedURL(
    // a real problem, we could perhaps try to keep some sort of different "elided
    // visible URL" where editing affects and reloads the "real underlying URL",
    // but this seems very tricky for little gain.
@@ -3052,10 +3097,10 @@ index 49acbc8ce9..6f26646d1f 100644
  constexpr int kMaxRippleBurstRadius = 48;
  constexpr gfx::Tween::Type kBurstAnimationTweenType =
 diff --git i/media/base/media_switches.cc w/media/base/media_switches.cc
-index 3f75c218a3..733d9e4417 100644
+index af08e2530c..1dfd1098a8 100644
 --- i/media/base/media_switches.cc
 +++ w/media/base/media_switches.cc
-@@ -551,7 +551,8 @@ BASE_FEATURE(kDocumentPictureInPictureReparenting,
+@@ -550,7 +550,8 @@ BASE_FEATURE(kDocumentPictureInPictureReparenting,
  BASE_FEATURE(kEnableRtcpReporting, base::FEATURE_ENABLED_BY_DEFAULT);
  
  // Enables user control over muting tab audio from the tab strip.
@@ -3081,10 +3126,10 @@ index 46ca6525b0..f8067705ec 100644
    return GetFontFamily();
  #endif
 diff --git i/ui/gfx/paint_vector_icon.cc w/ui/gfx/paint_vector_icon.cc
-index eef47b4c9b..7a93595423 100644
+index 9d529901e6..a80dd8ffd6 100644
 --- i/ui/gfx/paint_vector_icon.cc
 +++ w/ui/gfx/paint_vector_icon.cc
-@@ -183,6 +183,8 @@ void PaintPath(Canvas* canvas,
+@@ -184,6 +184,8 @@ void PaintPath(Canvas* canvas,
        case STROKE:
          flags.setStyle(cc::PaintFlags::kStroke_Style);
          flags.setStrokeWidth(arg(0));
@@ -3155,7 +3200,7 @@ index a711c50328..67b4fecdde 100644
  
  // static
 diff --git i/ui/webui/resources/cr_components/searchbox/searchbox_match.css w/ui/webui/resources/cr_components/searchbox/searchbox_match.css
-index 0420bd5f0b..a6a4551267 100644
+index 2344ea9e80..8093b6ebdc 100644
 --- i/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 +++ w/ui/webui/resources/cr_components/searchbox/searchbox_match.css
 @@ -81,6 +81,13 @@

@@ -305,7 +305,7 @@ class Conta {
 }  // namespace
 
 NavegadorProvider::NavegadorProvider(AutocompleteProviderClient* client)
-    : AutocompleteProvider(AutocompleteProvider::TYPE_NAVEGADOR),
+    : AutocompleteProvider(AutocompleteProvider::Type::kNavegador),
       client_(client) {}
 
 NavegadorProvider::~NavegadorProvider() = default;
@@ -368,7 +368,7 @@ void NavegadorProvider::Stop(AutocompleteStopReason stop_reason) {
 }
 
 void NavegadorProvider::DeleteMatch(const AutocompleteMatch& match) {
-  if (match.type != AutocompleteMatchType::HISTORY_BODY) {
+  if (match.type != omnibox::AutocompleteMatchType::kHistoryBody) {
     return;
   }
   client_->NavegadorEsquecer(match.destination_url);
@@ -405,7 +405,7 @@ void NavegadorProvider::Lembrou(int pedido,
     const NavegadorLembranca& lembranca = lembrancas[i];
     AutocompleteMatch match(this, kRelevanciaDaMemoria - static_cast<int>(i),
                             /*deletable=*/true,
-                            AutocompleteMatchType::HISTORY_BODY);
+                            omnibox::AutocompleteMatchType::kHistoryBody);
     match.destination_url = lembranca.url;
     GURL::Replacements sem_trecho;
     sem_trecho.ClearRef();
@@ -448,7 +448,7 @@ void NavegadorProvider::Lembrou(int pedido,
     AutocompleteMatch match(
         this,
         kRelevanciaDaMemoria - static_cast<int>(kMaximoDaMemoria) - 1,
-        /*deletable=*/false, AutocompleteMatchType::PEDAL);
+        /*deletable=*/false, omnibox::AutocompleteMatchType::kPedal);
     match.takeover_action = base::MakeRefCounted<AcaoDoNorte>(
         "memoria:" + base::UTF16ToUTF8(texto), titulo);
     match.contents = titulo;
@@ -487,7 +487,7 @@ void NavegadorProvider::Comandos(const AutocompleteInput& input,
   for (size_t i = 0; i < primeiros.size() && i < kMaximoDeComandos; ++i) {
     const NavegadorComando& comando = primeiros[i];
     AutocompleteMatch match(this, kRelevanciaDoPrimeiro - static_cast<int>(i),
-                            /*deletable=*/false, AutocompleteMatchType::PEDAL);
+                            /*deletable=*/false, omnibox::AutocompleteMatchType::kPedal);
     match.takeover_action =
         base::MakeRefCounted<AcaoDoNorte>(comando.id, comando.titulo);
     match.contents = comando.titulo;
@@ -513,7 +513,7 @@ void NavegadorProvider::Calculadora(const AutocompleteInput& input) {
     return;
   }
   AutocompleteMatch match(this, kRelevanciaDaConta, /*deletable=*/false,
-                          AutocompleteMatchType::CALCULATOR);
+                          omnibox::AutocompleteMatchType::kCalculator);
   match.contents = conta + u" = " + *resultado;
   match.contents_class = {{0, ACMatchClassification::NONE}};
   match.description = u"Escolher copia o resultado";

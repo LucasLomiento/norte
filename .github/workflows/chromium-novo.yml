@@ -1,0 +1,43 @@
+# Abre uma issue quando sai uma versão estável do Chromium mais nova que a base do
+# Norte: as correções de segurança só chegam a quem usa o Norte com uma versão nova
+# dele. O GitHub desliga agendamentos em repositório sem atividade por 60 dias.
+
+name: Chromium novo
+
+on:
+  schedule:
+    - cron: '17 12 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  conferir:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - name: Compara com a estável
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          atual=$(cat CHROMIUM_VERSION)
+          nova=$(curl -fsS 'https://chromiumdash.appspot.com/fetch_releases?channel=Stable&platform=Linux&num=1' | jq -r '.[0].version')
+          echo "Base: $atual. Estável: $nova."
+          if [ "$(printf '%s\n%s\n' "$atual" "$nova" | sort -V | tail -1)" = "$atual" ]; then
+            exit 0
+          fi
+          titulo="Chromium novo: $nova"
+          abertas=$(gh issue list --state open --search 'in:title "Chromium novo:"' --json number,title)
+          if echo "$abertas" | jq -e --arg t "$titulo" 'any(.[]; .title == $t)' >/dev/null; then
+            exit 0
+          fi
+          numero=$(gh issue create --title "$titulo" --body "A estável do Chromium é a **$nova**, e o Norte está na **$atual**. As correções de segurança só chegam a quem usa o Norte com uma versão nova dele.
+
+          [O que mudou](https://chromereleases.googleblog.com/). Como atualizar: \`tools/atualizar-chromium.sh $nova\`.")
+          echo "Aberta: $numero"
+          echo "$abertas" | jq -r '.[].number' | while read -r antiga; do
+            gh issue close "$antiga" --comment "Substituída: $numero"
+          done

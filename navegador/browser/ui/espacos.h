@@ -34,10 +34,14 @@ class View;
 
 namespace navegador::espacos {
 
-// Põe no fim de `lateral` (a VerticalTabStripRegionView, de FlexLayout
-// vertical) um espaçador que empurra pra baixo e a faixa de espaços, e liga
-// o controle de espaços da janela.
-void AdicionarFaixa(views::View* lateral, BrowserWindowInterface* browser);
+// Põe no fim da coluna de conteúdo da lateral (a VerticalTabStripRegionView) um
+// espaçador que empurra pra baixo e a faixa de espaços, e liga o controle de
+// espaços da janela.
+// `lateral` é a lateral inteira (onde os gestos valem) e `conteudo`, a coluna dela
+// onde ficam as abas e onde a faixa entra, embaixo delas.
+void AdicionarFaixa(views::View* lateral,
+                    views::View* conteudo,
+                    BrowserWindowInterface* browser);
 
 // Nome do espaço atual pro cabeçalho da lateral (entre o logo e a seta),
 // como o nome do perfil no Dia: clicar abre a lista de espaços. Chamar

@@ -1,8 +1,20 @@
+diff --git i/chrome/BUILD.gn w/chrome/BUILD.gn
+index f1d133b6cd..b91c51ec63 100644
+--- i/chrome/BUILD.gn
++++ w/chrome/BUILD.gn
+@@ -1636,6 +1636,7 @@ group("dependencies") {
+     "//build:branding_buildflags",
+     "//build:chromeos_buildflags",
+     "//chrome/browser",
++    "//navegador/browser/ui",  # navegador
+     "//chrome/browser:buildflags",
+     "//chrome/browser:shell_integration",
+     "//chrome/browser/diagnostics",
 diff --git i/chrome/browser/ui/BUILD.gn w/chrome/browser/ui/BUILD.gn
-index 82f397571f..bf6d9eacbb 100644
+index 1e352a02e9..6b7743415d 100644
 --- i/chrome/browser/ui/BUILD.gn
 +++ w/chrome/browser/ui/BUILD.gn
-@@ -144,6 +144,8 @@ if (!is_android) {
+@@ -237,6 +237,8 @@ if (!is_android) {
        "//ui/base/unowned_user_data",
      ]
      deps = [
@@ -11,108 +23,15 @@ index 82f397571f..bf6d9eacbb 100644
        "//chrome/app:generated_resources",
        "//chrome/browser/favicon",
        "//chrome/browser/resource_coordinator:mojo_bindings",
-@@ -399,6 +401,7 @@ if (!is_android) {
-       "//chrome/browser:browser_public_dependencies",
-     ]
+@@ -498,6 +500,7 @@ if (!is_android) {
+     public_deps = [ ":browser_tabrestore" ]
      deps = [
+       ":browser_window_header",
 +      "//navegador/browser/containers",  # navegador
        ":tab_ui_helper",
        "//base",
        "//chrome/browser/apps/app_service",
-@@ -1522,6 +1525,76 @@ static_library("ui") {
-       "browser_commands.cc",
-       "browser_commands.h",
-       "browser_live_tab_context.cc",
-+
-+      # navegador: espaços do Dia e a barra na cor do site.
-+      "//navegador/browser/memoria/memoria.cc",
-+      "//navegador/browser/memoria/memoria.h",
-+      "//navegador/browser/ui/painel_da_memoria.cc",
-+      "//navegador/browser/ui/painel_da_memoria.h",
-+      "//navegador/browser/ui/aba_nova.cc",
-+      "//navegador/browser/ui/aba_nova.h",
-+      "//navegador/browser/ui/atalhos.cc",
-+      "//navegador/browser/ui/atalhos.h",
-+      "//navegador/browser/ui/ativa_fora.cc",
-+      "//navegador/browser/ui/ativa_fora.h",
-+      "//navegador/browser/ui/atualizador.cc",
-+      "//navegador/browser/ui/atualizador.h",
-+      "//navegador/browser/ui/barra.cc",
-+      "//navegador/browser/ui/barra.h",
-+      "//navegador/browser/ui/bloqueador.cc",
-+      "//navegador/browser/ui/bloqueador.h",
-+      "//navegador/browser/ui/claude.cc",
-+      "//navegador/browser/ui/claude.h",
-+      "//navegador/browser/ui/comandos.cc",
-+      "//navegador/browser/ui/comandos.h",
-+      "//navegador/browser/ui/configuracoes.cc",
-+      "//navegador/browser/ui/configuracoes.h",
-+      "//navegador/browser/ui/cor_da_pagina.cc",
-+      "//navegador/browser/ui/cor_da_pagina.h",
-+      "//navegador/browser/ui/downloads/botao.cc",
-+      "//navegador/browser/ui/downloads/botao.h",
-+      "//navegador/browser/divisao/divisao.cc",
-+      "//navegador/browser/divisao/divisao.h",
-+      "//navegador/browser/divisao/soltar.cc",
-+      "//navegador/browser/divisao/soltar.h",
-+      "//navegador/browser/ui/espacos.cc",
-+      "//navegador/browser/ui/espacos.h",
-+      "//navegador/browser/ui/estilos.cc",
-+      "//navegador/browser/ui/estilos.h",
-+      "//navegador/browser/ui/exportar.cc",
-+      "//navegador/browser/ui/exportar.h",
-+      "//navegador/browser/ui/fontes.cc",
-+      "//navegador/browser/ui/fontes.h",
-+      "//navegador/browser/ui/grupos_salvos.cc",
-+      "//navegador/browser/ui/grupos_salvos.h",
-+      "//navegador/browser/ui/fixos.cc",
-+      "//navegador/browser/ui/fixos.h",
-+      "//navegador/browser/ui/importar_chromium.cc",
-+      "//navegador/browser/ui/importar_chromium.h",
-+      "//navegador/browser/ui/importar_zen.cc",
-+      "//navegador/browser/ui/importar_zen.h",
-+      "//navegador/browser/ui/links.cc",
-+      "//navegador/browser/ui/links.h",
-+      "//navegador/browser/ui/marca_nos_sites.cc",
-+      "//navegador/browser/ui/marca_nos_sites.h",
-+      "//navegador/browser/ui/menu_da_pagina.cc",
-+      "//navegador/browser/ui/menu_da_pagina.h",
-+      "//navegador/browser/ui/menu_do_logo.cc",
-+      "//navegador/browser/ui/menu_do_logo.h",
-+      "//navegador/browser/ui/previa.cc",
-+      "//navegador/browser/ui/previa.h",
-+      "//navegador/browser/ui/rotas.cc",
-+      "//navegador/browser/ui/rotas.h",
-+      "//navegador/browser/ui/seguidora.cc",
-+      "//navegador/browser/ui/seguidora.h",
-+      "//navegador/browser/ui/seletor_de_cor.cc",
-+      "//navegador/browser/ui/seletor_de_cor.h",
-+      "//navegador/browser/ui/sinal_de_carga.cc",
-+      "//navegador/browser/ui/sinal_de_carga.h",
-+      "//navegador/browser/ui/temporarios.cc",
-+      "//navegador/browser/ui/temporarios.h",
-+      "//navegador/browser/ui/tocando.cc",
-+      "//navegador/browser/ui/tocando.h",
-       "browser_manager_service.cc",
-       "browser_manager_service.h",
-       "browser_manager_service_factory.cc",
-@@ -1558,6 +1631,15 @@ static_library("ui") {
- 
-     # Non-android deps for "ui" target.
-     deps += [
-+      "//navegador/browser/containers",  # navegador
-+      "//navegador/browser/ui/containers:containers_ui",  # navegador
-+      "//navegador/browser/ui/containers:espaco",  # navegador
-+      "//navegador/browser/ui/downloads:ponte",  # navegador
-+      "//navegador/browser/memoria:nucleo",  # navegador (Memória)
-+      "//navegador/icones/menu",  # navegador (cartão "tocando agora")
-+      "//services/media_session/public/cpp",  # navegador
-+      "//services/media_session/public/mojom",  # navegador
-+      "//sql",  # navegador (importar do Zen)
-       ":accelerator_table",
-       ":browser_actions",
-       ":browser_select_file_dialog_controller",
-@@ -3877,6 +3959,10 @@ source_set("layout_constants") {
+@@ -1709,6 +1712,10 @@ source_set("layout_constants") {
    sources = [
      "layout_constants.cc",
      "layout_constants.h",
@@ -124,7 +43,7 @@ index 82f397571f..bf6d9eacbb 100644
  
    public_deps = [ "//ui/gfx/geometry" ]
 diff --git i/chrome/installer/mini_installer/chrome.release w/chrome/installer/mini_installer/chrome.release
-index 037b80488c..8918ec426a 100644
+index 33e8546206..b649df23b6 100644
 --- i/chrome/installer/mini_installer/chrome.release
 +++ w/chrome/installer/mini_installer/chrome.release
 @@ -38,6 +38,10 @@ vk_swiftshader.dll: %(VersionDir)s\

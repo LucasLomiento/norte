@@ -1,5 +1,5 @@
 diff --git i/sql/database.cc w/sql/database.cc
-index 528c012f79..0beed69c2c 100644
+index 6a39a5b83c..e9485da49e 100644
 --- i/sql/database.cc
 +++ w/sql/database.cc
 @@ -107,7 +107,7 @@ static constexpr char kSqliteOpenInMemoryPath[] = ":memory:";
@@ -11,7 +11,7 @@ index 528c012f79..0beed69c2c 100644
  
  // RAII-style wrapper that enables `writable_schema` until it goes out of scope.
  // No error checking on the PRAGMA statements because it is reasonable to just
-@@ -1586,7 +1586,7 @@ SqliteResultCode Database::ExecuteAndReturnResultCode(
+@@ -1585,7 +1585,7 @@ SqliteResultCode Database::ExecuteAndReturnResultCode(
      sqlite3_stmt* sqlite_statement;
      const char* leftover_sql;
      sqlite_result_code = ToSqliteResultCode(
@@ -20,7 +20,7 @@ index 528c012f79..0beed69c2c 100644
                             &sqlite_statement, &leftover_sql));
  
  #if DCHECK_IS_ON()
-@@ -1709,7 +1709,7 @@ bool Database::ExecuteScriptForTesting(base::cstring_view sql_script) {
+@@ -1708,7 +1708,7 @@ bool Database::ExecuteScriptForTesting(base::cstring_view sql_script) {
    while (*sql) {
      sqlite3_stmt* sqlite_statement;
      auto sqlite_result_code = ToSqliteResultCode(sqlite3_prepare_v3(
@@ -29,7 +29,7 @@ index 528c012f79..0beed69c2c 100644
      if (sqlite_result_code != SqliteResultCode::kOk) {
        return false;
      }
-@@ -1798,7 +1798,7 @@ scoped_refptr<Database::StatementRef> Database::GetStatementImpl(
+@@ -1797,7 +1797,7 @@ scoped_refptr<Database::StatementRef> Database::GetStatementImpl(
    //               prepared with prepFlags set to SQLITE_PREPARE_PERSISTENT.
    sqlite3_stmt* sqlite_statement;
    auto sqlite_result_code = ToSqliteResultCode(sqlite3_prepare_v3(
@@ -38,7 +38,7 @@ index 528c012f79..0beed69c2c 100644
        &sqlite_statement, unused_sql_ptr));
  
  #if DCHECK_IS_ON()
-@@ -1926,7 +1926,7 @@ bool Database::IsSQLValid(base::cstring_view sql) {
+@@ -1925,7 +1925,7 @@ bool Database::IsSQLValid(base::cstring_view sql) {
  
    sqlite3_stmt* sqlite_statement = nullptr;
    auto sqlite_result_code = ToSqliteResultCode(sqlite3_prepare_v3(
@@ -47,7 +47,7 @@ index 528c012f79..0beed69c2c 100644
        &sqlite_statement, unused_sql_ptr));
    if (sqlite_result_code != SqliteResultCode::kOk) {
      return false;
-@@ -2689,7 +2689,7 @@ bool Database::FullIntegrityCheck(std::vector<std::string>* messages) {
+@@ -2688,7 +2688,7 @@ bool Database::FullIntegrityCheck(std::vector<std::string>* messages) {
    constexpr char kIntegrityCheckSql[] = "PRAGMA integrity_check";
    const auto prepare_result_code = ToSqliteResultCode(
        sqlite3_prepare_v3(db_, kIntegrityCheckSql, sizeof(kIntegrityCheckSql),
@@ -56,7 +56,7 @@ index 528c012f79..0beed69c2c 100644
    if (prepare_result_code != SqliteResultCode::kOk) {
      return false;
    }
-@@ -2750,4 +2750,9 @@ bool Database::CheckpointDatabase(bool truncate) {
+@@ -2749,4 +2749,9 @@ bool Database::CheckpointDatabase(bool truncate) {
                             /*is_auto_checkpoint=*/false, truncate) == SQLITE_OK;
  }
  
@@ -67,7 +67,7 @@ index 528c012f79..0beed69c2c 100644
 +
  }  // namespace sql
 diff --git i/sql/database.h w/sql/database.h
-index 63c2cc6e33..ac40aece00 100644
+index 4239a9cc6f..b52b02d9a8 100644
 --- i/sql/database.h
 +++ w/sql/database.h
 @@ -255,6 +255,15 @@ struct COMPONENT_EXPORT(SQL) DatabaseOptions {
@@ -94,7 +94,7 @@ index 63c2cc6e33..ac40aece00 100644
    bool no_sync_ = false;
    base::RepeatingCallback<void(int)> wal_commit_callback_;
  };
-@@ -1171,6 +1181,10 @@ class COMPONENT_EXPORT(SQL) Database {
+@@ -1162,6 +1172,10 @@ class COMPONENT_EXPORT(SQL) Database {
                                          base::TimeDelta ms_timeout)
        VALID_CONTEXT_REQUIRED(sequence_checker_);
  
