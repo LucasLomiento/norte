@@ -416,10 +416,18 @@
     </div>
     <ol class="passos">
       <li>
+        <p class="passo-titulo">{{instalar.chave}}</p>
+        <div class="comando">
+          <pre id="cmd-chave"><span class="prompt">$</span> curl -fsSL https://github.com/LucasLomiento/norte-releases/raw/main/norte.asc | sudo pacman-key --add -
+<span class="prompt">$</span> sudo pacman-key --lsign-key {{CHAVE}}</pre>
+          <button class="copiar" type="button" data-copiar="cmd-chave" aria-label="{{instalar.copiar}}"><svg class="i"><use href="#i-copy"/></svg></button>
+        </div>
+      </li>
+      <li>
         <p class="passo-titulo">{{instalar.repo}}</p>
         <div class="comando">
           <pre id="cmd-repo">[norte]
-SigLevel = Optional TrustAll
+SigLevel = Required DatabaseRequired
 Server = https://github.com/LucasLomiento/norte-releases/releases/latest/download</pre>
           <button class="copiar" type="button" data-copiar="cmd-repo" aria-label="{{instalar.copiar}}"><svg class="i"><use href="#i-copy"/></svg></button>
         </div>
@@ -441,9 +449,14 @@ Server = https://github.com/LucasLomiento/norte-releases/releases/latest/downloa
       </li>
     </ol>
     <div class="instalar-alt">
+      <a class="botao fantasma" href="{{LINK_DEB}}"><svg class="i"><use href="#i-download"/></svg>{{instalar.deb}}</a>
+      <p>{{instalar.deb_nota}}</p>
+    </div>
+    <div class="instalar-alt">
       <a class="botao fantasma" href="{{LINK_PACOTE}}"><svg class="i"><use href="#i-download"/></svg>{{instalar.arquivo}}</a>
       <p>{{instalar.arquivo_nota}}</p>
     </div>
+{{INSTALAR_AUR}}
   </div>
 
   <!-- Novidades -->

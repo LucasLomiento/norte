@@ -96,13 +96,23 @@ constexpr net::NetworkTrafficAnnotationTag kAnotacao =
           policy_exception_justification: "Navegador próprio (Norte)."
         })");
 
+// Como esta cópia foi instalada: o arquivo FORMATO ao lado do VERSAO, que o
+// pacote grava ("deb", "appimage" ou "aur"). Sem ele, o pacote do pacman.
+enum class Formato {
+  kPacman,    // pkexec pacman -U.
+  kDeb,       // pkexec apt-get install.
+  kSoAvisar,  // AppImage e AUR: o botão só abre a página da versão.
+};
+
 // O arquivo da release pra este sistema: o pacote do pacman (Arch e
-// derivados) ou o instalador do Windows (por usuário, sem pedir senha).
+// derivados), o .deb ou o instalador do Windows (por usuário, sem pedir senha).
+std::string_view FimDoPacote(Formato formato) {
 #if BUILDFLAG(IS_WIN)
-constexpr std::string_view kFimDoPacote = "-windows-x64.exe";
+  return "-windows-x64.exe";
 #else
-constexpr std::string_view kFimDoPacote = ".pkg.tar.zst";
+  return formato == Formato::kDeb ? "_amd64.deb" : ".pkg.tar.zst";
 #endif
+}
 
 // Sem mudança na pasta do Norte por este tempo, o pacman terminou: no
 // pacote, o VERSAO vem antes do executável, e reiniciar no meio pegava o
@@ -154,6 +164,7 @@ struct Estado {
   std::vector<base::OnceClosure> lendo;
   // O VERSAO agora: muda quando o pacman instala outra versão.
   std::string no_disco;
+  Formato formato = Formato::kPacman;
   bool procurou = false;
   Andamento andamento;
   std::string url_pacote;
@@ -206,6 +217,24 @@ std::string LerArquivoDeVersao() {
     return std::string();
   }
   return std::string(base::TrimWhitespaceASCII(texto, base::TRIM_ALL));
+}
+
+Formato LerFormato() {
+  base::FilePath pasta;
+  std::string texto;
+  if (!base::PathService::Get(base::DIR_MODULE, &pasta) ||
+      !base::ReadFileToString(pasta.Append("FORMATO"), &texto)) {
+    return Formato::kPacman;
+  }
+  const std::string_view nome =
+      base::TrimWhitespaceASCII(texto, base::TRIM_ALL);
+  if (nome == "deb") {
+    return Formato::kDeb;
+  }
+  if (nome == "appimage" || nome == "aur") {
+    return Formato::kSoAvisar;
+  }
+  return Formato::kPacman;
 }
 
 // --- Versão instalada por fora ----------------------------------------------
@@ -292,11 +321,14 @@ void Ler(base::OnceClosure depois) {
   }
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
-      base::BindOnce(&LerArquivoDeVersao),
-      base::BindOnce([](std::string versao) {
+      base::BindOnce(
+          []() { return std::make_pair(LerArquivoDeVersao(), LerFormato()); }),
+      base::BindOnce([](std::pair<std::string, Formato> lido) {
         Estado& estado = Atual();
+        const std::string& versao = lido.first;
         estado.instalada = versao;
         estado.no_disco = versao;
+        estado.formato = lido.second;
         estado.instalada_lida = true;
         if (!versao.empty()) {
           Vigiar();
@@ -361,7 +393,7 @@ void Chegou(std::optional<std::string> corpo) {
       const std::string* nome = d ? d->FindString("name") : nullptr;
       const std::string* endereco =
           d ? d->FindString("browser_download_url") : nullptr;
-      if (nome && endereco && nome->ends_with(kFimDoPacote)) {
+      if (nome && endereco && nome->ends_with(FimDoPacote(estado.formato))) {
         url = *endereco;
         const std::string* digest = d->FindString("digest");
         sha256 = digest && digest->starts_with("sha256:")
@@ -371,7 +403,8 @@ void Chegou(std::optional<std::string> corpo) {
       }
     }
   }
-  if (url.empty()) {
+  estado.andamento.so_avisar = estado.formato == Formato::kSoAvisar;
+  if (url.empty() && !estado.andamento.so_avisar) {
     Responder(u"A versão nova ainda não tem o pacote.");
     return;
   }
@@ -502,8 +535,9 @@ void InstalarArquivo(base::FilePath pacote);
 
 void Baixar() {
   Estado& estado = Atual();
-  if (estado.andamento.etapa != Etapa::kDisponivel &&
-      estado.andamento.etapa != Etapa::kErro) {
+  if ((estado.andamento.etapa != Etapa::kDisponivel &&
+       estado.andamento.etapa != Etapa::kErro) ||
+      estado.andamento.so_avisar) {
     return;
   }
   estado.andamento.erro.clear();
@@ -567,10 +601,11 @@ void Baixar() {
   // Required, o padrão do Arch), e os pacotes não são assinados: o GitHub
   // dava 404 pro .sig e o pacman saía com 255. Arquivo local vale pelo
   // LocalFileSigLevel (Optional). O pkexec pede a senha numa janela do
-  // sistema (o agente do polkit).
+  // sistema (o agente do polkit). O .deb vai pelo mesmo caminho, com o apt.
   std::string nome = GURL(estado.url_pacote).ExtractFileName();
-  if (!base::EndsWith(nome, ".pkg.tar.zst")) {
-    nome = "navegador.pkg.tar.zst";
+  if (!base::EndsWith(nome, FimDoPacote(estado.formato))) {
+    nome = estado.formato == Formato::kDeb ? "norte_amd64.deb"
+                                           : "navegador.pkg.tar.zst";
   }
   // Numa pasta só nossa (0700): no /tmp aberto, com nome previsível, outro
   // usuário da máquina podia pôr ou trocar o arquivo antes do pacman, que
@@ -629,8 +664,8 @@ std::string Sha256DoArquivo(const base::FilePath& caminho) {
   return base::HexEncodeLower(resultado);
 }
 
-// O pacote já baixado: pkexec pacman -U no arquivo, que é apagado depois
-// (com a pasta dele).
+// O pacote já baixado: pkexec pacman -U (ou apt-get install) no arquivo, que é
+// apagado depois (com a pasta dele).
 void InstalarArquivo(base::FilePath pacote) {
   Atual().pedido.reset();
   if (pacote.empty()) {
@@ -642,7 +677,7 @@ void InstalarArquivo(base::FilePath pacote) {
   base::ThreadPool::PostTaskAndReplyWithResult(
       FROM_HERE, {base::MayBlock(), base::TaskPriority::USER_VISIBLE},
       base::BindOnce(
-          [](base::FilePath pacote, std::string sha256) {
+          [](base::FilePath pacote, std::string sha256, Formato formato) {
             // O pacote tem que ser o que a release diz (download cortado ou
             // trocado no caminho não chega no pacman).
             if (!sha256.empty() && Sha256DoArquivo(pacote) != sha256) {
@@ -667,13 +702,19 @@ void InstalarArquivo(base::FilePath pacote) {
                 comando.AppendArg(arg);
               }
             }
-            comando.AppendArg("/usr/bin/pacman");
-            comando.AppendArg("-U");
-            comando.AppendArg("--noconfirm");
-            // Responde "sim" a "X e Y estão em conflito. Remover Y?" (o
-            // --noconfirm responde "não"): o pacote vai trocar de nome
-            // (navegador -> norte) e o novo substitui o antigo.
-            comando.AppendArg("--ask=4");
+            if (formato == Formato::kDeb) {
+              comando.AppendArg("/usr/bin/apt-get");
+              comando.AppendArg("install");
+              comando.AppendArg("-y");
+            } else {
+              comando.AppendArg("/usr/bin/pacman");
+              comando.AppendArg("-U");
+              comando.AppendArg("--noconfirm");
+              // Responde "sim" a "X e Y estão em conflito. Remover Y?" (o
+              // --noconfirm responde "não"): o pacote vai trocar de nome
+              // (navegador -> norte) e o novo substitui o antigo.
+              comando.AppendArg("--ask=4");
+            }
             comando.AppendArgPath(pacote);
             base::LaunchOptions opcoes;
             opcoes.allow_new_privs = true;
@@ -686,22 +727,28 @@ void InstalarArquivo(base::FilePath pacote) {
             base::DeletePathRecursively(pacote.DirName());
             return codigo;
           },
-          pacote, Atual().sha256_pacote),
-      base::BindOnce([](int codigo) {
-        if (codigo == 0) {
-          MudarPara(Etapa::kInstalada);
-        } else if (codigo == kPacoteDiferente) {
-          Falhou(u"O pacote baixado não confere com o da release. "
-                 u"Tente de novo.");
-        } else {
-          // 126/127: senha cancelada ou sem a janela de senha do sistema.
-          Falhou(codigo == 126 || codigo == 127
-                     ? u"Cancelado (ou o sistema não pediu a senha). "
-                       u"No terminal: sudo pacman -Syu"
-                     : u"O pacman não conseguiu instalar (código " +
-                           base::NumberToString16(codigo) + u").");
-        }
-      }));
+          pacote, Atual().sha256_pacote, Atual().formato),
+      base::BindOnce(
+          [](Formato formato, int codigo) {
+            const bool deb = formato == Formato::kDeb;
+            if (codigo == 0) {
+              MudarPara(Etapa::kInstalada);
+            } else if (codigo == kPacoteDiferente) {
+              Falhou(u"O pacote baixado não confere com o da release. "
+                     u"Tente de novo.");
+            } else if (codigo == 126 || codigo == 127) {
+              // Senha cancelada ou sem a janela de senha do sistema.
+              Falhou(deb ? u"Cancelado (ou o sistema não pediu a senha). "
+                           u"Baixe o .deb na página da versão."
+                         : u"Cancelado (ou o sistema não pediu a senha). "
+                           u"No terminal: sudo pacman -Syu");
+            } else {
+              Falhou((deb ? u"O apt não conseguiu instalar (código "
+                          : u"O pacman não conseguiu instalar (código ") +
+                     base::NumberToString16(codigo) + u").");
+            }
+          },
+          Atual().formato));
 }
 #endif  // !BUILDFLAG(IS_WIN)
 
@@ -747,14 +794,16 @@ class Aviso : public views::View {
     const Andamento& andamento = Atual().andamento;
     const std::u16string nova = base::UTF8ToUTF16(andamento.nova);
     SetVisible(andamento.etapa != Etapa::kNada);
-    notas_->SetVisible((andamento.etapa == Etapa::kDisponivel ||
+    notas_->SetVisible(((andamento.etapa == Etapa::kDisponivel &&
+                         !andamento.so_avisar) ||
                         andamento.etapa == Etapa::kInstalada) &&
                        !andamento.pagina.empty());
     switch (andamento.etapa) {
       case Etapa::kNada:
         break;
       case Etapa::kDisponivel:
-        Escrever(u"Nova versão", u"Versão " + nova, u"Atualizar", true);
+        Escrever(u"Nova versão", u"Versão " + nova,
+                 andamento.so_avisar ? u"Ver a versão" : u"Atualizar", true);
         break;
       case Etapa::kBaixando:
         Escrever(u"Baixando…",
@@ -802,6 +851,10 @@ class Aviso : public views::View {
   void Apertou() {
     if (Atual().andamento.etapa == Etapa::kInstalada) {
       Reiniciar();
+      return;
+    }
+    if (Atual().andamento.so_avisar) {
+      AbrirNotas();
       return;
     }
     Atualizar();

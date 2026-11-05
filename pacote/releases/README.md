@@ -1,50 +1,81 @@
 # Norte
 
-Navegador baseado no Chromium, com as abas numa lateral que se esconde, **espaços** (cada um com as suas abas, sites fixados, pastas e favoritos), **containers** (cookies e logins separados dentro do mesmo perfil, como os do Firefox), **bloqueador de anúncios e rastreadores** e importação do Zen. Escuro, minimalista e sem recursos de IA. Código: [LucasLomiento/norte](https://github.com/LucasLomiento/norte).
+*[Português](README.pt-BR.md)*
 
-Site: [lucaslomiento.github.io/norte](https://lucaslomiento.github.io/norte/).
+A Chromium-based browser with your tabs in a sidebar that hides itself, **spaces** (each with its own tabs, pinned sites, folders and bookmarks), **containers** (separate cookies and logins inside the same profile, like Firefox containers), an **ad and tracker blocker** and import from Zen. Dark, minimal and with no AI features. Code: [LucasLomiento/norte](https://github.com/LucasLomiento/norte).
 
-Versões para **Arch Linux e derivados** (CachyOS, EndeavourOS, Manjaro), em x86_64.
+Website: [lucaslomiento.github.io/norte](https://lucaslomiento.github.io/norte/en/).
 
-> Até a versão 20 o Norte se chamava **Navegador**. Quem já tinha instalado não precisa fazer nada: a atualização troca o nome sozinha e leva o perfil junto (logins, espaços, containers e extensões, de `~/.config/navegador` pra `~/.config/norte`). A seção `[navegador]` antiga do `pacman.conf` continua funcionando.
+For **Linux x86_64**. Norte's own menus and settings are in Portuguese for now; with `NORTE_IDIOMA=en-US`, everything that comes from Chromium is in English.
 
-## Instalar (atualiza junto com o sistema)
+## Arch Linux and derivatives
 
-Acrescente ao fim do `/etc/pacman.conf`:
+CachyOS, EndeavourOS, Manjaro. Packages are signed; this is the key's fingerprint:
 
-```ini
-[norte]
-SigLevel = Optional TrustAll
-Server = https://github.com/LucasLomiento/norte-releases/releases/latest/download
+```
+@CHAVE@
 ```
 
-E instale:
+1. Trust the key:
+
+   ```sh
+   curl -fsSL https://github.com/LucasLomiento/norte-releases/raw/main/norte.asc | sudo pacman-key --add -
+   sudo pacman-key --lsign-key @CHAVE@
+   ```
+
+2. Add this to the end of `/etc/pacman.conf`:
+
+   ```ini
+   [norte]
+   SigLevel = Required DatabaseRequired
+   Server = https://github.com/LucasLomiento/norte-releases/releases/latest/download
+   ```
+
+3. Install:
+
+   ```sh
+   sudo pacman -Sy norte
+   ```
+
+Norte then updates with your system (`sudo pacman -Syu`). It also checks for new versions when it opens and shows a notice at the bottom of the sidebar, with an "Atualizar" (update) button.
+
+<!-- aur -->
+**From the AUR:** `yay -S norte-bin` (or your AUR helper). The AUR updates it; Norte only tells you a new version is out.
+<!-- /aur -->
+
+### Installed before the packages were signed?
+
+If your `pacman.conf` still says `SigLevel = Optional TrustAll`, pacman asks once whether to import the key: answer **Y**, and everything keeps working. Answering no makes `pacman -Sy` stop with an error about the database. To get the full verification, do steps 1 and 2 above.
+
+## Debian 12+, Ubuntu 24.04+ and derivatives
+
+Download the `.deb` from the [latest version](https://github.com/LucasLomiento/norte-releases/releases/latest) and:
 
 ```sh
-sudo pacman -Sy norte
+sudo apt install ./norte_*_amd64.deb
 ```
 
-Depois disso ele atualiza junto com o sistema (`sudo pacman -Syu`). O próprio Norte também procura versão nova quando abre e mostra um aviso no pé da lateral, com o botão "Atualizar" (Configurações → Geral → Atualizações).
+Norte tells you when a new version is out and installs it from the notice at the bottom of the sidebar. Ubuntu 22.04 and older aren't supported: the browser needs glibc 2.36.
 
-> Os pacotes não são assinados (`SigLevel = Optional TrustAll`): o pacman confia no que vem deste repositório.
+## Checking a download
 
-## Instalar só o arquivo
-
-Baixe o `.pkg.tar.zst` da [última versão](https://github.com/LucasLomiento/norte-releases/releases/latest) e:
+`SHA256SUMS` lists the checksum of each file and `SHA256SUMS.asc` signs that list:
 
 ```sh
-sudo pacman -U ./*.pkg.tar.zst
+curl -fsSL https://github.com/LucasLomiento/norte-releases/raw/main/norte.asc | gpg --import
+gpg --verify SHA256SUMS.asc SHA256SUMS
+sha256sum --check --ignore-missing SHA256SUMS
 ```
 
-## Primeiros passos
+## First steps
 
-- **Configurações do Norte:** `Ctrl+,` (ou clique no nome do espaço, no alto da lateral).
-- **Mostrar/ocultar a lateral:** `Ctrl+S`. Escondida, ela aparece ao encostar o ponteiro na borda esquerda.
-- **Trocar de espaço:** `Ctrl+Alt+←/→`, as bolinhas no pé da lateral, ou os botões laterais do mouse em cima dela.
-- **Vindo do Zen:** Configurações → Geral → Importar do Zen (containers, espaços, sites fixados, cookies de cada container, senhas, favoritos e histórico).
-- **Netflix e afins (Widevine):** o componente é baixado sozinho no primeiro uso.
-- **1Password:** a extensão já conversa com o app do 1Password; o pacote instala a ligação e põe o Norte na lista de navegadores em que o app confia.
+- **Norte settings:** `Ctrl+,` (or click the space's name at the top of the sidebar).
+- **Show or hide the sidebar:** `Ctrl+S`. When hidden, it appears when the pointer touches the left edge.
+- **Switch spaces:** `Ctrl+Alt+←/→`, the dots at the bottom of the sidebar, or your mouse's side buttons over it.
+- **Coming from Zen:** Settings → Geral → Importar do Zen (containers, spaces, pinned sites, each container's cookies, passwords, bookmarks and history).
+- **Netflix and similar (Widevine):** the component downloads by itself the first time.
+- **1Password:** the extension talks to the 1Password app out of the box; the package sets up the link and adds Norte to the browsers the app trusts.
 
-## Licenças
+## Licenses
 
-Feito sobre o [Chromium](https://www.chromium.org/) (licença BSD) e os componentes de terceiros dele; a lista completa está em `chrome://credits`. Não é um produto do Google.
+Built on [Chromium](https://www.chromium.org/) (BSD license) and its third-party components; the full list is at `chrome://credits`. Not a Google product.

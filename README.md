@@ -1,55 +1,60 @@
 # Norte
 
-**Site:** [lucaslomiento.github.io/norte](https://lucaslomiento.github.io/norte/)
+*[Português](README.pt-BR.md)*
 
-O Norte é um navegador em cima do Chromium, com as abas numa lateral, **espaços**, **containers** e um **bloqueador de anúncios** embutido. Escuro, minimalista e sem recursos de IA. (Até a versão 20 ele se chamava Navegador.)
+**Website:** [lucaslomiento.github.io/norte](https://lucaslomiento.github.io/norte/en/)
+
+Norte is a Linux browser built on Chromium, with your tabs in a sidebar, **spaces**, **containers** and a built-in **ad blocker**. Dark, minimal and with no AI features. (Until version 20 it was called Navegador, which is why the code and the package still use that name in places.)
 
 ![Norte](docs/imagens/navegador.png)
 
-## Recursos
+> **Language:** Norte's own menus and settings are in Portuguese for now. Run it with `NORTE_IDIOMA=en-US` and everything that comes from Chromium is in English.
 
-- **Lateral com as abas.** Some com `Ctrl+S` e volta por cima da página quando o ponteiro encosta na borda esquerda.
-- **Espaços.** Cada espaço tem as próprias abas, sites fixados, pastas e favoritos, e uma cor. Para trocar: o nome no alto da lateral, os botões laterais do mouse em cima dela ou `Ctrl+Alt+←/→`.
-- **Containers.** Cookies e logins separados dentro do mesmo perfil, como os do Firefox. Cada espaço pode abrir as abas num container.
-- **Vários perfis**, cada um na própria janela.
-- **Bloqueador de anúncios e rastreadores.** Usa a EasyList, a EasyPrivacy, a EasyList Portuguese e os consertos do uBlock Origin. Barra as requisições, esconde os espaços dos anúncios e conserta os sites que dependem dos scripts barrados. Dá para liberar um site pelo ícone dele na barra de endereço.
-- **Nova aba personalizável**, com hora, data e atalhos: os mais visitados, uma lista sua ou nada.
-- **Barra na cor do site**, que pega a cor do topo da página aberta.
-- **Importar do Zen**: containers, espaços, sites fixados, cookies de cada container, senhas, favoritos e histórico.
-- **Atualiza sozinho**: avisa no pé da lateral quando sai versão nova.
-- **Sem IA, sem conta Google e sem estatísticas de uso.**
+## Features
 
-## Instalar
+- **Tabs in a sidebar.** Hide it with `Ctrl+S`; it comes back over the page when the pointer touches the left edge.
+- **Spaces.** Each space has its own tabs, pinned sites, folders, bookmarks and color. Switch with the name at the top of the sidebar, the side buttons of your mouse over it, or `Ctrl+Alt+←/→`.
+- **Containers.** Separate cookies and logins inside the same profile, like Firefox containers. A space can open its tabs in a container.
+- **Multiple profiles**, each in its own window.
+- **Ad and tracker blocker.** Uses EasyList, EasyPrivacy, EasyList Portuguese and uBlock Origin's fixes. It blocks requests, hides ad slots and repairs sites that depend on the blocked scripts. You can allow a site from its icon in the address bar.
+- **Customizable new tab**, with the time, the date and shortcuts: most visited, your own list or nothing.
+- **Address bar in the site's color**, sampled from the top of the open page.
+- **Import from Zen:** containers, spaces, pinned sites, each container's cookies, passwords, bookmarks and history.
+- **Updates itself:** a notice at the bottom of the sidebar tells you when a new version is out.
+- **No AI features, no Google account and no usage statistics.**
 
-As versões ficam em [LucasLomiento/norte-releases](https://github.com/LucasLomiento/norte-releases).
+## Install
 
-- **Arch Linux e derivados** (CachyOS, EndeavourOS, Manjaro): pelo repositório do pacman, que atualiza junto com o sistema. O passo a passo está no README de lá.
-- **Windows:** ainda não tem versão pronta. O código já está preparado (ver "Compilar"), falta testar.
+Versions are published in [LucasLomiento/norte-releases](https://github.com/LucasLomiento/norte-releases), signed with a GPG key.
 
-## Compilar
+- **Arch Linux and derivatives** (CachyOS, EndeavourOS, Manjaro): the signed pacman repository, which updates with the rest of your system. [Step by step](https://github.com/LucasLomiento/norte-releases#readme).
+- **Debian 12+, Ubuntu 24.04+ and derivatives:** the `.deb` from the [latest version](https://github.com/LucasLomiento/norte-releases/releases/latest). Norte itself tells you about new versions and installs them.
+- **Windows:** no release yet. The code is prepared (see "Build"), but it hasn't been tested.
 
-O repositório guarda só o que é do Norte: as mudanças nos arquivos do Chromium (`patches/`), o código novo (`navegador/`) e os scripts (`tools/`). O Chromium é baixado à parte, na versão de `CHROMIUM_VERSION`.
+## Build
 
-1. Instale o [depot_tools](https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html) e baixe o Chromium da tag de `CHROMIUM_VERSION` com o `gclient`. Use uma solução `src` com `"managed": False`.
-2. `tools/fonte.sh` liga o `navegador/` na árvore, aplica os patches, troca o nome do produto nos textos e põe os ícones.
-3. **Linux:** `tools/compilar.sh out/release chrome chrome_sandbox chrome_crashpad_handler` usa os argumentos de `tools/args-release.gn`. Depois, `tools/listas.sh` gera as listas do bloqueador, e `makepkg` em `pacote/` monta o pacote.
-4. **Windows** (experimental, ainda não testado; compilação cruzada a partir do Linux):
-   - `tools/vm-ferramentas-windows.sh subir` cria uma máquina virtual que instala o Visual Studio e o Windows SDK e gera o pacote de ferramentas da Microsoft.
-   - Acrescente `"win"` ao `target_os` do `.gclient` e rode `gclient sync`.
-   - Depois, `tools/windows.sh ferramentas`, `tools/windows.sh gerar`, `tools/windows.sh compilar` e `tools/windows.sh pacote`.
+This repository only holds what belongs to Norte: the changes to Chromium's files (`patches/`), the new code (`navegador/`) and the scripts (`tools/`). Chromium is downloaded separately, at the version in `CHROMIUM_VERSION`.
 
-Compilar o Chromium do zero leva algumas horas e pede uns 16 GB de RAM livres. `tools/compilar.sh` roda em prioridade baixa.
+1. Install [depot_tools](https://commondatastorage.googleapis.com/chrome-infra-docs/flat/depot_tools/docs/html/depot_tools_tutorial.html) and fetch the Chromium tag from `CHROMIUM_VERSION` with `gclient`. Use a `src` solution with `"managed": False`.
+2. `tools/fonte.sh` links `navegador/` into the tree, applies the patches, swaps the product name in the strings and adds the icons.
+3. **Linux:** `tools/compilar.sh out/release chrome chrome_sandbox chrome_crashpad_handler` uses the arguments in `tools/args-release.gn`. Then `tools/listas.sh` builds the blocker's lists and `makepkg` in `pacote/` builds the package. `tools/outros-pacotes.sh` turns that package into a `.deb`.
+4. **Windows** (experimental, untested; cross-compiled from Linux):
+   - `tools/vm-ferramentas-windows.sh subir` creates a virtual machine that installs Visual Studio and the Windows SDK and generates Microsoft's toolchain package.
+   - Add `"win"` to the `target_os` in `.gclient` and run `gclient sync`.
+   - Then `tools/windows.sh ferramentas`, `tools/windows.sh gerar`, `tools/windows.sh compilar` and `tools/windows.sh pacote`.
 
-Como cada parte funciona: [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
+Building Chromium from scratch takes a few hours and about 16 GB of free RAM. `tools/compilar.sh` runs at low priority.
 
-## Contribuir
+How each part works (in Portuguese): [docs/ARQUITETURA.md](docs/ARQUITETURA.md).
 
-Bugs, sugestões e pull requests são bem-vindos: veja o [CONTRIBUTING.md](CONTRIBUTING.md). Toda mudança entra por pull request, com revisão. Falha de segurança vai pelo caminho privado do [SECURITY.md](SECURITY.md).
+## Contributing
 
-## Licenças
+Bug reports, suggestions and pull requests are welcome, in English, Portuguese or Spanish: see [CONTRIBUTING.md](CONTRIBUTING.md). Every change goes through a pull request with review. Security issues go through the private channel in [SECURITY.md](SECURITY.md).
 
-- **Código do Norte:** BSD-3-Clause ([LICENSE](LICENSE)), a mesma do Chromium.
-- **Chromium:** BSD e as licenças dos componentes dele (`chrome://credits`). O Norte não é um produto do Google.
-- **Fontes Geist e Bricolage Grotesque:** SIL Open Font License 1.1 (`navegador/app/fontes`).
-- **Ícones do [Lucide](https://lucide.dev):** ISC (`navegador/icones`).
-- **Listas do bloqueador**, baixadas na hora de empacotar: EasyList sob GPL v3 ou CC BY-SA 3.0, e uBlock Origin sob GPL v3.
+## Licenses
+
+- **Norte's code:** BSD-3-Clause ([LICENSE](LICENSE)), the same as Chromium.
+- **Chromium:** BSD and the licenses of its components (`chrome://credits`). Norte is not a Google product.
+- **Geist and Bricolage Grotesque fonts:** SIL Open Font License 1.1 (`navegador/app/fontes`).
+- **[Lucide](https://lucide.dev) icons:** ISC (`navegador/icones`).
+- **Blocker lists**, downloaded at packaging time: EasyList under GPL v3 or CC BY-SA 3.0, and uBlock Origin under GPL v3.

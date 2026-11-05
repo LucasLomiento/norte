@@ -50,7 +50,7 @@ export default {
     versao: 'Version {{PACOTE}} · {{DATA_CURTA}}',
     titulo: 'Never lose<br>your way.',
     lead: 'Norte is a Linux browser built on Chromium. Your tabs live in a sidebar that disappears when you don’t need it, every part of your life gets its own space, and your home and work accounts never mix.',
-    baixar: 'Download for Arch Linux',
+    baixar: 'Download for Linux',
     testar: 'Try it right here',
     meta: 'Chromium {{CHROMIUM_MAIOR}} · {{TAMANHO}} · free and open source',
     resumo: 'At a glance',
@@ -184,14 +184,18 @@ export default {
 
   instalar: {
     titulo: 'Install',
-    sub: 'Version {{VERSAO}}, released {{DATA}}. For Arch Linux and derivatives (CachyOS, EndeavourOS, Manjaro), x86_64.',
+    sub: 'Version {{VERSAO}}, released {{DATA}}, for Linux x86_64. On Arch Linux and derivatives (CachyOS, EndeavourOS, Manjaro), from the signed pacman repository:',
+    chave: 'Trust the key that signs the releases',
     repo: 'Add Norte’s repository to the end of <code>/etc/pacman.conf</code>',
     instale: 'Install it',
     pronto: 'Done. Updates arrive with your regular system updates',
     pronto_nota: 'Norte itself also tells you at the bottom of the sidebar when a new version is out, with a button to update.',
     copiar: 'Copy',
     arquivo: 'Just the file ({{TAMANHO}})',
-    arquivo_nota: 'Then: <code>sudo pacman -U {{ARQUIVO}}</code>. The packages aren’t signed (<code>SigLevel = Optional TrustAll</code>): pacman trusts whatever comes from the GitHub releases. No Windows or macOS yet.',
+    arquivo_nota: 'Then: <code>sudo pacman -U {{ARQUIVO}}</code>. No Windows or macOS yet.',
+    deb: 'Debian and Ubuntu (.deb, {{TAMANHO_DEB}})',
+    deb_nota: 'Debian 12+, Ubuntu 24.04+ and derivatives. Then: <code>sudo apt install ./{{ARQUIVO_DEB}}</code>. Norte itself tells you about new versions and installs them.',
+    aur_nota: '<code>yay -S norte-bin</code>, or your AUR helper. The AUR handles the updates.',
   },
 
   novidades: {

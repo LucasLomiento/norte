@@ -1,0 +1,9 @@
+#!/bin/sh
+set -e
+if [ "$1" = remove ] || [ "$1" = purge ]; then
+  if [ -f /etc/1password/custom_allowed_browsers ]; then
+    sed -i '/^norte$/d' /etc/1password/custom_allowed_browsers
+  fi
+  rm -f /etc/apparmor.d/norte
+fi
+exit 0

@@ -3,8 +3,9 @@
 // Releases do GitHub (LucasLomiento/norte-releases) e, se for mais nova que a
 // instalada,
 // mostra um aviso no pé da lateral. "Atualizar" (no aviso ou nas
-// Configurações) baixa o pacote novo, instala com o pacman (pela janela de
-// senha do sistema, pkexec) e oferece reiniciar.
+// Configurações) baixa o pacote novo, instala com o pacman ou o apt (pela
+// janela de senha do sistema, pkexec) e oferece reiniciar. No AppImage e no
+// pacote do AUR, quem atualiza é a pessoa: o botão só abre a página da versão.
 //
 // Também percebe a versão nova instalada por fora (sudo pacman -Syu) com o
 // navegador aberto: o VERSAO da pasta muda, e o aviso pede pra reiniciar (o
@@ -60,6 +61,8 @@ struct Andamento {
   std::u16string erro;
   // A página da versão nova nas Releases ("O que mudou"), fora do kNada.
   std::string pagina;
+  // Esta cópia não se atualiza por aqui (AppImage, AUR): o botão abre a página.
+  bool so_avisar = false;
 };
 
 // Aviso no pé da lateral (escondido enquanto não há versão nova). A primeira

@@ -838,7 +838,11 @@ class LinhaDeVersao : public views::View {
         break;
       case atualizador::Etapa::kDisponivel:
       case atualizador::Etapa::kErro:
-        atualizador::Atualizar();
+        if (atualizador::Agora().so_avisar) {
+          AbrirPagina(browser_, atualizador::Agora().pagina);
+        } else {
+          atualizador::Atualizar();
+        }
         break;
       case atualizador::Etapa::kInstalada:
         atualizador::Reiniciar();
@@ -872,7 +876,7 @@ class LinhaDeVersao : public views::View {
       case atualizador::Etapa::kDisponivel:
         texto = u"Versão nova: " + nova +
                 (versao_.empty() ? u"." : u" (esta é a " + versao_ + u").");
-        botao = u"Atualizar agora";
+        botao = andamento.so_avisar ? u"Ver a versão" : u"Atualizar agora";
         destaque = true;
         break;
       case atualizador::Etapa::kBaixando:
@@ -908,7 +912,8 @@ class LinhaDeVersao : public views::View {
     botao_->SetStyle(destaque ? ui::ButtonStyle::kProminent
                               : ui::ButtonStyle::kTonal);
     situacao_->SetText(texto);
-    notas_->SetVisible((andamento.etapa == atualizador::Etapa::kDisponivel ||
+    notas_->SetVisible(((andamento.etapa == atualizador::Etapa::kDisponivel &&
+                         !andamento.so_avisar) ||
                         andamento.etapa == atualizador::Etapa::kInstalada) &&
                        !andamento.pagina.empty());
     PreferredSizeChanged();

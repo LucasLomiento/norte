@@ -192,6 +192,14 @@ if (!lista.length) throw new Error('Nenhuma release publicada')
 const atual = lista[0]
 const pacote = atual.assets.find((a) => /\.pkg\.tar\.zst$/.test(a.name))
 if (!pacote) throw new Error(`A release ${atual.tag_name} não tem o .pkg.tar.zst`)
+// O .deb veio depois do pacote do pacman: sem ele, o botão leva pra página da versão.
+const deb = atual.assets.find((a) => /_amd64\.deb$/.test(a.name))
+const chave = readFileSync(join(RAIZ, '../pacote/releases/CHAVE'), 'utf8').trim()
+// O AUR só aparece quando o pacote já existir por lá.
+const noAur = await fetch('https://aur.archlinux.org/rpc/v5/info?arg[]=norte-bin')
+  .then((r) => r.json())
+  .then((r) => r.resultcount === 1)
+  .catch(() => false)
 const v = versao(atual.tag_name)
 
 const textos = {}
@@ -224,6 +232,13 @@ for (const idioma of IDIOMAS) {
     ARQUIVO: esc(pacote.name),
     TAMANHO: esc(megas(pacote.size)),
     LINK_PACOTE: esc(pacote.browser_download_url),
+    ARQUIVO_DEB: esc(deb ? deb.name : 'norte_*_amd64.deb'),
+    TAMANHO_DEB: esc(deb ? megas(deb.size) : megas(pacote.size)),
+    LINK_DEB: esc(deb ? deb.browser_download_url : atual.html_url),
+    CHAVE: esc(chave),
+    INSTALAR_AUR: noAur
+      ? `    <div class="instalar-alt">\n      <a class="botao fantasma" href="https://aur.archlinux.org/packages/norte-bin"><svg class="i"><use href="#i-download"/></svg>AUR</a>\n      <p>${t.instalar.aur_nota}</p>\n    </div>`
+      : '',
     LINK_VERSAO: esc(atual.html_url),
     NUM_VERSOES: String(lista.length),
     NOVIDADES: novidades(lista, idioma.id, t, d),
