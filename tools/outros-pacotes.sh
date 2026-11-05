@@ -8,7 +8,7 @@
 # Gera em pacote/: norte_<versão>_amd64.deb.
 set -euo pipefail
 RAIZ="$(cd "$(dirname "$0")/.." && pwd)"
-PKG="${1:-$(ls -t "$RAIZ"/pacote/navegador-*-x86_64.pkg.tar.zst | head -1)}"
+PKG="${1:-$(ls -t "$RAIZ"/pacote/navegador-*-x86_64.pkg.tar.zst | sed -n 1p)}"
 VERSAO=$(basename "$PKG" | sed -E 's/^navegador-(.*)-x86_64\.pkg\.tar\.zst$/\1/')
 SAIDA="${SAIDA:-$RAIZ/pacote}"
 echo "Pacote: $(basename "$PKG") ($VERSAO)"

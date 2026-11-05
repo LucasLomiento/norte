@@ -33,7 +33,9 @@ REPO=LucasLomiento/norte-releases
 NOTAS="${1:-}"
 ENSAIO="${PUBLICAR_ENSAIO:-}"
 
-PKG="${PUBLICAR_PACOTE:-$(ls -t "$RAIZ"/pacote/navegador-*-x86_64.pkg.tar.zst | head -1)}"
+# (sed, não head: com o pipefail, o head fechando o cano mata o ls com SIGPIPE e
+# derruba o script, dependendo de quantos pacotes há na pasta.)
+PKG="${PUBLICAR_PACOTE:-$(ls -t "$RAIZ"/pacote/navegador-*-x86_64.pkg.tar.zst | sed -n 1p)}"
 VERSAO=$(basename "$PKG" | sed -E 's/^navegador-(.*)-x86_64\.pkg\.tar\.zst$/\1/')
 TAG="v$VERSAO"
 echo "Pacote: $(basename "$PKG") -> $REPO $TAG"
@@ -84,7 +86,7 @@ fi
 cp "$RAIZ/pacote/releases/norte.asc" "$TRAB/repo/"
 # Os READMEs: a chave no lugar do @CHAVE@ e o AUR só quando já der pra instalar por lá.
 AUR=
-curl -fsS 'https://aur.archlinux.org/rpc/v5/info?arg[]=norte-bin' | grep -q '"resultcount":1' && AUR=1
+[[ "$(curl -fsS 'https://aur.archlinux.org/rpc/v5/info?arg[]=norte-bin' || true)" == *'"resultcount":1'* ]] && AUR=1
 for leia in README.md README.pt-BR.md; do
   sed "s/@CHAVE@/$CHAVE/g" "$RAIZ/pacote/releases/$leia" > "$TRAB/repo/$leia"
   [[ -n "$AUR" ]] || sed -i '/^<!-- aur -->$/,/^<!-- \/aur -->$/d' "$TRAB/repo/$leia"
