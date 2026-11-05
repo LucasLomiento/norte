@@ -34,7 +34,8 @@ void AdicionarArea(views::View* tab_strip_view, BrowserWindowInterface* browser)
 // lista desta janela, arrastada pra cima da área, é fixada onde for solta
 // (do lado de um site, dentro de uma pasta, nos favoritos ou no fim). Nulo
 // fora da área ou pra outro arrasto (espaço, divisão, aba de outra janela).
-// Sem nada fixado, o arrasto mostra o lugar de soltar no alto da lateral.
+// Sem nada fixado não há alvo: fixar é pelo botão direito. O contrário (site
+// fixado pra lista de abas) é o arrasto da própria área.
 TabDragTarget* AlvoDosFixos(BrowserWindowInterface* browser,
                             const gfx::Point& ponto_na_tela);
 

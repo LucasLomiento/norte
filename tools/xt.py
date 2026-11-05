@@ -4,6 +4,7 @@ sessão Wayland do usuário.
 
   DISPLAY=:77 xt.py move X Y
   DISPLAY=:77 xt.py click X Y [1|2|3|8|9] [shift+ctrl...]  (8 = voltar, 9 = avançar)
+  DISPLAY=:77 xt.py drag X1 Y1 X2 Y2   (arrasta com o botão esquerdo)
   DISPLAY=:77 xt.py scroll X Y up|down|left|right [n]
   DISPLAY=:77 xt.py key ctrl+comma ctrl+alt+Right
   DISPLAY=:77 xt.py type "texto"   (acentos e japonês também: a letra que não
@@ -142,6 +143,20 @@ elif cmd == "click":
         xtst.XTestFakeKeyEvent(d, c, 0, 0)
         flush()
         time.sleep(0.03)
+elif cmd == "drag":
+    # Aperta em X1 Y1, anda em passos até X2 Y2, segura um instante e solta.
+    x1, y1, x2, y2 = (int(v) for v in args[1:5])
+    mover(x1, y1)
+    time.sleep(0.15)
+    xtst.XTestFakeButtonEvent(d, 1, 1, 0)
+    flush()
+    time.sleep(0.15)
+    for i in range(1, 25):
+        mover(x1 + (x2 - x1) * i // 24, y1 + (y2 - y1) * i // 24)
+        time.sleep(0.03)
+    time.sleep(0.4)
+    xtst.XTestFakeButtonEvent(d, 1, 0, 0)
+    flush()
 elif cmd == "scroll":
     mover(int(args[1]), int(args[2]))
     b = {"up": 4, "down": 5, "left": 6, "right": 7}[args[3]]

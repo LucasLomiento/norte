@@ -1,5 +1,6 @@
 #include "navegador/browser/ui/fixos.h"
 
+#include <algorithm>
 #include <limits>
 #include <map>
 #include <memory>
@@ -17,7 +18,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/task/cancelable_task_tracker.h"
 #include "base/task/single_thread_task_runner.h"
-#include "base/timer/timer.h"
 #include "base/time/time.h"
 #include "cc/paint/paint_flags.h"
 #include "cc/paint/path_effect.h"
@@ -36,6 +36,8 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
+#include "chrome/browser/ui/tabs/tab_group_model.h"
+#include "chrome/browser/ui/views/tabs/common/tab_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/drag_session_data.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_context.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
@@ -47,6 +49,7 @@
 #include "components/prefs/pref_service.h"
 #include "components/sessions/content/session_tab_helper.h"
 #include "components/tab_groups/tab_group_id.h"
+#include "components/tabs/public/tab_group.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/navigation_controller.h"
@@ -101,7 +104,9 @@
 #include "ui/views/style/typography.h"
 #include "ui/views/vector_icons.h"
 #include "ui/views/view.h"
+#include "ui/gfx/geometry/rect_conversions.h"
 #include "ui/views/view_class_properties.h"
+#include "ui/views/view_tracker.h"
 #include "ui/views/view_utils.h"
 #include "ui/views/widget/widget.h"
 #include "ui/views/window/dialog_delegate.h"
@@ -700,50 +705,28 @@ class Divisor : public views::View {
 BEGIN_METADATA(Divisor)
 END_METADATA
 
-// Sem nada fixado no espaço, enquanto uma aba é arrastada pela lateral: o
-// lugar de soltar pra fixar (tracejado, como o quadro dos favoritos).
-class ZonaDeFixar : public views::View {
-  METADATA_HEADER(ZonaDeFixar, views::View)
+// Onde um site fixado arrastado pra lista de abas vai entrar. Na camada dela: a
+// lista rola em camada própria e cobriria uma linha pintada no pai.
+class LinhaNaLista : public views::View {
+  METADATA_HEADER(LinhaNaLista, views::View)
 
  public:
-  ZonaDeFixar() {
-    SetLayoutManager(std::make_unique<views::FillLayout>());
-    texto_ = AddChildView(std::make_unique<views::Label>(u"Solte aqui pra fixar"));
-    texto_->SetFontList(gfx::FontList().DeriveWithSizeDelta(
-        12 - gfx::FontList().GetFontSize()));
-    texto_->SetCanProcessEventsWithinSubtree(false);
-    SetPreferredSize(gfx::Size(0, kAlturaLinha));
-    SetProperty(views::kMarginsKey,
-                gfx::Insets::TLBR(0, 0, visual::kEspacoEntreAbas, 0));
-  }
-
-  void OnThemeChanged() override {
-    views::View::OnThemeChanged();
-    texto_->SetEnabledColor(SkColorSetA(
-        GetColorProvider()->GetColor(kColorTabForegroundInactiveFrameActive),
-        0xB3));
+  LinhaNaLista() {
+    SetCanProcessEventsWithinSubtree(false);
+    SetProperty(views::kViewIgnoredByLayoutKey, true);
+    SetPaintToLayer();
+    layer()->SetFillsBoundsOpaquely(false);
   }
 
   void OnPaint(gfx::Canvas* canvas) override {
-    const SkColor cor = GetColorProvider()->GetColor(
-        kColorTabForegroundInactiveFrameActive);
-    gfx::RectF caixa(GetLocalBounds());
-    caixa.Inset(0.5f);
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
-    flags.setStyle(cc::PaintFlags::kStroke_Style);
-    flags.setStrokeWidth(1);
-    flags.setColor(SkColorSetA(cor, 0x66));
-    const SkScalar tracos[] = {3, 3};
-    flags.setPathEffect(cc::PathEffect::MakeDash(tracos, 2, 0));
-    canvas->DrawRoundRect(caixa, kRaio, flags);
+    flags.setColor(GetColorProvider()->GetColor(ui::kColorAccent));
+    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), 1, flags);
   }
-
- private:
-  raw_ptr<views::Label> texto_ = nullptr;
 };
 
-BEGIN_METADATA(ZonaDeFixar)
+BEGIN_METADATA(LinhaNaLista)
 END_METADATA
 
 class AreaDeFixos : public views::View,
@@ -888,13 +871,18 @@ class AreaDeFixos : public views::View,
           }
         }
         CalcularDestino(ponto);
+        CalcularDestinoNaLista(ponto);
         SchedulePaint();
         event->SetHandled();
         return;
       case ui::EventType::kMouseReleased:
         if (arrastando_) {
           event->SetHandled();
-          Soltar();
+          if (na_lista_) {
+            SoltarNaLista();
+          } else {
+            Soltar();
+          }
         }
         CancelarArrasto();
         return;
@@ -984,11 +972,11 @@ class AreaDeFixos : public views::View,
         model_->GetTabAtIndex(index)->IsSplit() || SiteDaAba(aba)) {
       return nullptr;
     }
-    LigarZona();
-    views::View* rolagem = parent();
-    while (rolagem && rolagem->GetID() != visual::kIdAreaDeFixos) {
-      rolagem = rolagem->parent();
+    // Sem nada fixado não tem onde soltar: fixar é pelo botão direito.
+    if (ids_.empty() && !quadro_) {
+      return nullptr;
     }
+    views::View* rolagem = Rolagem();
     if (!rolagem || !rolagem->IsDrawn() ||
         !rolagem->GetBoundsInScreen().Contains(ponto_na_tela)) {
       return nullptr;
@@ -1400,7 +1388,6 @@ class AreaDeFixos : public views::View,
     pais_.clear();
     quadro_ = nullptr;
     divisor_ = nullptr;
-    zona_ = nullptr;
     const std::vector<Site> favoritos = Favoritos(Perfil(), EspacoAtual());
     if (favoritos.empty()) {
       if (espacos::MostrarQuadroDeFavoritos(Perfil())) {
@@ -1432,9 +1419,6 @@ class AreaDeFixos : public views::View,
                       SiteDaAba(model_->GetActiveWebContents()));
     if (!entradas.empty()) {
       divisor_ = AddChildView(std::make_unique<Divisor>(browser_));
-    } else if (zona_ligada_) {
-      // Aba sendo arrastada na janela sem nada fixado: o lugar de soltar.
-      zona_ = AddChildView(std::make_unique<ZonaDeFixar>());
     }
     // Sem a linha no fim, a folga de uma aba até a lista.
     SetBorder(entradas.empty() ? views::CreateEmptyBorder(gfx::Insets::TLBR(
@@ -1754,13 +1738,10 @@ class AreaDeFixos : public views::View,
   // está (vazia = solta).
   std::map<views::View*, int> niveis_;
   std::map<views::View*, std::string> pais_;
-  // Lugares de soltar uma aba arrastada da lista: o quadro dos favoritos, a
-  // linha embaixo dos fixados e, sem nada fixado, a zona que aparece
-  // durante o arrasto.
+  // Lugares de soltar uma aba arrastada da lista: o quadro dos favoritos e a
+  // linha embaixo dos fixados.
   raw_ptr<views::View> quadro_ = nullptr;
   raw_ptr<views::View> divisor_ = nullptr;
-  raw_ptr<views::View> zona_ = nullptr;
-  bool zona_ligada_ = false;
   std::map<GURL, ui::ImageModel> icones_;
   std::set<GURL> buscando_;
   base::CancelableTaskTracker rastreador_;
@@ -1797,7 +1778,12 @@ class AreaDeFixos : public views::View,
   bool arrastando_ = false;
   // Uma aba da lista está sendo arrastada por cima (sem `arrastado_`).
   bool externo_ = false;
-  base::RepeatingTimer vigia_da_zona_;
+  // Um site arrastado pra baixo da área: vai pra lista de abas, antes ou depois
+  // de `aba_de_destino_` (sem ela, a lista está vazia).
+  bool na_lista_ = false;
+  tabs::TabHandle aba_de_destino_;
+  bool depois_da_aba_ = false;
+  views::ViewTracker linha_na_lista_;
 
   // O alvo do TabDragController pra aba da lista (BrowserView::
   // GetTabDragTarget, via AlvoDosFixos).
@@ -1894,9 +1880,9 @@ class AreaDeFixos : public views::View,
       return;
     }
     // A linha embaixo dos fixados: vai pro fim, fora das pastas. Uma aba da
-    // lista também vai pro quadro dos favoritos e pra zona de soltar.
+    // lista também vai pro quadro dos favoritos.
     for (views::View* lugar :
-         {divisor_.get(), externo_ ? quadro_.get() : nullptr, zona_.get()}) {
+         {divisor_.get(), externo_ ? quadro_.get() : nullptr}) {
       if (!lugar || !AreaDe(lugar).Contains(ponto)) {
         continue;
       }
@@ -1970,7 +1956,7 @@ class AreaDeFixos : public views::View,
     std::string id;
     if (lugar == quadro_) {
       id = Favoritar(perfil, espaco, url, titulo);
-    } else if (lugar == divisor_ || lugar == zona_) {
+    } else if (lugar == divisor_) {
       id = Fixar(perfil, espaco, url, titulo, std::string());
     } else if (auto it = ids_.find(lugar); it != ids_.end()) {
       const std::string outro = it->second;
@@ -1993,29 +1979,135 @@ class AreaDeFixos : public views::View,
     ReconstruirDepois();
   }
 
-  // Sem nada fixado, a zona de soltar aparece enquanto uma aba é arrastada
-  // pela lateral (e some quando o arrasto acaba).
-  void LigarZona() {
-    if (zona_ligada_) {
-      return;
+  views::View* Rolagem() {
+    views::View* rolagem = parent();
+    while (rolagem && rolagem->GetID() != visual::kIdAreaDeFixos) {
+      rolagem = rolagem->parent();
     }
-    zona_ligada_ = true;
-    if (Do(Perfil(), EspacoAtual()).empty()) {
-      ReconstruirDepois();
-    }
-    vigia_da_zona_.Start(FROM_HERE, base::Milliseconds(200),
-                         base::BindRepeating(&AreaDeFixos::ConferirZona,
-                                             base::Unretained(this)));
+    return rolagem;
   }
 
-  void ConferirZona() {
-    if (TabDragController::IsActive()) {
+  // As abas comuns do espaço na lista, de cima pra baixo (as ligadas a um site
+  // têm altura zero). Dentro de uma divisão, da esquerda pra direita.
+  void AbasDaLista(
+      views::View* raiz,
+      std::vector<std::pair<const tabs::TabInterface*, gfx::Rect>>& abas) {
+    if (raiz == Rolagem()) {
       return;
     }
-    vigia_da_zona_.Stop();
-    zona_ligada_ = false;
-    if (zona_) {
-      ReconstruirDepois();
+    if (auto* tab_view = views::AsViewClass<TabView>(raiz)) {
+      const tabs::TabInterface* aba = tab_view->GetTabInterface();
+      if (aba && aba->GetGroup() == model_->GetFocusedGroup() &&
+          tab_view->IsDrawn() && tab_view->height() > 0 &&
+          !SiteDaAba(aba->GetContents())) {
+        abas.emplace_back(
+            aba, gfx::ToEnclosingRect(views::View::ConvertRectToTarget(
+                     tab_view, lateral_.get(),
+                     gfx::RectF(tab_view->GetLocalBounds()))));
+      }
+      return;
+    }
+    for (views::View* filho : raiz->children()) {
+      AbasDaLista(filho, abas);
+    }
+  }
+
+  // O ponteiro abaixo da área, com um site ou favorito (pasta não): soltar tira
+  // dos fixados e põe na lista de abas, onde a linha mostra.
+  void CalcularDestinoNaLista(const gfx::Point& ponto_aqui) {
+    na_lista_ = false;
+    aba_de_destino_ = tabs::TabHandle();
+    views::View* const rolagem = Rolagem();
+    gfx::Point ponto = ponto_aqui;
+    views::View::ConvertPointToTarget(this, lateral_.get(), &ponto);
+    constexpr int kFolgaDosLados = 24;
+    if (!rolagem || views::IsViewClass<CabecalhoDaPasta>(arrastado_) ||
+        ponto.y() < rolagem->bounds().bottom() ||
+        ponto.x() < -kFolgaDosLados ||
+        ponto.x() > lateral_->width() + kFolgaDosLados) {
+      TirarLinhaNaLista();
+      return;
+    }
+    na_lista_ = true;
+    std::vector<std::pair<const tabs::TabInterface*, gfx::Rect>> abas;
+    AbasDaLista(lateral_.get(), abas);
+    std::ranges::stable_sort(abas, [](const auto& a, const auto& b) {
+      return a.second.y() != b.second.y() ? a.second.y() < b.second.y()
+                                          : a.second.x() < b.second.x();
+    });
+    gfx::Rect linha(8, rolagem->bounds().bottom() + 2,
+                    std::max(lateral_->width() - 16, 0), 2);
+    for (const auto& [aba, area] : abas) {
+      if (ponto.y() < area.CenterPoint().y()) {
+        aba_de_destino_ = const_cast<tabs::TabInterface*>(aba)->GetHandle();
+        depois_da_aba_ = false;
+        linha.set_y(area.y() - 3);
+        break;
+      }
+    }
+    if (!aba_de_destino_.Get() && !abas.empty()) {
+      aba_de_destino_ =
+          const_cast<tabs::TabInterface*>(abas.back().first)->GetHandle();
+      depois_da_aba_ = true;
+      linha.set_y(abas.back().second.bottom() + 1);
+    }
+    if (!linha_na_lista_.view()) {
+      linha_na_lista_.SetView(
+          lateral_->AddChildView(std::make_unique<LinhaNaLista>()));
+    }
+    linha_na_lista_.view()->SetBoundsRect(linha);
+    linha_na_lista_.view()->SchedulePaint();
+  }
+
+  void TirarLinhaNaLista() {
+    if (views::View* linha = linha_na_lista_.view()) {
+      lateral_->RemoveChildViewT(linha);
+    }
+  }
+
+  // Tira dos fixados e deixa como aba comum no lugar da linha. Sem aba aberta,
+  // abre uma de fundo: arrastar não troca a página que está à vista.
+  void SoltarNaLista() {
+    auto it = ids_.find(arrastado_);
+    if (it == ids_.end()) {
+      return;
+    }
+    const std::string id = it->second;
+    Profile* perfil = Perfil();
+    if (!AbaDoSite(id)) {
+      std::optional<Site> site = SitePorId(perfil, id);
+      if (!site) {
+        return;
+      }
+      AbrirSite(*site, /*ativar=*/false);
+    }
+    content::WebContents* aba = AbaDoSite(id);
+    if (!aba) {
+      return;
+    }
+    Desligar(aba);
+    Remover(perfil, id);
+    const std::optional<tab_groups::TabGroupId> grupo =
+        model_->GetFocusedGroup();
+    const int de = model_->GetIndexOfWebContents(aba);
+    if (!grupo || de == TabStripModel::kNoTab ||
+        model_->GetTabGroupForTab(de) != grupo) {
+      return;
+    }
+    int para;
+    if (tabs::TabInterface* destino = aba_de_destino_.Get();
+        destino && destino->GetContents() != aba &&
+        destino->GetGroup() == grupo) {
+      const int referencia = model_->GetIndexOfTab(destino);
+      para = referencia + (depois_da_aba_ ? 1 : 0) - (de < referencia ? 1 : 0);
+    } else {
+      // Lista vazia: o fim do grupo (as outras do grupo estão ligadas a sites).
+      para = static_cast<int>(
+                 model_->group_model()->GetTabGroup(*grupo)->ListTabs().end()) -
+             1;
+    }
+    if (para != de) {
+      model_->MoveWebContentsAt(de, para, /*select_after_move=*/false, grupo);
     }
   }
 
@@ -2023,6 +2115,9 @@ class AreaDeFixos : public views::View,
     if (arrastando_) {
       SchedulePaint();
     }
+    TirarLinhaNaLista();
+    na_lista_ = false;
+    aba_de_destino_ = tabs::TabHandle();
     arrastado_ = nullptr;
     vizinho_ = nullptr;
     arrastando_ = false;
