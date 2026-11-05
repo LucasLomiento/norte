@@ -1,0 +1,8 @@
+# O sandbox do Norte usa user namespaces, como o do Chrome.
+abi <abi/4.0>,
+include <tunables/global>
+
+profile norte /usr/lib/norte/norte flags=(unconfined) {
+  userns,
+  include if exists <local/norte>
+}

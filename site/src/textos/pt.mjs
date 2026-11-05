@@ -53,7 +53,7 @@ export default {
     versao: 'Versão {{PACOTE}} · {{DATA_CURTA}}',
     titulo: 'Navegue sem<br>se perder.',
     lead: 'O Norte é um navegador para Linux feito em cima do Chromium. As abas moram numa lateral que some quando você não precisa dela, cada parte da sua vida ganha um espaço, e as contas de casa e do trabalho não se misturam.',
-    baixar: 'Baixar para Arch Linux',
+    baixar: 'Baixar para Linux',
     testar: 'Testar aqui mesmo',
     meta: 'Chromium {{CHROMIUM_MAIOR}} · {{TAMANHO}} · grátis e de código aberto',
     resumo: 'Em resumo',
@@ -187,14 +187,18 @@ export default {
 
   instalar: {
     titulo: 'Instalar',
-    sub: 'Versão {{VERSAO}}, de {{DATA}}. Para Arch Linux e derivados (CachyOS, EndeavourOS, Manjaro), x86_64.',
+    sub: 'Versão {{VERSAO}}, de {{DATA}}, para Linux x86_64. No Arch Linux e derivados (CachyOS, EndeavourOS, Manjaro), pelo repositório assinado do pacman:',
+    chave: 'Confie na chave que assina as versões',
     repo: 'Acrescente o repositório do Norte no fim do <code>/etc/pacman.conf</code>',
     instale: 'Instale',
     pronto: 'Pronto. As atualizações vêm junto com as do sistema',
     pronto_nota: 'O próprio Norte também avisa no pé da lateral quando sai versão nova, com um botão "Atualizar".',
     copiar: 'Copiar',
     arquivo: 'Só o arquivo ({{TAMANHO}})',
-    arquivo_nota: 'Depois: <code>sudo pacman -U {{ARQUIVO}}</code>. Os pacotes não são assinados (<code>SigLevel = Optional TrustAll</code>): o pacman confia no que vem das versões do GitHub. Windows e macOS ainda não.',
+    arquivo_nota: 'Depois: <code>sudo pacman -U {{ARQUIVO}}</code>. Sem Windows nem macOS por enquanto.',
+    deb: 'Debian e Ubuntu (.deb, {{TAMANHO_DEB}})',
+    deb_nota: 'Debian 12+, Ubuntu 24.04+ e derivados. Depois: <code>sudo apt install ./{{ARQUIVO_DEB}}</code>. O próprio Norte avisa e instala as versões novas.',
+    aur_nota: '<code>yay -S norte-bin</code>, ou o seu ajudante de AUR. Quem atualiza é o AUR.',
   },
 
   novidades: {

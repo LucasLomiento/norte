@@ -50,7 +50,7 @@ export default {
     versao: 'Versión {{PACOTE}} · {{DATA_CURTA}}',
     titulo: 'Navega sin<br>perderte.',
     lead: 'Norte es un navegador para Linux hecho sobre Chromium. Las pestañas viven en una barra lateral que desaparece cuando no la necesitas, cada parte de tu vida tiene su propio espacio, y las cuentas de casa y del trabajo no se mezclan.',
-    baixar: 'Descargar para Arch Linux',
+    baixar: 'Descargar para Linux',
     testar: 'Pruébalo aquí mismo',
     meta: 'Chromium {{CHROMIUM_MAIOR}} · {{TAMANHO}} · gratis y de código abierto',
     resumo: 'En resumen',
@@ -184,14 +184,18 @@ export default {
 
   instalar: {
     titulo: 'Instalar',
-    sub: 'Versión {{VERSAO}}, del {{DATA}}. Para Arch Linux y derivadas (CachyOS, EndeavourOS, Manjaro), x86_64.',
+    sub: 'Versión {{VERSAO}}, del {{DATA}}, para Linux x86_64. En Arch Linux y derivadas (CachyOS, EndeavourOS, Manjaro), desde el repositorio firmado de pacman:',
+    chave: 'Confía en la clave que firma las versiones',
     repo: 'Agrega el repositorio de Norte al final de <code>/etc/pacman.conf</code>',
     instale: 'Instala',
     pronto: 'Listo. Las actualizaciones llegan junto con las del sistema',
     pronto_nota: 'Norte también te avisa al pie de la barra lateral cuando sale una versión nueva, con un botón para actualizar.',
     copiar: 'Copiar',
     arquivo: 'Solo el archivo ({{TAMANHO}})',
-    arquivo_nota: 'Después: <code>sudo pacman -U {{ARQUIVO}}</code>. Los paquetes no están firmados (<code>SigLevel = Optional TrustAll</code>): pacman confía en lo que viene de las versiones de GitHub. Todavía no hay versión para Windows ni macOS.',
+    arquivo_nota: 'Después: <code>sudo pacman -U {{ARQUIVO}}</code>. Sin Windows ni macOS por ahora.',
+    deb: 'Debian y Ubuntu (.deb, {{TAMANHO_DEB}})',
+    deb_nota: 'Debian 12+, Ubuntu 24.04+ y derivadas. Después: <code>sudo apt install ./{{ARQUIVO_DEB}}</code>. Norte avisa e instala las versiones nuevas.',
+    aur_nota: '<code>yay -S norte-bin</code>, o tu ayudante de AUR. Las actualizaciones las maneja el AUR.',
   },
 
   novidades: {

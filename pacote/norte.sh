@@ -66,12 +66,16 @@ if ((${#EXTENSOES[@]})); then
   SISTEMA+=("--load-extension=$(IFS=,; echo "${EXTENSOES[*]}")")
 fi
 
-NORTE=(/usr/lib/norte/norte "${SISTEMA[@]}" --lang="$IDIOMA")
+# Dentro do AppImage, o AppRun diz onde o Norte está.
+NORTE=("${NORTE_PASTA:-/usr/lib/norte}/norte" "${SISTEMA[@]}" --lang="$IDIOMA")
 
 # Aberto pelo lançador do sistema (sem terminal), os erros vão pro journal
 # (`journalctl -t norte`): o aviso da tela congelada e as quedas se perdiam.
 # Só a partir de ERROR, sem as linhas de informação. No terminal, ficam nele.
-if [[ ! -t 2 ]] && command -v systemd-cat >/dev/null; then
+# Sem o journald rodando (contêiner, distrobox), o systemd-cat sai com erro e o
+# navegador nem abriria: daí o teste do socket.
+if [[ ! -t 2 && -S /run/systemd/journal/stdout ]] &&
+   command -v systemd-cat >/dev/null; then
   exec systemd-cat -t norte --level-prefix=false \
     "${NORTE[@]}" --log-level=2 "${OUTRAS[@]}"
 fi

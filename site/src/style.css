@@ -1782,6 +1782,8 @@ h3 {
   counter-reset: passo;
   display: grid;
   gap: 14px;
+  /* Sem isto, a linha mais longa de um comando alarga a coluna e estoura no celular. */
+  grid-template-columns: minmax(0, 1fr);
   list-style: none;
   margin: 0;
   padding: 0;

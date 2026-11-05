@@ -1,0 +1,33 @@
+# Maintainer: Lucas Lomiento <LucasLomiento at users dot noreply dot github dot com>
+# Gerado por tools/aur.sh, a partir do pacote/aur/PKGBUILD.modelo do repositório
+# https://github.com/LucasLomiento/norte. Mudanças vão lá.
+pkgname=norte-bin
+_versao=@VERSAO@
+pkgver=${_versao/-/.}
+pkgrel=1
+pkgdesc="Chromium-based browser with a sidebar, spaces, containers and a built-in ad blocker. No AI."
+arch=(x86_64)
+url="https://github.com/LucasLomiento/norte"
+license=(BSD-3-Clause 'GPL-3.0-or-later OR CC-BY-SA-3.0' CC-BY-3.0 OFL-1.1)
+depends=(fontconfig alsa-lib at-spi2-core cups dbus desktop-file-utils gtk3 hicolor-icon-theme
+         libcups libdrm libpulse libxkbcommon mesa nss pango systemd ttf-liberation
+         xdg-utils)
+optdepends=('pipewire: share the screen on Wayland'
+            'kwallet: store passwords in KWallet'
+            'gnome-keyring: store passwords in the GNOME keyring')
+provides=(norte navegador)
+conflicts=(norte navegador)
+options=(!strip !debug)
+install=norte.install
+source=("https://github.com/LucasLomiento/norte-releases/releases/download/v$_versao/navegador-$_versao-x86_64.pkg.tar.zst"
+        norte.install)
+sha256sums=(@SHA256@
+            @SHA256_INSTALL@)
+
+package() {
+  cp -a "$srcdir"/usr "$srcdir"/etc "$pkgdir"/
+  chmod 4755 "$pkgdir/usr/lib/norte/chrome-sandbox"
+  # Com este arquivo, o atualizador do Norte só avisa da versão nova: quem
+  # atualiza é o AUR, e o pacman -U dele trocaria este pacote pelo do repositório.
+  echo aur > "$pkgdir/usr/lib/norte/FORMATO"
+}

@@ -1,0 +1,24 @@
+#!/bin/sh
+# Norte no .deb. O 1Password só conversa com navegadores da lista dele (ver
+# pacote/norte.install). O AppArmor do Ubuntu 24.04+ barra os user namespaces
+# de programas sem perfil: este perfil libera, como o do Chrome; sem ele (ou
+# em sistema mais antigo, sem o abi 4.0), o sandbox usa o helper setuid.
+set -e
+if [ "$1" = configure ]; then
+  lista=/etc/1password/custom_allowed_browsers
+  install -dm755 /etc/1password
+  [ -f "$lista" ] || install -m644 /dev/null "$lista"
+  if ! grep -qxF norte "$lista"; then
+    if [ -s "$lista" ] && [ -n "$(tail -c1 "$lista")" ]; then echo >> "$lista"; fi
+    echo norte >> "$lista"
+  fi
+  chown root:root "$lista"
+  chmod go-w "$lista"
+  if [ -e /etc/apparmor.d/abi/4.0 ]; then
+    install -m644 /usr/share/norte/apparmor-norte /etc/apparmor.d/norte
+    if command -v apparmor_parser >/dev/null && [ -d /sys/kernel/security/apparmor ]; then
+      apparmor_parser -r -T -W /etc/apparmor.d/norte || true
+    fi
+  fi
+fi
+exit 0
