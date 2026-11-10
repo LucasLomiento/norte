@@ -1,5 +1,7 @@
 #include "navegador/browser/memoria/banco.h"
 
+#include <algorithm>
+#include <atomic>
 #include <memory>
 #include <string>
 #include <vector>
@@ -12,6 +14,8 @@
 #include "base/timer/elapsed_timer.h"
 #include "base/logging.h"
 #include "base/rand_util.h"
+#include "sql/database.h"
+#include "sql/meta_table.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace navegador::memoria {
@@ -265,6 +269,134 @@ TEST_F(MemoriaBanco, ReabreComOQueTinha) {
   banco_ = std::make_unique<Banco>(Arquivo());
   ASSERT_TRUE(banco_->Abrir());
   EXPECT_EQ(Achar(u"guardada").size(), 1u);
+}
+
+// A releitura de quando a pessoa sai da aba (sem contar visita).
+TEST_F(MemoriaBanco, ReleituraNaoTrazDeVoltaOQueFoiEsquecido) {
+  Ler("https://a.com/1", u"Um", u"segredo guardado aqui");
+  ASSERT_EQ(Achar(u"segredo").size(), 1u);
+  banco_->EsquecerEnderecos({"https://a.com/1"});
+  Leitura releitura;
+  releitura.url = "https://a.com/1";
+  releitura.host = "a.com";
+  releitura.titulo = u"Um";
+  releitura.texto = u"segredo guardado aqui e mais um pouco";
+  releitura.quando = base::Time::Now();
+  releitura.visita = false;
+  banco_->Lembrar(releitura);
+  EXPECT_TRUE(Achar(u"segredo").empty());
+  EXPECT_EQ(banco_->Resumir().paginas, 0);
+  // Uma visita de verdade guarda de novo.
+  Ler("https://a.com/1", u"Um", u"segredo guardado aqui");
+  EXPECT_EQ(Achar(u"segredo").size(), 1u);
+}
+
+TEST_F(MemoriaBanco, ReleituraAtualizaOQueEstaGuardado) {
+  Ler("https://a.com/1", u"Um", u"o começo do artigo");
+  Leitura releitura;
+  releitura.url = "https://a.com/1";
+  releitura.host = "a.com";
+  releitura.titulo = u"Um";
+  releitura.texto = u"o começo do artigo e os comentários carregados depois";
+  releitura.quando = base::Time::Now();
+  releitura.visita = false;
+  banco_->Lembrar(releitura);
+  const std::vector<Resultado> r = banco_->Buscar({.consulta = u"comentários"});
+  ASSERT_EQ(r.size(), 1u);
+  EXPECT_EQ(r[0].visitas, 1);
+}
+
+// Um item apagado na página do histórico: o endereço num dia.
+TEST_F(MemoriaBanco, ApagaOEnderecoSoSeFoiLidoNoPeriodo) {
+  const base::Time agora = base::Time::Now();
+  Ler("https://a.com/ontem", u"Ontem", u"palavra lida ontem",
+      agora - base::Days(1));
+  Ler("https://a.com/hoje", u"Hoje", u"palavra lida hoje", agora);
+  Ler("https://a.com/outra", u"Outra", u"palavra de outra página", agora);
+  banco_->EsquecerEnderecosNoPeriodo(
+      {"https://a.com/ontem", "https://a.com/hoje", "https://nada.com/"},
+      agora - base::Hours(1), agora + base::Hours(1));
+  std::vector<std::string> ficaram = Achar(u"palavra");
+  std::ranges::sort(ficaram);
+  EXPECT_EQ(ficaram, (std::vector<std::string>{"https://a.com/ontem",
+                                                "https://a.com/outra"}));
+}
+
+// As palavras de uma página apagada saem do arquivo (o índice só marcava a
+// linha como apagada).
+TEST_F(MemoriaBanco, LimparTiraDoArquivoAsPalavrasApagadas) {
+  Ler("https://a.com/1", u"Um", u"xilofonezebra e mais palavras do texto");
+  Ler("https://a.com/2", u"Dois", u"outra página que fica guardada");
+  banco_->EsquecerEnderecos({"https://a.com/1"});
+  banco_->Limpar();
+  EXPECT_EQ(Achar(u"guardada").size(), 1u);
+  banco_.reset();
+  std::string bytes;
+  ASSERT_TRUE(base::ReadFileToString(Arquivo(), &bytes));
+  EXPECT_EQ(bytes.find("xilofonezebra"), std::string::npos);
+  EXPECT_NE(bytes.find("guardada"), std::string::npos);
+}
+
+// Apagou e fechou antes de limpar: a marca fica no arquivo, e a limpeza
+// seguinte (a poda) faz o serviço.
+TEST_F(MemoriaBanco, LimpaNaProximaAberturaOQueFicouPendente) {
+  Ler("https://a.com/1", u"Um", u"xilofonezebra e mais palavras do texto");
+  Ler("https://a.com/2", u"Dois", u"outra página que fica guardada");
+  banco_->EsquecerEnderecos({"https://a.com/1"});
+  banco_.reset();
+  banco_ = std::make_unique<Banco>(Arquivo());
+  ASSERT_TRUE(banco_->Abrir());
+  banco_->Podar(base::Time(), base::Time(), 4000);
+  banco_.reset();
+  std::string bytes;
+  ASSERT_TRUE(base::ReadFileToString(Arquivo(), &bytes));
+  EXPECT_EQ(bytes.find("xilofonezebra"), std::string::npos);
+}
+
+// Voltar pra uma versão antiga do Norte não apaga o que a nova guardou.
+TEST_F(MemoriaBanco, ArquivoDeVersaoMaisNovaFicaComoEsta) {
+  Ler("https://a.com/1", u"Um", u"palavra guardada");
+  banco_.reset();
+  {
+    sql::Database db(sql::DatabaseOptions(), "PageContentStore");
+    ASSERT_TRUE(db.Open(Arquivo()));
+    sql::MetaTable meta;
+    ASSERT_TRUE(meta.Init(&db, 1, 1));
+    ASSERT_TRUE(meta.SetVersionNumber(99));
+    ASSERT_TRUE(meta.SetCompatibleVersionNumber(99));
+  }
+  const int64_t tamanho = base::GetFileSize(Arquivo()).value_or(0);
+  banco_ = std::make_unique<Banco>(Arquivo());
+  EXPECT_FALSE(banco_->Abrir());
+  EXPECT_TRUE(Achar(u"palavra").empty());
+  Ler("https://a.com/2", u"Dois", u"palavra");
+  banco_.reset();
+  EXPECT_EQ(base::GetFileSize(Arquivo()).value_or(0), tamanho);
+}
+
+// A busca que já ficou pra trás (a pessoa digitou outra letra) nem roda.
+TEST_F(MemoriaBanco, BuscaUltrapassadaNaoRoda) {
+  Ler("https://a.com/1", u"Um", u"palavra guardada");
+  Filtro filtro;
+  filtro.consulta = u"palavra";
+  filtro.pedido = std::make_shared<std::atomic<int>>(2);
+  filtro.numero_do_pedido = 1;
+  EXPECT_TRUE(banco_->Buscar(filtro).empty());
+  filtro.numero_do_pedido = 2;
+  EXPECT_EQ(banco_->Buscar(filtro).size(), 1u);
+}
+
+// A linha do tempo (sem busca) mostra o começo do texto.
+TEST_F(MemoriaBanco, LinhaDoTempoTrazOComecoDoTexto) {
+  // (Parágrafo "de verdade": a primeira linha com 60 letras ou mais.)
+  std::u16string texto =
+      u"Primeiro parágrafo de verdade do artigo, com uma frase bem comprida "
+      u"pra contar como texto.";
+  texto += u"\n" + std::u16string(20000, u'x');
+  Ler("https://a.com/1", u"Um", texto);
+  const std::vector<Resultado> r = banco_->Buscar(Filtro());
+  ASSERT_EQ(r.size(), 1u);
+  EXPECT_TRUE(r[0].trecho.texto.starts_with(u"Primeiro parágrafo"));
 }
 
 

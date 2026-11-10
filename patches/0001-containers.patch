@@ -1058,6 +1058,33 @@ index e36f3fa89c..797361b6b5 100644
    CHECK(app_lock_);
  
    SCOPED_CRASH_KEY_NUMBER("PWA", "install_surface",
+diff --git i/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc w/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
+index ecb3123778..ed45175dce 100644
+--- i/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
++++ w/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
+@@ -21,6 +21,7 @@
+ #include "chrome/browser/web_applications/web_app_registrar.h"
+ #include "chrome/common/pref_names.h"
+ #include "components/prefs/pref_service.h"
++#include "navegador/browser/containers/containers.h"
+ 
+ namespace web_app {
+ 
+@@ -74,6 +75,14 @@ void GarbageCollectStoragePartitionsCommand::DoGarbageCollection() {
+   // Get all paths from Web App system.
+   allowlist.merge(lock_->isolation_delegate().GetIsolatedStoragePaths());
+ 
++  // navegador: os containers do Norte são partições de armazenamento
++  // (Storage/ext/navegador/...). A coleta apaga de Storage/ext tudo o que
++  // não está nesta lista nem aberto na hora: sem isto, desinstalar um app
++  // isolado ou uma extensão com armazenamento próprio (que ligam a coleta
++  // pra próxima partida) apagava os cookies e logins de todos os containers
++  // sem aba aberta.
++  allowlist.insert(navegador::containers::PastaDasParticoes(profile_));
++
+   base::ListValue* debug_paths =
+       GetMutableDebugValue().EnsureList("allow_list_paths");
+   for (const auto& path : allowlist) {
 diff --git i/components/permissions/permission_util.cc w/components/permissions/permission_util.cc
 index b47da08dde..72788af1b1 100644
 --- i/components/permissions/permission_util.cc

@@ -676,8 +676,19 @@ void FecharDepois(BrowserWindowInterface* browser) {
   // Some esmaecendo; o resto (a página) é destruído fora do evento, depois
   // que a animação termina (e um quadro de folga).
   const base::TimeDelta tempo = it->second->EsconderAnimado();
+  // Só esta prévia: se a pessoa abrir outra (Shift+clique de novo) antes de
+  // a animação acabar, o fechar atrasado fechava a nova. O ponteiro só
+  // serve pra comparar (a nova nasce antes de a antiga ser apagada).
   base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
-      FROM_HERE, base::BindOnce(&Fechar, browser),
+      FROM_HERE,
+      base::BindOnce(
+          [](BrowserWindowInterface* browser, const void* qual) {
+            auto it = Previas().find(browser);
+            if (it != Previas().end() && it->second.get() == qual) {
+              Fechar(browser);
+            }
+          },
+          browser, static_cast<const void*>(it->second.get())),
       tempo.is_zero() ? base::TimeDelta() : tempo + base::Milliseconds(16));
 }
 

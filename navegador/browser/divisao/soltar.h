@@ -156,6 +156,7 @@ class AlcaDoPainel : public views::View,
 
   // views::View:
   void OnPaint(gfx::Canvas* canvas) override;
+  void OnThemeChanged() override;
   bool OnMousePressed(const ui::MouseEvent& event) override;
   bool OnMouseDragged(const ui::MouseEvent& event) override;
   void OnMouseReleased(const ui::MouseEvent& event) override;

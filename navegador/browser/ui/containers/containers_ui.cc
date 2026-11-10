@@ -1,5 +1,6 @@
 #include "navegador/browser/ui/containers/containers_ui.h"
 
+#include <algorithm>
 #include <optional>
 #include <string>
 #include <utility>
@@ -18,6 +19,10 @@
 #include "chrome/browser/ui/tabs/tab_strip_model.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_group.h"
+#include "chrome/browser/ui/browser_window/public/browser_window_interface.h"
+#include "chrome/browser/ui/browser_window/public/global_browser_collection.h"
+#include "components/split_tabs/split_tab_id.h"
+#include "components/tabs/public/split_tab_data.h"
 #include "components/tabs/public/tab_interface.h"
 #include "components/vector_icons/vector_icons.h"
 #include "content/public/browser/navigation_controller.h"
@@ -534,11 +539,22 @@ int AbrirEmContainer(TabStripModel* tab_strip,
   // grupo dá CHECK no TabCollection::ToDirectIndex, e no fim dele tiraria a
   // janela do espaço.
   std::optional<tab_groups::TabGroupId> grupo;
+  // Depois da divisão inteira, se a aba de referência está numa: inserir no
+  // meio das abas de uma divisão desfaz a divisão (o TabStripModel só
+  // desvia sozinho no AddTab).
+  int depois_de = index;
   if (index >= 0 && index < tab_strip->count()) {
     grupo = tab_strip->GetTabGroupForTab(index);
+    if (std::optional<split_tabs::SplitTabId> divisao =
+            tab_strip->GetSplitForTab(index)) {
+      for (tabs::TabInterface* aba :
+           tab_strip->GetSplitData(*divisao)->ListTabs()) {
+        depois_de = std::max(depois_de, tab_strip->GetIndexOfTab(aba));
+      }
+    }
   }
   const int inserida = tab_strip->InsertWebContentsAt(
-      index + 1, content::WebContents::Create(params),
+      depois_de + 1, content::WebContents::Create(params),
       ativar ? AddTabTypes::ADD_ACTIVE : AddTabTypes::ADD_NONE, grupo);
   content::NavigationController::LoadURLParams load(url);
   load.transition_type = ui::PAGE_TRANSITION_AUTO_TOPLEVEL;
@@ -563,8 +579,37 @@ void ReabrirEmContainer(TabStripModel* tab_strip,
   if (tab_strip->IsTabPinned(index)) {
     tab_strip->SetTabPinned(nova, true);
   }
+  // O nome dado à aba e o site fixado a que ela está ligada vão junto (como
+  // na aba descartada): sem isto, trocar o container de uma aba de site
+  // fixado soltava a aba na lista e o site ficava sem ela.
+  CopiarDadosDaAba(original, tab_strip->GetWebContentsAt(nova));
   tab_strip->CloseWebContentsAt(tab_strip->GetIndexOfWebContents(original),
                                 TabCloseTypes::CLOSE_USER_GESTURE);
+}
+
+void TirarAbasDoContainer(Profile* profile, std::string_view id) {
+  // As janelas primeiro (por referência fraca): reabrir mexe nas abas.
+  std::vector<base::WeakPtr<BrowserWindowInterface>> janelas;
+  GlobalBrowserCollection::GetInstance()->ForEach(
+      [&](BrowserWindowInterface* browser) {
+        if (browser->GetProfile() == profile) {
+          janelas.push_back(browser->GetWeakPtr());
+        }
+        return true;
+      });
+  for (const base::WeakPtr<BrowserWindowInterface>& janela : janelas) {
+    if (!janela || !janela->GetTabStripModel()) {
+      continue;
+    }
+    TabStripModel* abas = janela->GetTabStripModel();
+    // De trás pra frente: a nova entra depois da original, que fecha.
+    for (int i = abas->count() - 1; i >= 0; --i) {
+      if (i < abas->count() &&
+          IdForWebContents(abas->GetWebContentsAt(i)).value_or("") == id) {
+        ReabrirEmContainer(abas, i, std::string_view());
+      }
+    }
+  }
 }
 
 std::unique_ptr<ui::SimpleMenuModel> CriarSubmenuDaAba(TabStripModel* tab_strip,

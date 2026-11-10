@@ -301,7 +301,7 @@ class LinhaDoSite : public views::Button {
 
   void OnMouseReleased(const ui::MouseEvent& event) override {
     if (std::exchange(ignorar_soltar_, false)) {
-      SetState(IsMouseHovered() ? STATE_HOVERED : STATE_NORMAL);
+      SetState(abas::PonteiroEmCima(this) ? STATE_HOVERED : STATE_NORMAL);
       return;
     }
     views::Button::OnMouseReleased(event);
@@ -315,7 +315,7 @@ class LinhaDoSite : public views::Button {
     ativa_ = ativa;
     icone_->SetImage(icone);
     som_->SetVisible(tocando);
-    fechar_->SetVisible(aberta_ && (ativa_ || IsMouseHovered()));
+    fechar_->SetVisible(aberta_ && (ativa_ || abas::PonteiroEmCima(this)));
     AtualizarCor();
     SchedulePaint();
   }
@@ -326,7 +326,7 @@ class LinhaDoSite : public views::Button {
   }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
-    PintarFundo(canvas, *this, ativa_, IsMouseHovered());
+    PintarFundo(canvas, *this, ativa_, abas::PonteiroEmCima(this));
   }
 
   void OnMouseEntered(const ui::MouseEvent& event) override {
@@ -419,7 +419,7 @@ class CabecalhoDaPasta : public views::Button {
   }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
-    PintarFundo(canvas, *this, /*ativa=*/false, IsMouseHovered());
+    PintarFundo(canvas, *this, /*ativa=*/false, abas::PonteiroEmCima(this));
   }
 
   void OnMouseEntered(const ui::MouseEvent& event) override {
@@ -505,7 +505,7 @@ class Ladrilho : public views::Button {
                            : SkColorSetARGB(0x99, 0xFF, 0xFF, 0xFF);
     if (ativa_) {
       fundo = escuro ? SkColorSetARGB(0x24, 0xFF, 0xFF, 0xFF) : SK_ColorWHITE;
-    } else if (IsMouseHovered()) {
+    } else if (abas::PonteiroEmCima(this)) {
       fundo = escuro ? SkColorSetARGB(0x17, 0xFF, 0xFF, 0xFF)
                      : SkColorSetARGB(0xC2, 0xFF, 0xFF, 0xFF);
     }
@@ -582,7 +582,7 @@ class SemFavoritos : public views::Button {
     caixa.Inset(0.5f);
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
-    if (IsMouseHovered()) {
+    if (abas::PonteiroEmCima(this)) {
       flags.setColor(SkColorSetA(cor, 0x10));
       canvas->DrawRoundRect(caixa, kRaio, flags);
     }
@@ -1009,8 +1009,8 @@ class AreaDeFixos : public views::View,
       if (aba) {
         menu_->AddItem(kFecharAba, u"Fechar a aba");
       }
-      menu_->AddItem(kSubir, u"Mover pra esquerda");
-      menu_->AddItem(kDescer, u"Mover pra direita");
+      menu_->AddItem(kSubir, u"Mover para a esquerda");
+      menu_->AddItem(kDescer, u"Mover para a direita");
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
       menu_->AddItem(kDesafixarCmd, u"Tirar dos favoritos");
     } else if (site) {
@@ -1024,8 +1024,8 @@ class AreaDeFixos : public views::View,
         menu_->AddItem(kFecharAba, u"Fechar a aba");
       }
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
-      menu_->AddItem(kSubir, u"Mover pra cima");
-      menu_->AddItem(kDescer, u"Mover pra baixo");
+      menu_->AddItem(kSubir, u"Mover para cima");
+      menu_->AddItem(kDescer, u"Mover para baixo");
       AdicionarMoverParaPasta(id, pasta_do_alvo);
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
       menu_->AddItem(kNovaPastaCmd, u"Nova pasta…");
@@ -1036,8 +1036,8 @@ class AreaDeFixos : public views::View,
       menu_->AddItem(kAbrirTodas, u"Abrir todos os sites");
       menu_->AddItem(kFecharTodas, u"Fechar as abas da pasta");
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
-      menu_->AddItem(kSubir, u"Mover pra cima");
-      menu_->AddItem(kDescer, u"Mover pra baixo");
+      menu_->AddItem(kSubir, u"Mover para cima");
+      menu_->AddItem(kDescer, u"Mover para baixo");
       AdicionarMoverParaPasta(id, pasta_do_alvo);
       menu_->AddSeparator(ui::NORMAL_SEPARATOR);
       int nivel = 0;
@@ -1213,9 +1213,20 @@ class AreaDeFixos : public views::View,
         selection.active_tab_changed()) {
       AtualizarDepois();
     }
-    // Pasta fechada mostra o site da aba ativa: muda com ela.
+    // Pasta fechada mostra o site da aba ativa: muda com ela. Só refaz a
+    // área (todas as linhas, o layout da lateral, e cancela um renomear ou
+    // um arrasto em curso) quando o que a pasta fechada mostra muda mesmo:
+    // antes era a cada troca de aba, com qualquer pasta fechada.
     if (selection.active_tab_changed() && tem_pasta_fechada_) {
-      ReconstruirDepois();
+      std::optional<std::string> devia =
+          selection.new_contents ? SiteDaAba(selection.new_contents)
+                                 : std::nullopt;
+      if (devia && !em_pasta_fechada_.contains(*devia)) {
+        devia.reset();
+      }
+      if (devia != mostrado_de_pasta_fechada_) {
+        ReconstruirDepois();
+      }
     }
   }
 
@@ -1248,8 +1259,16 @@ class AreaDeFixos : public views::View,
   Profile* Perfil() const { return browser_->GetProfile(); }
 
   std::string EspacoAtual() const {
-    if (std::optional<tab_groups::TabGroupId> grupo =
-            model_->GetFocusedGroup()) {
+    std::optional<tab_groups::TabGroupId> grupo = model_->GetFocusedGroup();
+    // Sem grupo focado (no meio de um arrasto, o Chromium tira o foco a cada
+    // aba que entra de outro grupo): o espaço que esta janela mostra. O
+    // `Ativo` é do perfil, o último usado em qualquer janela: com duas
+    // janelas em espaços diferentes, a que recebia uma aba arrastada
+    // mostrava (e gravava) os fixados do espaço da outra.
+    if (!grupo) {
+      grupo = espacos::GrupoVisivel(model_);
+    }
+    if (grupo) {
       if (std::optional<std::string> espaco =
               espacos::EspacoDoGrupo(Perfil(), grupo->ToString())) {
         return *espaco;
@@ -1415,6 +1434,8 @@ class AreaDeFixos : public views::View,
     }
     const std::vector<Entrada> entradas = Do(Perfil(), EspacoAtual());
     tem_pasta_fechada_ = false;
+    em_pasta_fechada_.clear();
+    mostrado_de_pasta_fechada_.reset();
     AdicionarEntradas(entradas, /*nivel=*/0, /*pasta=*/std::string(),
                       SiteDaAba(model_->GetActiveWebContents()));
     if (!entradas.empty()) {
@@ -1488,13 +1509,29 @@ class AreaDeFixos : public views::View,
       pais_[cabecalho] = pasta;
       if (entrada.aberta) {
         AdicionarEntradas(entrada.itens, nivel + 1, entrada.id, site_ativo);
-      } else if (site_ativo) {
-        // Pasta fechada: só o site da aba ativa fica à vista (como no Zen),
-        // mesmo vindo de uma pasta de dentro dela.
-        std::string de_quem;
-        if (const Entrada* site = SiteNaPasta(entrada, *site_ativo, &de_quem)) {
-          AdicionarSite(site->site, nivel + 1, de_quem);
+      } else {
+        JuntarSites(entrada, em_pasta_fechada_);
+        if (site_ativo) {
+          // Pasta fechada: só o site da aba ativa fica à vista (como no
+          // Zen), mesmo vindo de uma pasta de dentro dela.
+          std::string de_quem;
+          if (const Entrada* site =
+                  SiteNaPasta(entrada, *site_ativo, &de_quem)) {
+            AdicionarSite(site->site, nivel + 1, de_quem);
+            mostrado_de_pasta_fechada_ = site->id;
+          }
         }
+      }
+    }
+  }
+
+  // Os sites de dentro da pasta, em qualquer nível.
+  static void JuntarSites(const Entrada& pasta, std::set<std::string>& ids) {
+    for (const Entrada& item : pasta.itens) {
+      if (item.pasta) {
+        JuntarSites(item, ids);
+      } else {
+        ids.insert(item.id);
       }
     }
   }
@@ -1664,7 +1701,10 @@ class AreaDeFixos : public views::View,
       }
       // Guarda pra quando a aba fechar (site que não estava no histórico
       // de favicons ficava com o globo).
-      if (!icone.IsEmpty()) {
+      // Só enquanto a aba está no site do fixado: navegando nela pra outro
+      // lugar, o ícone do outro site ficava guardado como o deste (e
+      // aparecia depois de fechar a aba, até reiniciar).
+      if (!icone.IsEmpty() && EnderecoDaAba(aba).host() == site.url.host()) {
         icones_[site.url] = icone;
       }
     } else {
@@ -1757,6 +1797,10 @@ class AreaDeFixos : public views::View,
   bool atualizacao_pendente_ = false;
   bool conversao_pendente_ = false;
   bool tem_pasta_fechada_ = false;
+  // Os sites dentro de pastas fechadas, e o que está à vista por ser o da
+  // aba ativa (um só: a aba ativa é uma).
+  std::set<std::string> em_pasta_fechada_;
+  std::optional<std::string> mostrado_de_pasta_fechada_;
 
   // Arrastar: o que, de onde, e pra perto de quem.
   enum class Onde { kAntes, kDepois, kDentro };

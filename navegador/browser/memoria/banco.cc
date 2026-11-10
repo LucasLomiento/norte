@@ -10,7 +10,8 @@
 #include "base/logging.h"
 #include "base/strings/strcat.h"
 #include "base/strings/string_number_conversions.h"
-#include "sql/error_delegate_util.h"
+#include "sql/sqlite_result_code.h"
+#include "sql/sqlite_result_code_values.h"
 #include "sql/statement.h"
 #include "sql/transaction.h"
 
@@ -35,6 +36,25 @@ constexpr char kCriarBusca[] =
 // O título vale mais que o texto.
 constexpr char kRelevancia[] = "bm25(busca, 4.0, 1.0)";
 
+// Na linha do tempo (sem busca) o trecho é o começo da página: não precisa
+// ler o texto inteiro (até 120 mil letras por página, 150 páginas por vez).
+constexpr int kComecoDoTexto = 4000;
+// Na tabela de metadados: tem página apagada com as palavras ainda no
+// índice (`Limpar`).
+constexpr char kChaveSujo[] = "sujo";
+// Depois de zerado por estar estragado, o arquivo é aberto de novo no
+// próximo uso; mais que isso numa sessão é o disco, e a Memória para.
+constexpr int kMaximoDeReaberturas = 3;
+
+// Arquivo estragado de verdade. O `sql::IsErrorCatastrophic` conta também o
+// erro genérico (SQLITE_ERROR), que é o que uma consulta malformada do FTS5
+// devolve: uma busca estranha zerava a Memória inteira.
+bool Estragado(int erro) {
+  const sql::SqliteResultCode codigo = sql::ToSqliteResultCode(erro & 0xFF);
+  return codigo == sql::SqliteResultCode::kCorrupt ||
+         codigo == sql::SqliteResultCode::kNotADatabase;
+}
+
 }  // namespace
 
 Banco::Banco(base::FilePath arquivo)
@@ -51,23 +71,25 @@ bool Banco::Abrir() {
   if (aberto_) {
     return true;
   }
-  // Arquivo estragado no meio do uso: zera e segue (a memória volta a se
-  // encher com as próximas leituras).
-  db_.set_error_callback(base::BindRepeating(
-      [](Banco* banco, int erro, sql::Statement* comando) {
-        DLOG(ERROR) << "Memória: erro " << erro << ": "
-                    << banco->db_.GetErrorMessage();
-        if (sql::IsErrorCatastrophic(erro)) {
-          LOG(ERROR) << "Memória: banco estragado (" << erro << "), zerando";
-          banco->aberto_ = false;
-          banco->db_.RazeAndPoison();
-        }
-      },
-      base::Unretained(this)));
+  db_.set_error_callback(
+      base::BindRepeating(&Banco::Erro, base::Unretained(this)));
   for (int tentativa = 0; tentativa < 2; ++tentativa) {
-    if (db_.Open(arquivo_) && CriarTabelas()) {
-      aberto_ = true;
-      return true;
+    if (db_.Open(arquivo_)) {
+      mais_novo_ = false;
+      if (CriarTabelas()) {
+        aberto_ = true;
+        // Apagou e o Norte fechou antes de limpar: fica pra próxima poda.
+        int sujo = 0;
+        sujo_ = meta_.GetValue(kChaveSujo, &sujo) && sujo != 0;
+        return true;
+      }
+      if (mais_novo_) {
+        // De uma versão mais nova do Norte (voltou pra uma antiga): não dá
+        // pra ler, mas também não é pra apagar o que a pessoa guardou.
+        db_.Close();
+        LOG(ERROR) << "Memória: o arquivo é de uma versão mais nova";
+        return false;
+      }
     }
     db_.Close();
     sql::Database::Delete(arquivo_);
@@ -76,13 +98,40 @@ bool Banco::Abrir() {
   return false;
 }
 
+// Arquivo estragado no meio do uso: zera, e o próximo uso abre de novo (a
+// memória volta a se encher com as próximas leituras).
+void Banco::Erro(int erro, sql::Statement* comando) {
+  DLOG(ERROR) << "Memória: erro " << erro << ": " << db_.GetErrorMessage();
+  // Abrindo, quem cuida é o `Abrir` (apaga o arquivo e tenta de novo).
+  if (!aberto_ || !Estragado(erro)) {
+    return;
+  }
+  LOG(ERROR) << "Memória: banco estragado (" << erro << "), zerando";
+  aberto_ = false;
+  // Zerar também pode dar erro: sem o aviso, não volta pra cá.
+  db_.reset_error_callback();
+  db_.RazeAndPoison();
+}
+
+bool Banco::Pronto() {
+  if (aberto_) {
+    return true;
+  }
+  if (mais_novo_ || reaberturas_ >= kMaximoDeReaberturas) {
+    return false;
+  }
+  ++reaberturas_;
+  db_.Close();
+  return Abrir();
+}
+
 bool Banco::CriarTabelas() {
   sql::Transaction transacao(&db_);
   if (!transacao.Begin() || !meta_.Init(&db_, kVersao, kVersao)) {
     return false;
   }
   if (meta_.GetCompatibleVersionNumber() > kVersao) {
-    // De uma versão mais nova do Norte: não dá pra ler.
+    mais_novo_ = true;
     return false;
   }
   // O texto no fim da linha: ler os outros campos não passa pelas páginas
@@ -104,6 +153,12 @@ bool Banco::CriarTabelas() {
              "CREATE INDEX IF NOT EXISTS paginas_ultima ON paginas(ultima)") &&
          db_.Execute(
              "CREATE INDEX IF NOT EXISTS paginas_host ON paginas(host)") &&
+         // Excluir um container apaga as páginas lidas nele: sem o índice,
+         // cada exclusão (e cada container temporário que fecha) varria a
+         // tabela inteira, com o texto das páginas.
+         db_.Execute(
+             "CREATE INDEX IF NOT EXISTS paginas_container "
+             "ON paginas(container)") &&
          db_.Execute(kCriarBusca) &&
          db_.Execute(
              "CREATE TABLE IF NOT EXISTS miniaturas("
@@ -114,7 +169,7 @@ bool Banco::CriarTabelas() {
 }
 
 void Banco::Lembrar(const Leitura& leitura) {
-  if (!aberto_ || leitura.url.empty()) {
+  if (!Pronto() || leitura.url.empty()) {
     return;
   }
   sql::Transaction transacao(&db_);
@@ -163,6 +218,12 @@ void Banco::Lembrar(const Leitura& leitura) {
     return;
   }
   achar.Reset(/*clear_bound_vars=*/true);
+  // A releitura (ao sair da aba) só atualiza o que já está guardado. Se a
+  // página saiu daqui no meio (a pessoa mandou esquecer, apagou o histórico
+  // ou tudo), ela não volta sem uma visita nova.
+  if (!leitura.visita) {
+    return;
+  }
   sql::Statement inserir(db_.GetCachedStatement(
       SQL_FROM_HERE,
       "INSERT INTO paginas(url, host, titulo, primeira, ultima, visitas, "
@@ -192,7 +253,7 @@ void Banco::Lembrar(const Leitura& leitura) {
 }
 
 void Banco::SomarTempo(const std::string& url, int segundos) {
-  if (!aberto_ || segundos <= 0) {
+  if (!Pronto() || segundos <= 0) {
     return;
   }
   sql::Statement somar(db_.GetCachedStatement(
@@ -206,7 +267,7 @@ void Banco::SomarTempo(const std::string& url, int segundos) {
 void Banco::GuardarMiniatura(const std::string& url,
                              const std::vector<uint8_t>& jpeg,
                              base::Time quando) {
-  if (!aberto_ || jpeg.empty()) {
+  if (!Pronto() || jpeg.empty()) {
     return;
   }
   sql::Statement guardar(db_.GetCachedStatement(
@@ -220,7 +281,7 @@ void Banco::GuardarMiniatura(const std::string& url,
 }
 
 bool Banco::TemMiniatura(const std::string& url, base::TimeDelta idade) {
-  if (!aberto_) {
+  if (!Pronto()) {
     return false;
   }
   sql::Statement achar(db_.GetCachedStatement(
@@ -233,7 +294,12 @@ bool Banco::TemMiniatura(const std::string& url, base::TimeDelta idade) {
 }
 
 std::vector<Resultado> Banco::Buscar(const Filtro& filtro) {
-  if (!aberto_) {
+  if (!Pronto()) {
+    return {};
+  }
+  // Busca que já ficou pra trás (a pessoa digitou outra letra): nem roda.
+  if (filtro.pedido && filtro.pedido->load(std::memory_order_relaxed) !=
+                           filtro.numero_do_pedido) {
     return {};
   }
   if (filtro.consulta.empty()) {
@@ -334,12 +400,17 @@ std::vector<Resultado> Banco::Recentes(const Filtro& filtro) {
 void Banco::Completar(std::vector<Resultado>& resultados,
                       const std::vector<texto::Termo>& termos,
                       size_t tamanho) {
+  // Com busca, o trecho pode estar em qualquer lugar do texto; sem (a linha
+  // do tempo), é o começo dele.
   sql::Statement ler(db_.GetCachedStatement(
       SQL_FROM_HERE,
-      "SELECT p.texto, m.pagina IS NOT NULL FROM paginas p "
+      "SELECT CASE WHEN ? THEN p.texto ELSE substr(p.texto, 1, ?) END, "
+      "m.pagina IS NOT NULL FROM paginas p "
       "LEFT JOIN miniaturas m ON m.pagina = p.id WHERE p.id = ?"));
   for (Resultado& r : resultados) {
-    ler.BindInt64(0, r.id);
+    ler.BindBool(0, !termos.empty());
+    ler.BindInt(1, kComecoDoTexto);
+    ler.BindInt64(2, r.id);
     if (ler.Step()) {
       r.trecho = texto::Recortar(ler.ColumnString16(0), termos, tamanho);
       r.tem_miniatura = ler.ColumnBool(1);
@@ -349,7 +420,7 @@ void Banco::Completar(std::vector<Resultado>& resultados,
 }
 
 std::vector<uint8_t> Banco::Miniatura(int64_t id) {
-  if (!aberto_) {
+  if (!Pronto()) {
     return {};
   }
   sql::Statement ler(db_.GetCachedStatement(
@@ -359,6 +430,10 @@ std::vector<uint8_t> Banco::Miniatura(int64_t id) {
 }
 
 void Banco::Apagar(const std::vector<int64_t>& ids) {
+  if (!ids.empty() && !sujo_) {
+    sujo_ = true;
+    std::ignore = meta_.SetValue(kChaveSujo, 1);
+  }
   for (size_t comeco = 0; comeco < ids.size(); comeco += kLote) {
     sql::Transaction transacao(&db_);
     if (!transacao.Begin()) {
@@ -386,13 +461,13 @@ void Banco::Apagar(const std::vector<int64_t>& ids) {
 }
 
 void Banco::EsquecerPagina(int64_t id) {
-  if (aberto_) {
+  if (Pronto()) {
     Apagar({id});
   }
 }
 
 void Banco::EsquecerEnderecos(const std::vector<std::string>& urls) {
-  if (!aberto_) {
+  if (!Pronto()) {
     return;
   }
   std::vector<int64_t> ids;
@@ -408,8 +483,30 @@ void Banco::EsquecerEnderecos(const std::vector<std::string>& urls) {
   Apagar(ids);
 }
 
+void Banco::EsquecerEnderecosNoPeriodo(const std::vector<std::string>& urls,
+                                       base::Time inicio,
+                                       base::Time fim) {
+  if (!Pronto()) {
+    return;
+  }
+  std::vector<int64_t> ids;
+  sql::Statement achar(db_.GetCachedStatement(
+      SQL_FROM_HERE,
+      "SELECT id FROM paginas WHERE url = ? AND ultima >= ? AND ultima < ?"));
+  for (const std::string& url : urls) {
+    achar.BindString(0, url);
+    achar.BindTime(1, inicio);
+    achar.BindTime(2, fim.is_null() ? base::Time::Max() : fim);
+    if (achar.Step()) {
+      ids.push_back(achar.ColumnInt64(0));
+    }
+    achar.Reset(/*clear_bound_vars=*/true);
+  }
+  Apagar(ids);
+}
+
 void Banco::EsquecerPeriodo(base::Time inicio, base::Time fim) {
-  if (!aberto_) {
+  if (!Pronto()) {
     return;
   }
   sql::Statement achar(db_.GetCachedStatement(
@@ -425,7 +522,7 @@ void Banco::EsquecerPeriodo(base::Time inicio, base::Time fim) {
 }
 
 void Banco::EsquecerSite(const std::string& host) {
-  if (!aberto_ || host.empty()) {
+  if (!Pronto() || host.empty()) {
     return;
   }
   sql::Statement achar(db_.GetCachedStatement(
@@ -444,7 +541,7 @@ void Banco::EsquecerSite(const std::string& host) {
 }
 
 void Banco::EsquecerContainer(const std::string& container) {
-  if (!aberto_ || container.empty()) {
+  if (!Pronto() || container.empty()) {
     return;
   }
   sql::Statement achar(db_.GetCachedStatement(
@@ -458,9 +555,10 @@ void Banco::EsquecerContainer(const std::string& container) {
 }
 
 void Banco::EsquecerTudo() {
-  if (!aberto_) {
+  if (!Pronto()) {
     return;
   }
+  sujo_ = false;
   {
     sql::Transaction transacao(&db_);
     if (!transacao.Begin() ||
@@ -478,7 +576,7 @@ void Banco::EsquecerTudo() {
 void Banco::Podar(base::Time antes_de,
                   base::Time miniaturas_antes_de,
                   size_t maximo_de_miniaturas) {
-  if (!aberto_) {
+  if (!Pronto()) {
     return;
   }
   if (!antes_de.is_null()) {
@@ -494,11 +592,26 @@ void Banco::Podar(base::Time antes_de,
       "SELECT pagina FROM miniaturas ORDER BY quando DESC LIMIT ?)"));
   demais.BindInt64(0, static_cast<int64_t>(maximo_de_miniaturas));
   std::ignore = demais.Run();
+  Limpar();
+}
+
+void Banco::Limpar() {
+  if (!aberto_ || !sujo_) {
+    return;
+  }
+  sujo_ = false;
+  // O índice é "sem conteúdo": apagar uma página só marca a linha como
+  // apagada, e as palavras dela continuam no arquivo até as partes do índice
+  // se juntarem. O 'optimize' junta tudo agora, e o que foi apagado sai de
+  // verdade (o SQLite do Chromium zera as páginas livres: secure_delete).
+  if (db_.Execute("INSERT INTO busca(busca) VALUES('optimize')")) {
+    std::ignore = meta_.SetValue(kChaveSujo, 0);
+  }
 }
 
 Resumo Banco::Resumir() {
   Resumo resumo;
-  if (!aberto_) {
+  if (!Pronto()) {
     return resumo;
   }
   sql::Statement contar(db_.GetCachedStatement(

@@ -55,16 +55,9 @@ for f in "${FLAGS[@]}" "$@"; do
 done
 SISTEMA+=("--enable-features=$LIGAR")
 [[ -n "$DESLIGAR" ]] && SISTEMA+=("--disable-features=$DESLIGAR")
-# Extensões que o Omarchy põe no Chromium (Alt+Shift+L copia o endereço,
-# Alt+Shift+D baixa o vídeo, WhatsApp no tema do sistema), se existirem.
-OMARCHY=/usr/share/omarchy/default/chromium/extensions
-EXTENSOES=()
-for e in copy-url yt-dlp whatsapp-slim; do
-  [[ -f "$OMARCHY/$e/manifest.json" ]] && EXTENSOES+=("$OMARCHY/$e")
-done
-if ((${#EXTENSOES[@]})); then
-  SISTEMA+=("--load-extension=$(IFS=,; echo "${EXTENSOES[*]}")")
-fi
+# As extensões que o Omarchy põe no Chromium (copy-url, yt-dlp,
+# whatsapp-slim) não entram: por --load-extension elas voltavam a cada início,
+# mesmo removidas pela página de extensões. Tiradas a pedido em 06/11/2026.
 
 # Dentro do AppImage, o AppRun diz onde o Norte está.
 NORTE=("${NORTE_PASTA:-/usr/lib/norte}/norte" "${SISTEMA[@]}" --lang="$IDIOMA")

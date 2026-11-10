@@ -294,10 +294,24 @@ index d441b8a76b..0ff885584d 100644
  
  void BrowserView::RevealTopContainerIfNeeded() {
 diff --git i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index fc3337bf30..c4bb37b686 100644
+index fc3337bf30..d661fb1abc 100644
 --- i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-@@ -141,15 +141,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -39,6 +39,13 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
+     VerticalTabStripTopContainer,
+     kToggleVerticalTabsExpandOnHoverElementId);
+ 
++namespace {
++// navegador: o "Mostrar ao encostar na borda" do Norte (registrada em
++// navegador/browser/containers/espacos_dados.cc, `kMostrarNaBordaPref`).
++constexpr char kNavegadorMostrarNaBordaPref[] =
++    "navegador.lateral.mostrar_na_borda";
++}  // namespace
++
+ VerticalTabStripTopContainer::VerticalTabStripTopContainer(
+     tabs::VerticalTabStripStateController* state_controller,
+     actions::ActionItem* root_action_item,
+@@ -141,15 +148,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
                                   .width();
    }
  
@@ -316,7 +330,7 @@ index fc3337bf30..c4bb37b686 100644
      combo_button_orientation_ = views::LayoutOrientation::kVertical;
      int current_y = 0;
  
-@@ -244,6 +242,10 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -244,6 +249,10 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      }
  
      host_size.SetToMax(gfx::Size(0, current_y));
@@ -327,7 +341,7 @@ index fc3337bf30..c4bb37b686 100644
    } else {
      // If the vertical tab strip is uncollapsed, then lay out the buttons
      // horizontally. The exact y-level of the buttons depends on if they can lay
-@@ -296,9 +298,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -296,9 +305,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
                LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
      }
  
@@ -342,7 +356,7 @@ index fc3337bf30..c4bb37b686 100644
                         std::max(0, y_baseline - pref_size.height() / 2),
                         pref_size.width(), pref_size.height());
        layout.child_layouts.emplace_back(collapse_button_.get(),
-@@ -307,6 +313,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -307,6 +320,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
            bounds.bottom() +
            GetLayoutConstant(
                LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
@@ -350,7 +364,7 @@ index fc3337bf30..c4bb37b686 100644
      }
  
      const int expected_uncollapsed_width =
-@@ -345,6 +352,20 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -345,6 +359,20 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
        layout.child_layouts.emplace_back(combo_button_.get(),
                                          combo_button_->GetVisible(), bounds);
      }
@@ -371,7 +385,7 @@ index fc3337bf30..c4bb37b686 100644
    }
  
    layout.host_size = host_size;
-@@ -369,6 +390,15 @@ views::LabelButton* VerticalTabStripTopContainer::AddChildButtonFor(
+@@ -369,6 +397,15 @@ views::LabelButton* VerticalTabStripTopContainer::AddChildButtonFor(
    return container_button_ptr;
  }
  
@@ -387,7 +401,7 @@ index fc3337bf30..c4bb37b686 100644
  TabStripComboButton* VerticalTabStripTopContainer::GetComboButton() {
    return combo_button_.get();
  }
-@@ -400,6 +430,11 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+@@ -400,6 +437,11 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
      return false;
    }
  
@@ -399,7 +413,7 @@ index fc3337bf30..c4bb37b686 100644
    return true;
  }
  
-@@ -418,6 +453,12 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
+@@ -418,10 +460,18 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
      context_menu_runner_.reset();
  
      context_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
@@ -409,10 +423,26 @@ index fc3337bf30..c4bb37b686 100644
 +        IDC_TOGGLE_VERTICAL_TABS_COLLAPSE, state_controller_->IsCollapsed()
 +                                               ? IDS_EXPAND_VERTICAL_TABS
 +                                               : IDS_COLLAPSE_VERTICAL_TABS);
++    // navegador: o item liga e desliga o "Mostrar ao encostar na borda" do
++    // Norte (Configurações → Lateral). A opção do Chromium que ele trocava
++    // não é lida pelo Norte: ficava sempre marcado e não fazia nada.
      context_menu_model_->AddCheckItem(
          IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER,
-         l10n_util::GetStringUTF16(
-@@ -460,7 +501,8 @@ bool VerticalTabStripTopContainer::IsCommandIdChecked(int command_id) const {
+-        l10n_util::GetStringUTF16(
+-            IDS_VERTICAL_TABS_COLLAPSE_BUTTON_TOGGLE_EXPAND_ON_HOVER));
++        u"Mostrar a lateral ao encostar na borda");
+     context_menu_model_->SetElementIdentifierAt(
+         context_menu_model_->GetItemCount() - 1,
+         kToggleVerticalTabsExpandOnHoverElementId);
+@@ -454,13 +504,15 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
+ 
+ bool VerticalTabStripTopContainer::IsCommandIdChecked(int command_id) const {
+   if (command_id == IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER) {
+-    return state_controller_->IsExpandOnHoverEnabled();
++    return browser_->GetProfile()->GetOriginalProfile()->GetPrefs()->GetBoolean(
++        kNavegadorMostrarNaBordaPref);
+   }
+   return false;
  }
  
  bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
@@ -422,11 +452,17 @@ index fc3337bf30..c4bb37b686 100644
      return true;
    }
    return false;
-@@ -468,7 +510,8 @@ bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
- 
+@@ -469,6 +521,15 @@ bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
  void VerticalTabStripTopContainer::ExecuteCommand(int command_id,
                                                    int event_flags) {
--  if (command_id == IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER) {
+   if (command_id == IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER) {
++    // navegador: a opção do Norte (lida pela lateral a cada evento).
++    PrefService* prefs =
++        browser_->GetProfile()->GetOriginalProfile()->GetPrefs();
++    prefs->SetBoolean(kNavegadorMostrarNaBordaPref,
++                      !prefs->GetBoolean(kNavegadorMostrarNaBordaPref));
++    return;
++  }
 +  if (command_id == IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER ||
 +      command_id == IDC_TOGGLE_VERTICAL_TABS_COLLAPSE) {
      chrome::ExecuteCommand(browser_, command_id);

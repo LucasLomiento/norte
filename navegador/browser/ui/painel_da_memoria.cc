@@ -5,6 +5,8 @@
 #include <initializer_list>
 #include <cmath>
 #include <map>
+#include <atomic>
+#include <deque>
 #include <memory>
 #include <optional>
 #include <set>
@@ -1409,7 +1411,13 @@ class Painel : public views::View,
     if (!linha) {
       return;
     }
-    menu_indice_ = linha->indice();
+    if (linha->indice() >= resultados_.size()) {
+      return;
+    }
+    // A página, não a posição dela: se a lista mudar com o menu aberto (uma
+    // busca que chega), "Esquecer esta página" e "Não lembrar mais de…"
+    // cairiam em outra página.
+    menu_pagina_ = resultados_[linha->indice()].id;
     Selecionar(linha->indice(), /*rolar=*/false);
     const Resultado& r = resultados_[linha->indice()];
     menu_ = std::make_unique<ui::SimpleMenuModel>(this);
@@ -1445,10 +1453,17 @@ class Painel : public views::View,
   // --- ui::SimpleMenuModel::Delegate --------------------------------------------
 
   void ExecuteCommand(int comando, int flags) override {
-    if (!menu_indice_ || *menu_indice_ >= resultados_.size()) {
+    size_t indice = resultados_.size();
+    for (size_t i = 0; menu_pagina_ && i < resultados_.size(); ++i) {
+      if (resultados_[i].id == *menu_pagina_) {
+        indice = i;
+        break;
+      }
+    }
+    // A página do menu já não está na lista.
+    if (indice >= resultados_.size()) {
       return;
     }
-    const size_t indice = *menu_indice_;
     switch (comando) {
       case kAbrirNoTrecho:
         Abrir(indice, WindowOpenDisposition::NEW_FOREGROUND_TAB);
@@ -1604,6 +1619,8 @@ class Painel : public views::View,
         filtro.consulta.empty() ? kLimiteDaLinhaDoTempo : kLimiteDaBusca;
     filtro.tamanho_do_trecho = kTamanhoDoTrecho;
     consulta_feita_ = filtro.consulta;
+    // A busca que ainda está na fila quando chega a próxima letra nem roda.
+    filtro.pedido = buscas_;
     memoria::Buscar(perfil_, std::move(filtro),
                     base::BindOnce(&Painel::Chegou, weak_factory_.GetWeakPtr(),
                                    ++pedido_));
@@ -1629,6 +1646,18 @@ class Painel : public views::View,
         }
       }
     }
+    // As miniaturas de quem saiu da lista saem da memória (cada uma tem
+    // 576 KB já aberta; iam ficando todas até o painel fechar).
+    std::set<int64_t> na_lista;
+    for (const Resultado& r : resultados_) {
+      na_lista.insert(r.id);
+    }
+    std::erase_if(miniaturas_,
+                  [&](const auto& par) { return !na_lista.contains(par.first); });
+    std::erase_if(pedidas_,
+                  [&](int64_t id) { return !na_lista.contains(id); });
+    std::erase_if(ordem_das_miniaturas_,
+                  [&](int64_t id) { return !na_lista.contains(id); });
     // Abertas em alguma janela do perfil: a pílula "Aberta" e o Enter vai
     // pra aba.
     abertas_.clear();
@@ -1804,7 +1833,18 @@ class Painel : public views::View,
   }
 
   void ChegouMiniatura(int64_t id, const gfx::ImageSkia& imagem) {
-    miniaturas_[id] = imagem;
+    if (miniaturas_.emplace(id, imagem).second) {
+      ordem_das_miniaturas_.push_back(id);
+    }
+    // No máximo umas dezenas abertas (bem mais do que cabe na tela): rolando
+    // a linha do tempo inteira, eram ~86 MB. A que sai é pedida de novo se
+    // voltar a aparecer.
+    while (ordem_das_miniaturas_.size() > kMaximoDeMiniaturasAbertas) {
+      const int64_t velha = ordem_das_miniaturas_.front();
+      ordem_das_miniaturas_.pop_front();
+      miniaturas_.erase(velha);
+      pedidas_.erase(velha);
+    }
     RepintarCom([id](const Resultado& r) { return r.id == id; });
   }
 
@@ -1854,6 +1894,8 @@ class Painel : public views::View,
   // O texto tinha só o que não dá pra buscar: mostrando a linha do tempo.
   bool curta_ = false;
   int pedido_ = 0;
+  std::shared_ptr<std::atomic<int>> buscas_ =
+      std::make_shared<std::atomic<int>>(0);
   int64_t total_ = -1;
   std::u16string consulta_feita_;
   std::u16string estado_;
@@ -1862,6 +1904,9 @@ class Painel : public views::View,
   std::set<std::string> abertas_;
   std::map<int64_t, gfx::ImageSkia> miniaturas_;
   std::set<int64_t> pedidas_;
+  // Na ordem em que chegaram (a mais velha sai primeiro).
+  std::deque<int64_t> ordem_das_miniaturas_;
+  static constexpr size_t kMaximoDeMiniaturasAbertas = 48;
   std::map<std::string, gfx::ImageSkia> icones_;
   std::set<std::string> icones_pedidos_;
   base::CancelableTaskTracker icones_tracker_;
@@ -1869,7 +1914,7 @@ class Painel : public views::View,
 
   std::unique_ptr<ui::SimpleMenuModel> menu_;
   std::unique_ptr<views::MenuRunner> menu_runner_;
-  std::optional<size_t> menu_indice_;
+  std::optional<int64_t> menu_pagina_;
 
   base::ScopedObservation<views::Widget, views::WidgetObserver> janela_widget_{
       this};

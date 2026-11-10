@@ -269,6 +269,15 @@ content::StoragePartitionConfig PartitionConfig(Profile* profile,
                                                  /*in_memory=*/false);
 }
 
+base::FilePath PastaDasParticoes(Profile* profile) {
+  // Como o content monta a pasta de um domínio de partição
+  // (`GetStoragePartitionDomainPath`, storage_partition_impl_map.cc).
+  return profile->GetPath()
+      .AppendASCII("Storage")
+      .AppendASCII("ext")
+      .AppendASCII(kPartitionDomain);
+}
+
 std::optional<std::string> IdForSiteInstance(content::SiteInstance* instance) {
   if (!instance) {
     return std::nullopt;

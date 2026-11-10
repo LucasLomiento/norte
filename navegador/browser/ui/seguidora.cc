@@ -124,6 +124,10 @@ void Alternar(tabs::TabInterface* aba) {
 }
 
 void TalvezAdicionar(content::NavigationThrottleRegistry& registry) {
+  // As abas que já fecharam saem da lista: sem isto, ligada uma vez, toda
+  // navegação da sessão ganhava um desvio pra conferir, pra sempre.
+  std::erase_if(Lideres(),
+                [](const tabs::TabHandle& lider) { return !lider.Get(); });
   if (!Lideres().empty() &&
       registry.GetNavigationHandle().IsInPrimaryMainFrame()) {
     registry.AddThrottle(std::make_unique<Desvio>(registry));

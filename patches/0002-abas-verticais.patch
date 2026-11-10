@@ -324,7 +324,7 @@ index 6d8db4344e..0e0868caf3 100644
    split_tabs::SplitTabId GetSplitTabId() const;
    const gfx::VectorIcon& GetReversePositionIcon(
 diff --git i/chrome/browser/ui/tabs/tab_menu_model.cc w/chrome/browser/ui/tabs/tab_menu_model.cc
-index 948fb35bd6..6a27622bba 100644
+index 948fb35bd6..b8ac147772 100644
 --- i/chrome/browser/ui/tabs/tab_menu_model.cc
 +++ w/chrome/browser/ui/tabs/tab_menu_model.cc
 @@ -4,6 +4,9 @@
@@ -362,7 +362,7 @@ index 948fb35bd6..6a27622bba 100644
            ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
                                               ? kSplitSceneIcon
                                               : kSplitSceneOldIcon,
-@@ -406,79 +416,28 @@ void TabMenuModel::Build(int index) {
+@@ -406,79 +416,34 @@ void TabMenuModel::Build(int index) {
      SetElementIdentifierAt(GetItemCount() - 1, kArrangeSplitTabsMenuItem);
    }
  
@@ -436,6 +436,12 @@ index 948fb35bd6..6a27622bba 100644
 -              ui::kColorMenuIcon, ui::SimpleMenuModel::kDefaultIconSize));
 -    }
 +               u"Mover para o espaço", navegador_espacos_submenu_.get());
++    // O mesmo ícone dos espaços nas Configurações (era o único item do
++    // bloco sem ícone).
++    SetIconForCommandId(
++        TabStripModel::CommandAddToExistingGroup,
++        ui::ImageModel::FromVectorIcon(kGridViewIcon, ui::kColorMenuIcon,
++                                       ui::SimpleMenuModel::kDefaultIconSize));
    }
 -
 -  for (const auto& selection : indices) {
@@ -461,7 +467,7 @@ index 948fb35bd6..6a27622bba 100644
    }
  
    if (ExistingWindowSubMenuModel::ShouldShowSubmenu(tab_strip_->profile())) {
-@@ -513,17 +472,48 @@ void TabMenuModel::Build(int index) {
+@@ -513,17 +478,48 @@ void TabMenuModel::Build(int index) {
  
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(TabStripModel::CommandReload, IDS_TAB_CXMENU_RELOAD);
@@ -514,7 +520,7 @@ index 948fb35bd6..6a27622bba 100644
      SetIconForCommandId(
          TabStripModel::CommandTogglePinned,
          ui::ImageModel::FromVectorIcon(
-@@ -584,7 +574,8 @@ void TabMenuModel::Build(int index) {
+@@ -584,7 +580,8 @@ void TabMenuModel::Build(int index) {
      glic_displayed = true;
    }
  
@@ -524,7 +530,7 @@ index 948fb35bd6..6a27622bba 100644
    const bool display_send_to_self = send_tab_to_self::ShouldDisplayEntryPoint(
        tab_strip_->GetWebContentsAt(index));
  
-@@ -613,32 +604,21 @@ void TabMenuModel::Build(int index) {
+@@ -613,32 +610,21 @@ void TabMenuModel::Build(int index) {
      BuildSendTabToSelfItem(index, indices);
    }
  
@@ -571,7 +577,7 @@ index 948fb35bd6..6a27622bba 100644
    }
  
    // Append extension items for the 'tab' context if the feature is enabled.
-@@ -666,6 +646,12 @@ void TabMenuModel::Build(int index) {
+@@ -666,6 +652,12 @@ void TabMenuModel::Build(int index) {
    // Separator Close Tab items
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(TabStripModel::CommandCloseTab, IDS_TAB_CXMENU_CLOSETAB);
@@ -880,7 +886,7 @@ index 7a362cd3c6..a5ecdff535 100644
                Profile* profile = browser_window_interface_->GetProfile();
                if (CustomizeChromePageHandler::IsSupported(
 diff --git i/chrome/browser/ui/views/frame/system_menu_model_builder.cc w/chrome/browser/ui/views/frame/system_menu_model_builder.cc
-index 3505b4e7b8..22cb5a9ca7 100644
+index 3505b4e7b8..e329073214 100644
 --- i/chrome/browser/ui/views/frame/system_menu_model_builder.cc
 +++ w/chrome/browser/ui/views/frame/system_menu_model_builder.cc
 @@ -200,13 +200,6 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
@@ -908,7 +914,27 @@ index 3505b4e7b8..22cb5a9ca7 100644
        model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE,
                                   controller->IsCollapsed()
                                       ? IDS_EXPAND_VERTICAL_TABS
-@@ -244,9 +235,9 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
+@@ -225,15 +216,10 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
+           model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE).value(),
+           kToggleVerticalTabsCollapseElementId);
+ 
+-      model->AddItemWithStringId(
+-          IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER,
+-          controller->IsExpandOnHoverEnabled()
+-              ? IDS_VERTICAL_TABS_DISABLE_EXPAND_ON_HOVER
+-              : IDS_VERTICAL_TABS_ENABLE_EXPAND_ON_HOVER);
+-      model->SetElementIdentifierAt(
+-          model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER)
+-              .value(),
+-          kToggleVerticalTabsExpandOnHoverElementId);
++      // navegador: sem o "expandir ao passar o mouse" do Chromium aqui. No
++      // Norte quem manda é o "Mostrar ao encostar na borda" (Configurações →
++      // Lateral); o item do Chromium só trocava uma opção que o Norte não lê
++      // (`IsExpandOnHoverEnabled` devolve sempre verdadeiro): não fazia nada.
+     } else {
+       model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
+                                  switch_to_vertical_id);
+@@ -244,12 +230,12 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
            model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS).value(),
            show_badge, ui::NewBadgeType::kNew);
      }
@@ -919,8 +945,13 @@ index 3505b4e7b8..22cb5a9ca7 100644
 +      model->SetElementIdentifierAt(*index, kToggleVerticalTabsElementId);
 +    }
  
-     model->AddItemWithStringId(IDC_VERTICAL_TABS_SEND_FEEDBACK,
-                                IDS_VERTICAL_TABS_SEND_FEEDBACK);
+-    model->AddItemWithStringId(IDC_VERTICAL_TABS_SEND_FEEDBACK,
+-                               IDS_VERTICAL_TABS_SEND_FEEDBACK);
++    // navegador: sem "Enviar feedback sobre a barra de abas" (o formulário
++    // de feedback do Google, que no Norte não vai pra ninguém).
+   }
+ 
+   if (chrome::CanOpenTaskManager()) {
 diff --git i/chrome/browser/ui/views/tabs/common/tab_strip_view.cc w/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
 index a6ac0cc24e..1a325575bb 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_strip_view.cc

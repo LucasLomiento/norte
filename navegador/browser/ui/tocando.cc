@@ -167,15 +167,23 @@ class Andamento : public views::View {
     return true;
   }
 
-  void OnMouseEntered(const ui::MouseEvent& event) override { SchedulePaint(); }
-  void OnMouseExited(const ui::MouseEvent& event) override { SchedulePaint(); }
+  // O ponteiro em cima pelos eventos da própria view (na pintura, o
+  // `IsMouseHovered()` mente no Wayland com duas janelas).
+  void OnMouseEntered(const ui::MouseEvent& event) override {
+    em_cima_ = true;
+    SchedulePaint();
+  }
+  void OnMouseExited(const ui::MouseEvent& event) override {
+    em_cima_ = false;
+    SchedulePaint();
+  }
 
   void OnPaint(gfx::Canvas* canvas) override {
     if (!parte_) {
       return;
     }
     const ui::ColorProvider* cores = GetColorProvider();
-    const float altura = pode_buscar_ && IsMouseHovered() ? 5.0f : 3.0f;
+    const float altura = pode_buscar_ && em_cima_ ? 5.0f : 3.0f;
     const gfx::RectF trilha(0, (height() - altura) / 2.0f, width(), altura);
     cc::PaintFlags fundo;
     fundo.setAntiAlias(true);
@@ -196,6 +204,7 @@ class Andamento : public views::View {
   // Até onde a parte tocada foi pintada, em pixels (-1: sem andamento).
   int pixels_ = -1;
   bool pode_buscar_ = false;
+  bool em_cima_ = false;
 };
 
 BEGIN_METADATA(Andamento)
@@ -348,10 +357,15 @@ class Cartao : public views::Button,
     Atualizar();
   }
 
+  // Só o andamento: o site pode avisar a posição várias vezes por segundo
+  // (a cada `timeupdate`), e refazer o cartão inteiro a cada aviso (textos,
+  // o ícone do site redesenhado, uma pintura) gastava um quadro da
+  // interface por aviso.
   void MediaSessionPositionChanged(
       const std::optional<media_session::MediaPosition>& position) override {
     posicao_ = position;
-    Atualizar();
+    AjustarRelogio();
+    AtualizarAndamento();
   }
 
   // media_session::mojom::MediaControllerImageObserver:
@@ -487,22 +501,31 @@ class Cartao : public views::Button,
       AtualizarIcones();
     }
 
-    const bool tocando =
-        mostrar && info_->playback_state == MediaPlaybackState::kPlaying;
-    if (tocando && ParteTocada() && !relogio_.IsRunning()) {
-      relogio_.Start(FROM_HERE, IntervaloDoAndamento(),
-                     base::BindRepeating(&Cartao::AtualizarAndamento,
-                                         base::Unretained(this)));
-    } else if (!tocando || !ParteTocada()) {
-      relogio_.Stop();
-    }
-    AtualizarAndamento();
-
     if (mostrar != GetVisible()) {
       SetVisible(mostrar);
       PreferredSizeChanged();
     }
-    SchedulePaint();
+    AjustarRelogio();
+    AtualizarAndamento();
+  }
+
+  // O relógio do andamento: só com o cartão à vista e tocando, no passo de
+  // um pixel da linha (refeito quando a duração ou a largura mudam).
+  void AjustarRelogio() {
+    const bool tocando =
+        GetVisible() && info_ &&
+        info_->playback_state == MediaPlaybackState::kPlaying &&
+        ParteTocada();
+    if (!tocando) {
+      relogio_.Stop();
+      return;
+    }
+    const base::TimeDelta intervalo = IntervaloDoAndamento();
+    if (!relogio_.IsRunning() || relogio_.GetCurrentDelay() != intervalo) {
+      relogio_.Start(FROM_HERE, intervalo,
+                     base::BindRepeating(&Cartao::AtualizarAndamento,
+                                         base::Unretained(this)));
+    }
   }
 
   void IrParaAba() {

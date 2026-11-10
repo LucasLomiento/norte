@@ -76,6 +76,7 @@ constexpr SkColor kFundo = SkColorSetRGB(0x09, 0x09, 0x0B);    // --bg-canvas
 constexpr SkColor kPainel = SkColorSetRGB(0x11, 0x11, 0x13);   // --bg-panel
 constexpr SkColor kElevado = SkColorSetRGB(0x18, 0x18, 0x1B);  // --bg-raised
 constexpr SkColor kSobre = SkColorSetRGB(0x22, 0x22, 0x26);    // --bg-overlay
+constexpr SkColor kBotao = SkColorSetRGB(0x30, 0x30, 0x36);    // botão neutro
 constexpr SkColor kCampo = SkColorSetRGB(0x0C, 0x0C, 0x0E);    // --bg-input
 constexpr SkColor kTexto = SkColorSetRGB(0xF4, 0xF4, 0xF5);    // --fg
 constexpr SkColor kTexto2 = SkColorSetRGB(0xAA, 0xAA, 0xB3);   // --fg-2
@@ -188,9 +189,11 @@ void PintarSistemaEscuro(ui::ColorMixer& mixer) {
 
   // Botões secundários (tonais) em cinza, ao lado do principal azul: no
   // Material saem num azul-acinzentado. O kColorSysTonalContainer fica como
-  // está: também é o fundo da seleção de texto.
-  mixer[ui::kColorButtonBackgroundTonal] = {kSobre};
-  mixer[ui::kColorButtonBackgroundTonalFocused] = {kSobre};
+  // está: também é o fundo da seleção de texto. Um degrau acima do
+  // `kSobre`: dentro de um cartão das Configurações (#242427) o botão em
+  // #222226 sumia, parecia texto solto.
+  mixer[ui::kColorButtonBackgroundTonal] = {kBotao};
+  mixer[ui::kColorButtonBackgroundTonalFocused] = {kBotao};
   mixer[ui::kColorButtonForegroundTonal] = {kTexto};
   // Interruptor desligado e trilho do deslizador que se veem no cartão
   // (eram #38383B sobre #222226, e o trilho branco puro).

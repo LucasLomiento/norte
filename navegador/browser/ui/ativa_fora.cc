@@ -84,6 +84,13 @@ class Aviso : public views::Button, public TabStripModelObserver {
   }
 
   // views::Button:
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::Button::OnThemeChanged();
+    SchedulePaint();
+  }
+
   void PaintButtonContents(gfx::Canvas* canvas) override {
     tabs::TabInterface* ativa = model_->GetActiveTab();
     TabUIHelper* ajudante = ativa ? TabUIHelper::From(ativa) : nullptr;
@@ -155,8 +162,9 @@ class Aviso : public views::Button, public TabStripModelObserver {
               em_cima_ ? area.y() + kMargem
                        : area.bottom() - kAltura - kMargem,
               area.width() - 2 * kMargem, kAltura);
-    GetViewAccessibility().SetName(u"Aba ativa: " +
-                                   TabUIHelper::From(ativa)->GetTitle());
+    const TabUIHelper* ajudante = TabUIHelper::From(ativa);
+    GetViewAccessibility().SetName(
+        u"Aba ativa: " + (ajudante ? ajudante->GetTitle() : std::u16string()));
     SetVisible(true);
     SchedulePaint();
   }
