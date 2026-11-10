@@ -170,6 +170,17 @@ TROCAS_PT = {
     "Histórico de downloads recentes": "Downloads recentes",
     "Você e o Google": "Você",
     "Anúncios invasivos": "Bloqueador de anúncios",
+    # O menu do botão direito na lateral e no logo: no Norte ela se chama
+    # "lateral" (Configurações → Lateral, o atalho "Mostrar ou ocultar a
+    # lateral"), e a busca de abas é a seta do cabeçalho.
+    "Ocultar abas": "Esconder a lateral",
+    "Mostrar abas": "Mostrar a lateral",
+    'Ocultar abas (<ph name="KEYBOARD_SHORTCUT" />)':
+        'Esconder a lateral (<ph name="KEYBOARD_SHORTCUT" />)',
+    'Mostrar abas (<ph name="KEYBOARD_SHORTCUT" />)':
+        'Mostrar a lateral (<ph name="KEYBOARD_SHORTCUT" />)',
+    "Fixar a pesquisa em todas as abas": "Mostrar a busca de abas no cabeçalho",
+    "Liberar a pesquisa em todas as abas": "Tirar a busca de abas do cabeçalho",
     "Neste site, há exibição de anúncios invasivos ou enganosos":
         "O Norte bloqueia anúncios e rastreadores em todo site",
     "No site, há exibição de anúncios invasivos ou enganosos":

@@ -59,6 +59,11 @@ GURL EnderecoNoTrecho(const Resultado& resultado);
 void Buscar(Profile* perfil,
             Filtro filtro,
             base::OnceCallback<void(std::vector<Resultado>)> pronto);
+// A busca da barra de endereço (uma a cada letra): a que ainda está na fila
+// quando chega outra nem roda, e responde vazio.
+void BuscarDaBarra(Profile* perfil,
+                   Filtro filtro,
+                   base::OnceCallback<void(std::vector<Resultado>)> pronto);
 // A miniatura (já decodificada, fora da thread da interface); vazia se não
 // tem.
 void Miniatura(Profile* perfil,

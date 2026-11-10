@@ -250,6 +250,13 @@ class Espia : public views::FocusChangeListener,
     esconder_.Stop();
     animacao_.Reset(0);
     fraco_.InvalidateWeakPtrs();
+    // O `Reset` não avisa ninguém, e a sombra só se atualizava no fim de uma
+    // animação ou quando o alto da janela mudava de tamanho: trocando a
+    // opção com a barra à vista (Ctrl+Shift+S logo depois do Ctrl+L), ficava
+    // uma faixa escura no alto da página.
+    if (auto* sombra = static_cast<SombraDaBarra*>(sombra_.view())) {
+      sombra->Atualizar();
+    }
   }
 
   // gfx::AnimationDelegate: cada quadro refaz o layout (a barra desce por

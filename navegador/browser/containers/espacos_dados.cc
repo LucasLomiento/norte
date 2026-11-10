@@ -220,9 +220,25 @@ void Atualizar(Profile* profile, const Espaco& espaco) {
   Prefs(profile)->SetList(kListaPref, std::move(lista));
 }
 
+bool PodeRemover(Profile* profile, std::string_view id) {
+  // Tem que sobrar um espaço de verdade. Os temporários (o grupo de uma
+  // extensão, o do Claude) não contam: com o único espaço da pessoa e um
+  // temporário aberto, dava pra excluir o dela e ficar só com o
+  // temporário, que não vira o ativo e some com a última aba.
+  bool e_temporario = false;
+  size_t de_verdade = 0;
+  for (const Espaco& espaco : Todos(profile)) {
+    if (espaco.id == id) {
+      e_temporario = espaco.temporario;
+    }
+    de_verdade += espaco.temporario ? 0 : 1;
+  }
+  return e_temporario || de_verdade > 1;
+}
+
 void Remover(Profile* profile, std::string_view id) {
   std::vector<Espaco> todos = Todos(profile);
-  if (todos.size() <= 1) {
+  if (todos.size() <= 1 || !PodeRemover(profile, id)) {
     return;
   }
   base::ListValue lista;

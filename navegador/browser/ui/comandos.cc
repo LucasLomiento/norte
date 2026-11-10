@@ -94,7 +94,7 @@ std::vector<NavegadorComando> Lista(Profile* perfil) {
   Profile* original = perfil->GetOriginalProfile();
   for (const espacos::Espaco& espaco : espacos::Todos(original)) {
     lista.push_back({"espaco:" + espaco.id,
-                     u"Ir pro espaço " + base::UTF8ToUTF16(espaco.nome),
+                     u"Ir para o espaço " + base::UTF8ToUTF16(espaco.nome),
                      u"workspace"});
   }
   for (const containers::Container& container :

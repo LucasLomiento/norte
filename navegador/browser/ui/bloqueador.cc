@@ -250,7 +250,14 @@ bool Algum(const std::vector<std::string>& dominios,
   return false;
 }
 
-std::string CssDoSite(const Cosmetico& regras, std::string_view host) {
+// O CSS das regras pro site, em duas partes: `comum` recebe as genéricas
+// inteiras (a parte grande, o mesmo texto em quase todo site: o processo da
+// página guarda a folha já interpretada e reaproveita) e `css` o que é só
+// deste site.
+void CssDoSite(const Cosmetico& regras,
+               std::string_view host,
+               std::string& comum,
+               std::string& css) {
   const std::vector<std::string_view> sufixos = Sufixos(host);
   std::set<std::string_view> excecoes;
   for (std::string_view sufixo : sufixos) {
@@ -260,7 +267,6 @@ std::string CssDoSite(const Cosmetico& regras, std::string_view host) {
     }
   }
 
-  std::string css;
   bool generico_com_excecao = false;
   if (!excecoes.empty()) {
     for (const std::string& seletor : regras.genericos) {
@@ -271,7 +277,8 @@ std::string CssDoSite(const Cosmetico& regras, std::string_view host) {
     }
   }
   if (generico_com_excecao) {
-    // Raro (umas centenas de sites): refaz os genéricos sem as exceções.
+    // Raro (umas centenas de sites): refaz os genéricos sem as exceções
+    // (um texto só deste site: vai com a parte dele).
     std::vector<std::string_view> valem;
     for (const std::string& seletor : regras.genericos) {
       if (!excecoes.contains(seletor)) {
@@ -280,7 +287,7 @@ std::string CssDoSite(const Cosmetico& regras, std::string_view host) {
     }
     Juntar(css, valem);
   } else {
-    css = regras.genericos_css;
+    comum += regras.genericos_css;
   }
 
   std::vector<std::string_view> deste_site;
@@ -306,7 +313,6 @@ std::string CssDoSite(const Cosmetico& regras, std::string_view host) {
     css += seletor;
     css += "{display:none!important}\n";
   }
-  return css;
 }
 
 // Os valores do "set" em JS (tools/cosmetico.py só deixa passar estes e
@@ -427,16 +433,17 @@ class Escondedor : public content::WebContentsObserver,
     }
     Profile* perfil =
         Profile::FromBrowserContext(web_contents()->GetBrowserContext());
+    std::string css_comum;
     std::string css;
     std::string js;
     // Liberado no site (ou desligado no perfil): "Anúncios" permitidos.
     if (Regras() &&
         HostContentSettingsMapFactory::GetForProfile(perfil)->GetContentSetting(
             url, url, ContentSettingsType::ADS) != CONTENT_SETTING_ALLOW) {
-      css = CssDoSite(*Regras(), url.host());
+      CssDoSite(*Regras(), url.host(), css_comum, css);
       if (Avisos() &&
           perfil->GetPrefs()->GetBoolean(espacos::kAvisosDeCookiesPref)) {
-        css += CssDoSite(*Avisos(), url.host());
+        CssDoSite(*Avisos(), url.host(), css_comum, css);
       }
       js = JsDoSite(*Regras(), url.host());
     }
@@ -447,14 +454,15 @@ class Escondedor : public content::WebContentsObserver,
     // O estilo da pessoa pro site (estilos.h): vale com o bloqueador
     // desligado também.
     std::string estilo = estilos::CssDoSite(perfil, url);
-    if (css.empty() && js.empty() && estilo.empty() && js_isolado.empty()) {
+    if (css_comum.empty() && css.empty() && js.empty() && estilo.empty() &&
+        js_isolado.empty()) {
       return;
     }
     mojo::AssociatedRemote<chrome::mojom::ChromeRenderFrame> quadro;
     destino->GetRemoteAssociatedInterfaces()->GetInterface(&quadro);
-    quadro->NavegadorEsconderAnuncios(std::move(css), std::move(js),
-                                      std::move(estilo), std::move(js_isolado),
-                                      url);
+    quadro->NavegadorEsconderAnuncios(std::move(css_comum), std::move(css),
+                                      std::move(js), std::move(estilo),
+                                      std::move(js_isolado), url);
   }
 
   WEB_CONTENTS_USER_DATA_KEY_DECL();

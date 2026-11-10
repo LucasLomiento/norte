@@ -46,6 +46,15 @@ void EditarNoLugar(views::View* dono,
 // isso, senão o espaço vira clique e some do nome.
 bool Editando(const views::View* dono);
 
+// O ponteiro está mesmo em cima de `view`: o `IsMouseHovered()` e mais a
+// janela debaixo do ponteiro ser a dela. No Wayland o Chromium não sabe
+// onde as janelas estão, e a posição do ponteiro que ele dá é a de dentro
+// da janela em que o ponteiro está, pra qualquer janela que pergunte: com
+// duas janelas, a que repintava uma linha achava o ponteiro em cima dela
+// (destaque e "x" acesos na janela errada). Pra usar em pintura e em
+// conferências fora de um evento de mouse da própria view.
+bool PonteiroEmCima(const views::View* view);
+
 using Renomeador =
     base::RepeatingCallback<void(tabs::TabInterface*, const std::u16string&)>;
 void DefinirRenomeador(Renomeador renomeador);

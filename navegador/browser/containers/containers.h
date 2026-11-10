@@ -17,6 +17,7 @@
 #include <string_view>
 #include <vector>
 
+#include "base/files/file_path.h"
 #include "base/functional/callback_forward.h"
 #include "base/memory/scoped_refptr.h"
 #include "content/public/browser/storage_partition_config.h"
@@ -103,6 +104,12 @@ void DefinirContainerDoApp(Profile* profile,
 
 content::StoragePartitionConfig PartitionConfig(Profile* profile,
                                                 std::string_view id);
+
+// A pasta, no perfil, com as partições de todos os containers
+// (`Storage/ext/navegador`). Pra coleta de lixo de partições do Chromium
+// (`GarbageCollectStoragePartitionsCommand`) não apagar: ela tira de
+// `Storage/ext` tudo o que não está na lista dela nem aberto na hora.
+base::FilePath PastaDasParticoes(Profile* profile);
 
 // Container da aba, ou nada se a aba é da partição normal do perfil.
 std::optional<std::string> IdForWebContents(content::WebContents* contents);

@@ -1,6 +1,7 @@
 #include "navegador/browser/memoria/memoria.h"
 
 #include <algorithm>
+#include <atomic>
 #include <map>
 #include <memory>
 #include <optional>
@@ -43,6 +44,7 @@
 #include "components/search_engines/template_url_service.h"
 #include "components/tab_groups/tab_group_id.h"
 #include "components/tabs/public/tab_interface.h"
+#include "content/public/browser/document_user_data.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "components/viz/common/frame_sinks/copy_output_result.h"
@@ -62,6 +64,7 @@
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/image/image_skia.h"
 #include "url/gurl.h"
+#include "url/third_party/mozilla/url_parse.h"
 
 namespace navegador::memoria {
 
@@ -88,6 +91,9 @@ constexpr size_t kMaximoDeMiniaturas = 4000;
 // 12 h.
 constexpr base::TimeDelta kPrimeiraPoda = base::Minutes(2);
 constexpr base::TimeDelta kIntervaloDaPoda = base::Hours(12);
+// Depois de apagar alguma página, o banco tira as palavras dela do arquivo
+// (reescreve o índice): espera um pouco, pra uma vez só servir pra várias.
+constexpr base::TimeDelta kLimparDepois = base::Seconds(15);
 
 // E-mail e conversas: de fora, a não ser que a pessoa ligue
 // (kMemoriaConversasPref). O host (e os subdomínios) e, quando tem, o
@@ -213,9 +219,28 @@ class Servico : public history::HistoryServiceObserver, public ProfileObserver {
       banco_.AsyncCall(&Banco::EsquecerTudo);
       return;
     }
-    if (apagado.time_range().IsValid() && !apagado.restrict_urls()) {
-      banco_.AsyncCall(&Banco::EsquecerPeriodo)
-          .WithArgs(apagado.time_range().begin(), apagado.time_range().end());
+    if (apagado.time_range().IsValid()) {
+      if (!apagado.restrict_urls()) {
+        banco_.AsyncCall(&Banco::EsquecerPeriodo)
+            .WithArgs(apagado.time_range().begin(),
+                      apagado.time_range().end());
+      } else {
+        // Um item apagado na página do histórico: o endereço naquele dia. Se
+        // ele tem visita em outro dia, não vem nas linhas apagadas abaixo (o
+        // histórico ainda guarda o endereço), e a página ficava aqui. Sai se
+        // a última leitura foi nesse dia.
+        std::vector<std::string> do_periodo;
+        for (const GURL& url : *apagado.restrict_urls()) {
+          if (std::string chave = Chave(url); !chave.empty()) {
+            do_periodo.push_back(std::move(chave));
+          }
+        }
+        if (!do_periodo.empty()) {
+          banco_.AsyncCall(&Banco::EsquecerEnderecosNoPeriodo)
+              .WithArgs(std::move(do_periodo), apagado.time_range().begin(),
+                        apagado.time_range().end());
+        }
+      }
     }
     std::vector<std::string> chaves;
     for (const history::URLRow& linha : apagado.deleted_rows()) {
@@ -226,6 +251,7 @@ class Servico : public history::HistoryServiceObserver, public ProfileObserver {
     if (!chaves.empty()) {
       banco_.AsyncCall(&Banco::EsquecerEnderecos).WithArgs(std::move(chaves));
     }
+    Apagou();
   }
 
   void HistoryServiceBeingDeleted(history::HistoryService* historico) override {
@@ -238,7 +264,20 @@ class Servico : public history::HistoryServiceObserver, public ProfileObserver {
     Servicos().erase(perfil);
   }
 
+  // Alguma página foi apagada: daqui a pouco o banco tira do arquivo as
+  // palavras dela (`Banco::Limpar`; junto, se apagarem várias em seguida).
+  void Apagou() {
+    limpar_.Start(FROM_HERE, kLimparDepois, this, &Servico::Limpar);
+  }
+
+  // O contador de buscas da barra de endereço (`Filtro::pedido`).
+  const std::shared_ptr<std::atomic<int>>& buscas_da_barra() {
+    return buscas_da_barra_;
+  }
+
  private:
+  void Limpar() { banco_.AsyncCall(&Banco::Limpar); }
+
   void Podar() {
     const int dias = perfil_->GetPrefs()->GetInteger(espacos::kMemoriaDiasPref);
     const base::Time agora = base::Time::Now();
@@ -253,12 +292,17 @@ class Servico : public history::HistoryServiceObserver, public ProfileObserver {
          containers::GetAll(perfil_)) {
       agora.insert(container.id);
     }
+    bool saiu = false;
     for (const std::string& id : containers_) {
       if (!agora.contains(id)) {
         banco_.AsyncCall(&Banco::EsquecerContainer).WithArgs(id);
+        saiu = true;
       }
     }
     containers_ = std::move(agora);
+    if (saiu) {
+      Apagou();
+    }
   }
 
   raw_ptr<Profile> perfil_;
@@ -267,6 +311,9 @@ class Servico : public history::HistoryServiceObserver, public ProfileObserver {
   PrefChangeRegistrar prefs_;
   base::OneShotTimer primeira_poda_;
   base::RepeatingTimer poda_;
+  base::OneShotTimer limpar_;
+  std::shared_ptr<std::atomic<int>> buscas_da_barra_ =
+      std::make_shared<std::atomic<int>>(0);
   base::ScopedObservation<history::HistoryService,
                           history::HistoryServiceObserver>
       historico_{this};
@@ -301,6 +348,39 @@ void GuardarMiniatura(base::WeakPtr<Profile> perfil,
 
 // --- Leitura (uma por aba) ---------------------------------------------------
 
+// O que o documento pediu ao carregar ("no-store", página de erro), guardado
+// nele. Voltando do cache de vai-e-volta, ou sendo uma página pré-carregada
+// que entra na aba, a navegação não traz os cabeçalhos de novo: sem isto a
+// página (e todas as que ela trocasse sem recarregar) ficava de fora até um
+// carregamento completo.
+class DecisaoDoDocumento
+    : public content::DocumentUserData<DecisaoDoDocumento> {
+ public:
+  ~DecisaoDoDocumento() override = default;
+
+  bool fora() const { return fora_; }
+
+ private:
+  friend class content::DocumentUserData<DecisaoDoDocumento>;
+
+  DecisaoDoDocumento(content::RenderFrameHost* quadro, bool fora)
+      : content::DocumentUserData<DecisaoDoDocumento>(quadro), fora_(fora) {}
+
+  const bool fora_;
+
+  DOCUMENT_USER_DATA_KEY_DECL();
+};
+
+DOCUMENT_USER_DATA_KEY_IMPL(DecisaoDoDocumento);
+
+// Sem os cabeçalhos (página de erro) não guarda: não dá pra saber se ela
+// pediu pra não ser guardada.
+bool PediuPraFicarDeFora(content::NavigationHandle* navegacao) {
+  const net::HttpResponseHeaders* cabecalhos = navegacao->GetResponseHeaders();
+  return navegacao->IsErrorPage() || !cabecalhos ||
+         cabecalhos->HasHeaderValue("cache-control", "no-store");
+}
+
 class Leitor : public content::WebContentsObserver,
                public content::WebContentsUserData<Leitor> {
  public:
@@ -308,7 +388,19 @@ class Leitor : public content::WebContentsObserver,
 
   // content::WebContentsObserver:
   void DidFinishNavigation(content::NavigationHandle* navegacao) override {
-    if (!navegacao->IsInPrimaryMainFrame() || !navegacao->HasCommitted()) {
+    if (!navegacao->HasCommitted()) {
+      return;
+    }
+    // Página pré-carregada, ainda fora de vista: só anota o que ela pediu,
+    // pra quando ela entrar na aba.
+    if (navegacao->IsInPrerenderedMainFrame()) {
+      if (!navegacao->IsSameDocument() && navegacao->GetRenderFrameHost()) {
+        DecisaoDoDocumento::CreateForCurrentDocument(
+            navegacao->GetRenderFrameHost(), PediuPraFicarDeFora(navegacao));
+      }
+      return;
+    }
+    if (!navegacao->IsInPrimaryMainFrame()) {
       return;
     }
     const GURL& url = navegacao->GetURL();
@@ -326,16 +418,26 @@ class Leitor : public content::WebContentsObserver,
       return;
     }
     Encerrar();
-    // Sem os cabeçalhos (página de erro, a que voltou do cache de
-    // vai-e-volta sem eles) não guarda: não dá pra saber se ela pediu.
-    const net::HttpResponseHeaders* cabecalhos =
-        navegacao->GetResponseHeaders();
-    fora_do_documento_ =
-        navegacao->IsErrorPage() || !cabecalhos ||
-        cabecalhos->HasHeaderValue("cache-control", "no-store");
+    content::RenderFrameHost* quadro = navegacao->GetRenderFrameHost();
+    if (navegacao->IsServedFromBackForwardCache() ||
+        navegacao->IsPrerenderedPageActivation()) {
+      // O documento já existia: vale o que foi anotado quando ele carregou
+      // (sem a anotação, não dá pra saber: fica de fora).
+      const DecisaoDoDocumento* decisao =
+          quadro ? DecisaoDoDocumento::GetForCurrentDocument(quadro) : nullptr;
+      fora_do_documento_ = !decisao || decisao->fora();
+    } else {
+      fora_do_documento_ = PediuPraFicarDeFora(navegacao);
+      if (quadro) {
+        DecisaoDoDocumento::CreateForCurrentDocument(quadro,
+                                                     fora_do_documento_);
+      }
+    }
     Comecar(url, fora_do_documento_);
-    // Do cache de vai-e-volta, já chega carregada.
-    carregou_ = navegacao->IsServedFromBackForwardCache();
+    // Do cache de vai-e-volta (e a pré-carregada), já chega carregada.
+    carregou_ = navegacao->IsServedFromBackForwardCache() ||
+                (navegacao->IsPrerenderedPageActivation() && quadro &&
+                 quadro->IsDocumentOnLoadCompletedInMainFrame());
     Agendar();
   }
 
@@ -454,6 +556,16 @@ class Leitor : public content::WebContentsObserver,
         return false;
       }
       for (const TemplateURL* buscador : buscadores->GetTemplateURLs()) {
+        // Só os que levam a busca nos parâmetros (ou no fragmento). Um
+        // atalho com o termo no caminho ("github.com/%s", ".../wiki/%s")
+        // casa com qualquer página do site: ele inteiro ficava de fora da
+        // Memória, sem aviso.
+        const url::Parsed::ComponentType onde =
+            buscador->url_ref().GetSearchTermKeyLocation(
+                buscadores->search_terms_data());
+        if (onde != url::Parsed::QUERY && onde != url::Parsed::REF) {
+          continue;
+        }
         if (buscador->IsSearchURL(url_, buscadores->search_terms_data())) {
           return false;
         }
@@ -644,10 +756,22 @@ void Buscar(Profile* perfil,
         base::BindOnce(std::move(pronto), std::vector<Resultado>()));
     return;
   }
+  if (filtro.pedido) {
+    filtro.numero_do_pedido = ++*filtro.pedido;
+  }
   servico->banco()
       .AsyncCall(&Banco::Buscar)
       .WithArgs(std::move(filtro))
       .Then(std::move(pronto));
+}
+
+void BuscarDaBarra(Profile* perfil,
+                   Filtro filtro,
+                   base::OnceCallback<void(std::vector<Resultado>)> pronto) {
+  if (Servico* servico = Pegar(perfil)) {
+    filtro.pedido = servico->buscas_da_barra();
+  }
+  Buscar(perfil, std::move(filtro), std::move(pronto));
 }
 
 void Miniatura(Profile* perfil,
@@ -700,6 +824,7 @@ void Resumir(Profile* perfil, base::OnceCallback<void(Resumo)> pronto) {
 void Esquecer(Profile* perfil, int64_t id) {
   if (Servico* servico = Pegar(perfil)) {
     servico->banco().AsyncCall(&Banco::EsquecerPagina).WithArgs(id);
+    servico->Apagou();
   }
 }
 
@@ -710,6 +835,7 @@ void EsquecerEndereco(Profile* perfil, const GURL& url) {
     servico->banco()
         .AsyncCall(&Banco::EsquecerEnderecos)
         .WithArgs(std::vector<std::string>{std::move(chave)});
+    servico->Apagou();
   }
 }
 
@@ -746,6 +872,7 @@ void DeixarDeFora(Profile* perfil, const std::string& host, bool fora) {
   }
   if (Servico* servico = fora ? Pegar(perfil->GetOriginalProfile()) : nullptr) {
     servico->banco().AsyncCall(&Banco::EsquecerSite).WithArgs(limpo);
+    servico->Apagou();
   }
 }
 
@@ -779,6 +906,7 @@ void DefinirSitesDeFora(Profile* perfil, const std::string& sites) {
       if (!std::ranges::contains(antes, host)) {
         if (Servico* servico = Pegar(perfil->GetOriginalProfile())) {
           servico->banco().AsyncCall(&Banco::EsquecerSite).WithArgs(host);
+          servico->Apagou();
         }
       }
     }
@@ -805,6 +933,7 @@ void DeixarContainerDeFora(Profile* perfil,
   }
   if (Servico* servico = fora ? Pegar(perfil->GetOriginalProfile()) : nullptr) {
     servico->banco().AsyncCall(&Banco::EsquecerContainer).WithArgs(container);
+    servico->Apagou();
   }
 }
 

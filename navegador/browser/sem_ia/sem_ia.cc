@@ -1,14 +1,18 @@
 #include "navegador/browser/sem_ia/sem_ia.h"
 
+#include <algorithm>
 #include <functional>
 #include <set>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include "base/base_switches.h"
 #include "base/command_line.h"
 #include "base/containers/span.h"
+#include "base/notreached.h"
 #include "base/strings/string_split.h"
+#include "base/strings/string_util.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
 
@@ -280,6 +284,79 @@ std::set<std::string, std::less<>> Nomes(const std::string& lista) {
   return nomes;
 }
 
+// O que o Norte acrescentou a cada lista da linha de comando fica anotado
+// nestas flags (que o Chromium ignora). O "Reiniciar" (do atualizador, do
+// chrome://restart) abre o processo novo com a linha de comando do antigo,
+// já com os acréscimos: sem descontar, uma opção desligada nas
+// Configurações continuava valendo, a lista de uma versão nova não valia na
+// primeira sessão depois de atualizar (ficava a da versão velha, inclusive
+// os parâmetros do formato dos dados) e o `kSemIA` entrava de novo a cada
+// reinício.
+constexpr char kLigouBlink[] = "enable-blink-features";
+struct Anotada {
+  const char* lista;
+  const char* nossas;
+};
+constexpr Anotada kAnotadas[] = {
+    {switches::kEnableFeatures, "norte-ligou"},
+    {switches::kDisableFeatures, "norte-desligou"},
+    {kLigouBlink, "norte-ligou-blink"},
+};
+
+const char* AnotacaoDe(std::string_view lista) {
+  for (const Anotada& anotada : kAnotadas) {
+    if (lista == anotada.lista) {
+      return anotada.nossas;
+    }
+  }
+  NOTREACHED();
+}
+
+// Tira das listas o que o processo anterior (o que pediu o reinício) tinha
+// acrescentado: fica só o que a pessoa passou.
+void Descontar(base::CommandLine* command_line) {
+  for (const Anotada& anotada : kAnotadas) {
+    if (!command_line->HasSwitch(anotada.nossas)) {
+      continue;
+    }
+    const std::string nossas = command_line->GetSwitchValueASCII(anotada.nossas);
+    const std::vector<std::string_view> tirar = base::SplitStringPiece(
+        nossas, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
+    const std::string herdada = command_line->GetSwitchValueASCII(anotada.lista);
+    std::vector<std::string_view> ficam;
+    for (std::string_view item : base::SplitStringPiece(
+             herdada, ",", base::TRIM_WHITESPACE, base::SPLIT_WANT_NONEMPTY)) {
+      if (!std::ranges::contains(tirar, item)) {
+        ficam.push_back(item);
+      }
+    }
+    const std::string limpa = base::JoinString(ficam, ",");
+    command_line->RemoveSwitch(anotada.lista);
+    command_line->RemoveSwitch(anotada.nossas);
+    if (!limpa.empty()) {
+      command_line->AppendSwitchASCII(anotada.lista, limpa);
+    }
+  }
+}
+
+// Põe `itens` (separados por vírgula) no fim da lista `switch_name` e anota
+// que foi o Norte.
+void Acrescentar(base::CommandLine* command_line,
+                 const char* switch_name,
+                 const std::string& itens) {
+  if (itens.empty()) {
+    return;
+  }
+  for (const char* nome : {switch_name, AnotacaoDe(switch_name)}) {
+    std::string lista = command_line->GetSwitchValueASCII(nome);
+    if (!lista.empty()) {
+      lista += ",";
+    }
+    lista += itens;
+    command_line->AppendSwitchASCII(nome, lista);
+  }
+}
+
 // Junta `flags` à lista do `switch_name` na linha de comando, menos as que
 // quem abriu o navegador já citou (ligando ou desligando): essa decide. Pelo
 // nome inteiro: "GlicActor" entra mesmo com "GlicActorUi" na linha.
@@ -289,19 +366,19 @@ void Juntar(base::CommandLine* command_line,
   const std::set<std::string, std::less<>> pedidas =
       Nomes(command_line->GetSwitchValueASCII(switches::kDisableFeatures) +
             "," + command_line->GetSwitchValueASCII(switches::kEnableFeatures));
-  std::string lista = command_line->GetSwitchValueASCII(switch_name);
+  std::string itens;
   for (const char* flag : flags) {
     const std::string_view nome =
         std::string_view(flag).substr(0, std::string_view(flag).find(':'));
     if (pedidas.contains(nome)) {
       continue;
     }
-    if (!lista.empty()) {
-      lista += ",";
+    if (!itens.empty()) {
+      itens += ",";
     }
-    lista += flag;
+    itens += flag;
   }
-  command_line->AppendSwitchASCII(switch_name, lista);
+  Acrescentar(command_line, switch_name, itens);
 }
 
 }  // namespace
@@ -334,23 +411,18 @@ void LigarRecursos(base::CommandLine* command_line, PrefService* local_state) {
   // ponteiro for (o Chromium só liga no Windows; no Linux o meio também cola
   // a seleção, e nos campos continua colando).
   if (LigadaNoLocalState(local_state, kRolagemComOMeioPref)) {
-    constexpr char kBlink[] = "enable-blink-features";
-    std::string lista = command_line->GetSwitchValueASCII(kBlink);
-    if (!Nomes(lista).contains("MiddleClickAutoscroll")) {
-      lista += lista.empty() ? "MiddleClickAutoscroll" : ",MiddleClickAutoscroll";
-      command_line->AppendSwitchASCII(kBlink, lista);
+    if (!Nomes(command_line->GetSwitchValueASCII(kLigouBlink))
+             .contains("MiddleClickAutoscroll")) {
+      Acrescentar(command_line, kLigouBlink, "MiddleClickAutoscroll");
     }
   }
 }
 
 void DesligarIA(base::CommandLine* command_line) {
-  std::string desligadas =
-      command_line->GetSwitchValueASCII(switches::kDisableFeatures);
-  if (!desligadas.empty()) {
-    desligadas += ",";
-  }
-  desligadas += kSemIA;
-  command_line->AppendSwitchASCII(switches::kDisableFeatures, desligadas);
+  // É a primeira das duas a mexer na linha de comando (o `LigarRecursos`
+  // vem logo depois): antes de tudo, sai o que veio do processo anterior.
+  Descontar(command_line);
+  Acrescentar(command_line, switches::kDisableFeatures, kSemIA);
 }
 
 }  // namespace navegador

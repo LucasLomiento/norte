@@ -540,6 +540,12 @@ void Baixar() {
       estado.andamento.so_avisar) {
     return;
   }
+  // Uma procura ainda no ar (clicou "Atualizar" logo depois do "Procurar
+  // agora"): o download toma o lugar do pedido dela, que nunca mais
+  // responderia a quem esperava.
+  if (estado.pedido) {
+    Responder(u"A atualização já está em andamento.");
+  }
   estado.andamento.erro.clear();
   estado.andamento.porcento = estado.tamanho_pacote > 0 ? 0 : -1;
   MudarPara(Etapa::kBaixando);
@@ -763,7 +769,9 @@ class Aviso : public views::View {
         views::BoxLayout::Orientation::kVertical, gfx::Insets::VH(10, 12), 6));
     layout->set_cross_axis_alignment(
         views::BoxLayout::CrossAxisAlignment::kStretch);
-    SetProperty(views::kMarginsKey, gfx::Insets::TLBR(0, 8, 8, 8));
+    // As mesmas medidas dos outros cartões do pé da lateral (o "tocando
+    // agora" e o do Claude): margem de baixo 6, cantos 10.
+    SetProperty(views::kMarginsKey, gfx::Insets::TLBR(0, 8, 6, 8));
     titulo_ = AddChildView(std::make_unique<views::Label>());
     titulo_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
     titulo_->SetFontList(gfx::FontList().DeriveWithWeight(
@@ -827,12 +835,19 @@ class Aviso : public views::View {
     }
   }
 
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    SchedulePaint();
+  }
+
   void OnPaint(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
     flags.setColor(SkColorSetA(GetColorProvider()->GetColor(ui::kColorAccent),
                                0x26));
-    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), 8, flags);
+    canvas->DrawRoundRect(gfx::RectF(GetLocalBounds()), 10, flags);
   }
 
  private:

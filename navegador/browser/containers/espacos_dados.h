@@ -139,7 +139,9 @@ Espaco Criar(Profile* profile,
              std::string_view container,
              bool temporario = false);
 void Atualizar(Profile* profile, const Espaco& espaco);
-// Não apaga o último espaço (a lista nunca fica vazia).
+// Não apaga o último espaço de verdade (os temporários não contam: tem que
+// sobrar um da pessoa).
+bool PodeRemover(Profile* profile, std::string_view id);
 void Remover(Profile* profile, std::string_view id);
 // Muda de posição na faixa (índice na lista nova).
 void Mover(Profile* profile, std::string_view id, size_t posicao);

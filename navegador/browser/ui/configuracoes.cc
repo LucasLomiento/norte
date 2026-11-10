@@ -1420,8 +1420,10 @@ class PaginaDaMemoria : public views::View, public views::TextfieldController {
   void Apagar() {
     if (!confirmando_) {
       confirmando_ = true;
-      apagar_->SetText(u"Apagar as " + base::NumberToString16(paginas_) +
-                       u" páginas");
+      apagar_->SetText(paginas_ == 1
+                           ? std::u16string(u"Apagar a página guardada")
+                           : u"Apagar as " + base::NumberToString16(paginas_) +
+                                 u" páginas");
       apagar_->SetStyle(ui::ButtonStyle::kProminent);
       return;
     }
@@ -1981,7 +1983,7 @@ class PaginaDeEspacos : public views::View,
     // Um vermelho leve, sem o contorno (que era azul).
     excluir->SetBgColorIdOverride(ui::kColorSysErrorContainer);
     excluir->SetStrokeColorIdOverride(ui::kColorSysErrorContainer);
-    excluir->SetEnabled(todos.size() > 1);
+    excluir->SetEnabled(espacos::PodeRemover(perfil_, id));
     perigo->AddChildView(std::move(excluir));
     Trocar(std::move(pagina));
   }
@@ -2166,13 +2168,13 @@ END_METADATA
 
 std::unique_ptr<views::View> PaginaContainers(BrowserWindowInterface* browser) {
   Profile* perfil = browser->GetProfile()->GetOriginalProfile();
-  // O painel dos containers já traz a explicação no alto.
-  auto pagina = std::make_unique<Pagina>(u"Containers");
+  auto pagina = std::make_unique<Pagina>(
+      u"Containers",
+      u"Cada container tem cookies, logins e dados dos sites separados; "
+      u"histórico, favoritos e senhas continuam do perfil. Clique na bolinha "
+      u"pra trocar a cor e no nome pra renomear.");
   Cartao* cartao = pagina->Secao(std::u16string());
   cartao->Adicionar(containers::CriarPainel(perfil));
-  pagina->Rodape(
-      u"Histórico, favoritos e senhas continuam do perfil; o container separa "
-      u"cookies, logins e dados dos sites.");
   Cartao* apps = pagina->Secao(u"Apps instalados");
   apps->Adicionar(std::make_unique<ContainersDosApps>(perfil));
   pagina->Rodape(
@@ -2232,8 +2234,9 @@ class BotaoDeAtalho : public views::LabelButton {
     SetMinSize(gfx::Size(124, 28));
     SetHorizontalAlignment(gfx::ALIGN_CENTER);
     // Cara de tecla: um chip arredondado.
+    // A mesma cor dos botões: no cartão, a "superfície variante" sumia.
     SetBackground(views::CreateRoundedRectBackground(
-        ui::kColorSysSurfaceVariant, 6));
+        ui::kColorButtonBackgroundTonal, 6));
     views::InkDrop::Get(this)->SetMode(views::InkDropHost::InkDropMode::ON);
     views::InkDrop::Get(this)->SetBaseColor(ui::kColorSysOnSurface);
     views::InstallRoundRectHighlightPathGenerator(this, gfx::Insets(), 6);
@@ -2402,8 +2405,11 @@ class PaginaDeAtalhos : public views::View {
 BEGIN_METADATA(PaginaDeAtalhos)
 END_METADATA
 
-// O conteúdo do diálogo ocupando tudo e um "X" flutuando no canto de cima,
-// por cima da página (no lugar do X do quadro, que reservava uma faixa).
+// O conteúdo do diálogo ocupando tudo e um "X" flutuando no canto de cima
+// (no lugar do X do quadro, que reservava uma faixa). Fica na margem direita
+// da página (os 28 de `Pagina`), fora da coluna dos cartões: mais pra
+// dentro, o conteúdo rolado passava por baixo dele (a lixeira de um
+// container encostava no X).
 class ComBotaoDeFechar : public views::View {
   METADATA_HEADER(ComBotaoDeFechar, views::View)
 
@@ -2431,7 +2437,7 @@ class ComBotaoDeFechar : public views::View {
       }
     }
     const gfx::Size tamanho = fechar_->GetPreferredSize();
-    fechar_->SetBounds(width() - tamanho.width() - 14, 14, tamanho.width(),
+    fechar_->SetBounds(width() - tamanho.width(), 10, tamanho.width(),
                        tamanho.height());
   }
 
@@ -2484,6 +2490,13 @@ class ItemDoMenu : public views::Button {
       escolhido_ = escolhido;
       SchedulePaint();
     }
+  }
+
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::Button::OnThemeChanged();
+    SchedulePaint();
   }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {

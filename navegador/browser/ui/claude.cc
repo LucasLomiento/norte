@@ -180,14 +180,19 @@ class Cartao : public views::View, public ui::SimpleMenuModel::Delegate {
     controles_layout->set_cross_axis_alignment(
         views::BoxLayout::CrossAxisAlignment::kCenter);
     // Alinhado com o texto do aviso (o seletor tem 4 de folga por dentro).
-    seletor_ = controles->AddChildView(
-        std::make_unique<SeletorDeContainer>(base::BindRepeating(
-            &Cartao::AbrirMenu, base::Unretained(this))));
-    seletor_->SetProperty(
+    // O seletor fica num lugar que estica e encolhe: com um nome comprido
+    // ("Container do espaço", na lateral de 190) quem não cabia era o
+    // "Parar", cortado no fim da linha; agora o nome é que abrevia.
+    auto* lugar = controles->AddChildView(std::make_unique<views::View>());
+    lugar->SetLayoutManager(std::make_unique<views::BoxLayout>(
+        views::BoxLayout::Orientation::kHorizontal));
+    lugar->SetProperty(
         views::kMarginsKey,
         gfx::Insets::TLBR(0, kIcone + kEntreIconeETexto - 4, 0, 0));
-    controles_layout->SetFlexForView(
-        controles->AddChildView(std::make_unique<views::View>()), 1);
+    seletor_ = lugar->AddChildView(
+        std::make_unique<SeletorDeContainer>(base::BindRepeating(
+            &Cartao::AbrirMenu, base::Unretained(this))));
+    controles_layout->SetFlexForView(lugar, 1);
     parar_ = controles->AddChildView(std::make_unique<views::LabelButton>(
         base::BindRepeating([] { Parar(); }), u"Parar"));
     parar_->SetTooltipText(u"Desconectar o Claude deste navegador");

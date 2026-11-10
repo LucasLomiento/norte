@@ -40,8 +40,11 @@
 #include "chrome/browser/ui/tabs/tab_strip_model_observer.h"
 #include "chrome/browser/ui/tabs/vertical_tab_strip_state_controller.h"
 #include "chrome/browser/ui/views/tabs/common/tab_view.h"
+#include "chrome/browser/performance_manager/policies/discard_eligibility_policy.h"
 #include "chrome/browser/resource_coordinator/tab_lifecycle_unit_external.h"
 #include "chrome/browser/resource_coordinator/lifecycle_unit_state.mojom.h"
+#include "components/performance_manager/public/graph/page_node.h"
+#include "components/performance_manager/public/performance_manager.h"
 #include "chrome/browser/ui/views/tabs/common/tab_strip_view.h"
 #include "chrome/browser/ui/views/tabs/dragging/tab_drag_controller.h"
 #include "chrome/common/webui_url_constants.h"
@@ -128,6 +131,7 @@ constexpr int kLarguraMaximaTitulo = 160;
 constexpr int kEspacoEntreBolinhas = 0;
 constexpr int kBolinha = 14;  // área clicável de cada bolinha
 constexpr float kRaioBolinha = 2.5f;
+constexpr float kRaioBolinhaPequena = 1.5f;
 constexpr float kRaioBolinhaAtual = 4.0f;
 // Como o Zen: entre duas trocas pela rodinha, pelo menos isto.
 constexpr base::TimeDelta kIntervaloRodinha = base::Milliseconds(200);
@@ -243,8 +247,10 @@ class Bolinha : public views::Button {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
     flags.setColor(containers::Cor(cor_));
-    const float raio = (atual_ ? kRaioBolinhaAtual : kRaioBolinha) +
-                       static_cast<float>(crescer_.GetCurrentValue());
+    const float raio =
+        (atual_ ? kRaioBolinhaAtual : pequena_ ? kRaioBolinhaPequena
+                                               : kRaioBolinha) +
+        static_cast<float>(crescer_.GetCurrentValue());
     canvas->DrawCircle(gfx::PointF(width() / 2.0f, height() / 2.0f), raio,
                        flags);
   }
@@ -258,9 +264,21 @@ class Bolinha : public views::Button {
     views::Button::AnimationProgressed(animation);
   }
 
+  bool atual() const { return atual_; }
+
+  // Na ponta da fila quando há mais espaços além dela (os que não cabem no
+  // pé da lateral): menor, como os pontinhos de página de um carrossel.
+  void SetPequena(bool pequena) {
+    if (pequena_ != pequena) {
+      pequena_ = pequena;
+      SchedulePaint();
+    }
+  }
+
  private:
   std::string cor_;
   bool atual_;
+  bool pequena_ = false;
   gfx::SlideAnimation crescer_{this};
 };
 
@@ -342,8 +360,14 @@ class TituloDoEspaco : public views::Button,
     }
     const std::string atual = Ativo(perfil);
     std::string do_grupo;
-    if (std::optional<tab_groups::TabGroupId> grupo =
-            browser_->GetTabStripModel()->GetFocusedGroup()) {
+    std::optional<tab_groups::TabGroupId> grupo =
+        browser_->GetTabStripModel()->GetFocusedGroup();
+    // Sem grupo focado, o que a janela mostra (o `Ativo` é o da última
+    // janela usada: o ✓ ia pro espaço de outra janela).
+    if (!grupo) {
+      grupo = GrupoVisivel(browser_->GetTabStripModel());
+    }
+    if (grupo) {
       do_grupo = EspacoDoGrupo(perfil, grupo->ToString()).value_or("");
     }
     menu_ = std::make_unique<ui::SimpleMenuModel>(this);
@@ -378,9 +402,10 @@ class TituloDoEspaco : public views::Button,
   // O menu pega o mouse: o botão não recebe a saída do ponteiro nem a
   // soltura do clique, e o destaque ficava preso no nome do espaço.
   void MenuFechou() {
-    SetState(IsMouseHovered() ? STATE_HOVERED : STATE_NORMAL);
+    const bool em_cima = abas::PonteiroEmCima(this);
+    SetState(em_cima ? STATE_HOVERED : STATE_NORMAL);
     views::InkDrop::Get(this)->GetInkDrop()->SnapToHidden();
-    views::InkDrop::Get(this)->GetInkDrop()->SetHovered(IsMouseHovered());
+    views::InkDrop::Get(this)->GetInkDrop()->SetHovered(em_cima);
     SchedulePaint();
   }
 
@@ -546,8 +571,8 @@ class FaixaDeEspacos : public views::View,
     novo_->SetTooltipText(u"Novo espaço");
     auto* depois = AddChildView(std::make_unique<views::View>());
     layout_->SetFlexForView(depois, 1);
-    AddChildView(std::make_unique<views::View>())
-        ->SetPreferredSize(baixar_->GetPreferredSize());
+    contrapeso_ = AddChildView(std::make_unique<views::View>());
+    contrapeso_->SetPreferredSize(baixar_->GetPreferredSize());
 
     Faixas()[browser_] = this;
     prefs_.Init(Perfil()->GetPrefs());
@@ -849,17 +874,35 @@ class FaixaDeEspacos : public views::View,
   }
 
   // Descarrega da memória as abas dos outros espaços (voltam a carregar ao
-  // abrir). Ficam as que tocam som, as divididas e as que o Chromium não
-  // deixa (com formulário preenchido, por exemplo).
+  // abrir). Ficam as que tocam som, as divididas e as que o Chromium
+  // protege do descarte automático: numa chamada ou compartilhando a tela
+  // (mesmo em silêncio), com formulário ou texto digitado, com vídeo em
+  // janelinha, ferramentas de desenvolvedor abertas, um aparelho ligado
+  // (USB, Bluetooth) ou com permissão de notificação. O `DiscardTab` não
+  // confere nada disso sozinho: até a -67, a chamada caía e o que estava
+  // digitado sumia.
   void DescarregarOutros() {
     std::optional<tab_groups::TabGroupId> grupo =
         anonima_ ? std::nullopt : GrupoDoEspaco(EspacoAtual());
+    const auto* regras =
+        performance_manager::policies::DiscardEligibilityPolicy::GetFromGraph();
     for (int i = 0; i < model_->count(); ++i) {
       content::WebContents* aba = model_->GetWebContentsAt(i);
       tabs::TabInterface* tab = model_->GetTabAtIndex(i);
       if (i == model_->active_index() ||
           (grupo && model_->GetTabGroupForTab(i) == *grupo) ||
           aba->IsCurrentlyAudible() || (tab && tab->IsSplit())) {
+        continue;
+      }
+      const base::WeakPtr<performance_manager::PageNode> pagina =
+          performance_manager::PerformanceManager::
+              GetPrimaryPageNodeForWebContents(aba);
+      // Sem as regras (ou sem a página no grafo) não dá pra saber: fica.
+      if (!regras || !pagina ||
+          regras->CanDiscard(
+              pagina.get(), ::mojom::LifecycleUnitDiscardReason::PROACTIVE,
+              /*ignore_recent_visibility=*/true) !=
+              performance_manager::policies::CanDiscardResult::kEligible) {
         continue;
       }
       if (auto* vida = resource_coordinator::TabLifecycleUnitExternal::
@@ -2204,8 +2247,61 @@ class FaixaDeEspacos : public views::View,
     const bool varios = todos.size() > 1;
     titulo_->SetVisible(false);
     bolinhas_->SetVisible(varios);
+    AjustarBolinhas();
     InvalidateLayout();
     SchedulePaint();
+  }
+
+  // As bolinhas que cabem no pé. Com espaço de sobra, todas, no meio da
+  // lateral (o contrapeso do botão de downloads à direita). Apertando, sai
+  // o contrapeso; não cabendo nem assim, fica uma janela delas em volta do
+  // espaço atual, com as das pontas menores onde a fila continua. Antes,
+  // com 4 ou mais espaços o meio saía do meio e, com uns 7, o "+" e as
+  // próprias bolinhas eram cortados no fim da linha.
+  void AjustarBolinhas() {
+    if (anonima_ || !bolinhas_ || !contrapeso_) {
+      return;
+    }
+    const int quantas = static_cast<int>(bolinhas_->children().size());
+    // Os vãos do layout entre os filhos à vista (downloads, folga, bolinhas,
+    // "+", folga e, com ele, o contrapeso).
+    constexpr int kVao = 8;
+    const int fixo = 2 * 10 + baixar_->GetPreferredSize().width() +
+                     novo_->GetPreferredSize().width();
+    const int com_contrapeso =
+        width() - fixo - contrapeso_->GetPreferredSize().width() - 5 * kVao;
+    const int sem_contrapeso = width() - fixo - 4 * kVao;
+    // Sem tamanho ainda (antes do primeiro layout), cabe tudo.
+    const bool cabe_no_meio = width() <= 0 || quantas * kBolinha <= com_contrapeso;
+    contrapeso_->SetVisible(cabe_no_meio);
+    int cabem = quantas;
+    if (!cabe_no_meio) {
+      cabem = std::clamp(sem_contrapeso / kBolinha, 3, std::max(3, quantas));
+    }
+    int atual = 0;
+    for (int i = 0; i < quantas; ++i) {
+      if (static_cast<Bolinha*>(bolinhas_->children()[i])->atual()) {
+        atual = i;
+      }
+    }
+    // A janela em volta da atual, sem passar das pontas da fila.
+    const int primeira =
+        std::clamp(atual - cabem / 2, 0, std::max(0, quantas - cabem));
+    const int ultima = std::min(quantas, primeira + cabem) - 1;
+    for (int i = 0; i < quantas; ++i) {
+      auto* bolinha = static_cast<Bolinha*>(bolinhas_->children()[i]);
+      bolinha->SetVisible(i >= primeira && i <= ultima);
+      bolinha->SetPequena((i == primeira && primeira > 0) ||
+                          (i == ultima && ultima < quantas - 1));
+    }
+  }
+
+  // views::View:
+  void OnBoundsChanged(const gfx::Rect& anteriores) override {
+    views::View::OnBoundsChanged(anteriores);
+    if (anteriores.width() != width()) {
+      AjustarBolinhas();
+    }
   }
 
   static constexpr int kEditar = 1;
@@ -2262,6 +2358,7 @@ class FaixaDeEspacos : public views::View,
   raw_ptr<views::View> baixar_ = nullptr;
   raw_ptr<views::View> bolinhas_ = nullptr;
   raw_ptr<views::ImageButton> novo_ = nullptr;
+  raw_ptr<views::View> contrapeso_ = nullptr;
   views::ViewTracker titulo_do_cabecalho_;
   bool atualizacao_pendente_ = false;
   bool garantia_pendente_ = false;
@@ -2410,7 +2507,7 @@ void MoverAbaPara(BrowserWindowInterface* browser,
 }
 
 void Excluir(Profile* profile, const std::string& espaco) {
-  if (Todos(profile).size() <= 1) {
+  if (Todos(profile).size() <= 1 || !PodeRemover(profile, espaco)) {
     return;
   }
   std::vector<FaixaDeEspacos*> faixas;

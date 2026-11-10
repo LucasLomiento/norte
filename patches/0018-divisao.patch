@@ -652,7 +652,7 @@ index 7ad0e2b5aa..6460f761ff 100644
 +             multi_contents_view->contents_container_views()[1];
  }
 diff --git i/chrome/browser/ui/views/tabs/common/split_tab_view.cc w/chrome/browser/ui/views/tabs/common/split_tab_view.cc
-index cd06136594..20b2baf987 100644
+index cd06136594..523a91cee5 100644
 --- i/chrome/browser/ui/views/tabs/common/split_tab_view.cc
 +++ w/chrome/browser/ui/views/tabs/common/split_tab_view.cc
 @@ -4,6 +4,7 @@
@@ -780,18 +780,18 @@ index cd06136594..20b2baf987 100644
 +  const int n = static_cast<int>(children.size());
 +  int por_linha = n;
 +  if (size_bounds.width().is_bounded()) {
-+    if (collapsed_) {
-+      por_linha = 1;
-+    } else {
-+      const int minimo =
-+          GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth);
-+      const int cabem =
-+          std::clamp((size_bounds.width().value() + kSplitViewGap) /
-+                         (minimo + kSplitViewGap),
-+                     1, n);
-+      const int linhas = (n + cabem - 1) / cabem;
-+      por_linha = (n + linhas - 1) / linhas;
-+    }
++    // navegador: quem decide é a largura, não o estado recolhido. A lateral
++    // do Norte recolhida é a escondida, que aparece por cima da página na
++    // largura cheia: ali as abas da divisão cabem lado a lado, como com ela
++    // aberta (ficavam uma embaixo da outra só nesse modo). Estreita de
++    // verdade, cabe uma por linha.
++    const int minimo = GetLayoutConstant(LayoutConstant::kVerticalTabMinWidth);
++    const int cabem =
++        std::clamp((size_bounds.width().value() + kSplitViewGap) /
++                       (minimo + kSplitViewGap),
++                   1, n);
++    const int linhas = (n + cabem - 1) / cabem;
++    por_linha = (n + linhas - 1) / linhas;
 +  }
 +
 +  int width = 0;

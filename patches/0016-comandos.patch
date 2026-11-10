@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
-index 868d7421ef..6a9e69ff76 100644
+index 868d7421ef..a90a818de8 100644
 --- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 +++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 @@ -102,6 +102,8 @@
@@ -32,7 +32,7 @@ index 868d7421ef..6a9e69ff76 100644
 +  filtro.consulta = texto;
 +  filtro.limite = 3;
 +  filtro.tamanho_do_trecho = 120;
-+  navegador::memoria::Buscar(
++  navegador::memoria::BuscarDaBarra(
 +      profile_, std::move(filtro),
 +      base::BindOnce(
 +          [](base::OnceCallback<void(std::vector<NavegadorLembranca>)> pronto,

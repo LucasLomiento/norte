@@ -86,19 +86,28 @@ class BotaoDeDownloads : public views::Button {
 
   void Atualizar(const Progresso& progresso) {
     progresso_ = progresso;
-    const bool girando =
-        progresso_.quantos > 0 && !progresso_.tamanho_conhecido;
-    if (girando && !giro_.IsRunning()) {
-      giro_.Start(FROM_HERE, base::Milliseconds(30),
-                  base::BindRepeating(&BotaoDeDownloads::Girar,
-                                      base::Unretained(this)));
-    } else if (!girando) {
+    if (!Girando()) {
       giro_.Stop();
     }
+    // O relógio do giro liga na pintura (só gira o que está à vista).
+    SchedulePaint();
+  }
+
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::Button::OnThemeChanged();
     SchedulePaint();
   }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
+    // Girando e à vista (está pintando): o relógio do giro roda. Fora de
+    // vista ele para (`Girar`), e volta aqui quando o botão reaparece.
+    if (Girando() && !giro_.IsRunning()) {
+      giro_.Start(FROM_HERE, base::Milliseconds(30),
+                  base::BindRepeating(&BotaoDeDownloads::Girar,
+                                      base::Unretained(this)));
+    }
     const ui::ColorProvider* cores = GetColorProvider();
     const SkColor cor = cores->GetColor(kColorTabForegroundInactiveFrameActive);
     const gfx::PointF centro(width() / 2.0f, height() / 2.0f);
@@ -146,12 +155,20 @@ class BotaoDeDownloads : public views::Button {
     }
   }
 
+  // Download de tamanho desconhecido: o anel gira em vez de encher.
+  bool Girando() const {
+    return progresso_.quantos > 0 && !progresso_.tamanho_conhecido;
+  }
+
   void Girar() {
     angulo_ = (angulo_ + 12) % 360;
-    // Fora de vista (lateral escondida, janela minimizada) não repinta: o
-    // relógio é de 30 ms e cada pintura recompõe a janela.
+    // Fora de vista (lateral escondida, janela minimizada) o relógio para:
+    // são 33 acordadas por segundo por janela, e um download parado ou
+    // pausado deixava ele rodando sem fim. A pintura liga de novo.
     if (AVista() && GetWidget()->IsVisible() && !GetWidget()->IsMinimized()) {
       SchedulePaint();
+    } else {
+      giro_.Stop();
     }
   }
 

@@ -122,6 +122,13 @@ class Brilho : public views::View, public views::ViewObserver {
         .SetOpacity(layer(), 0.0f, gfx::Tween::EASE_OUT);
   }
 
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    SchedulePaint();
+  }
+
   void OnPaint(gfx::Canvas* canvas) override {
     cc::PaintFlags flags;
     flags.setAntiAlias(true);
@@ -187,6 +194,13 @@ class Pilula : public views::Button {
   }
 
   // views::Button:
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::Button::OnThemeChanged();
+    SchedulePaint();
+  }
+
   void PaintButtonContents(gfx::Canvas* canvas) override {
     // As cores dos avisos do Chromium ("Link copiado"): as das abas seguem a
     // cor do site e sumiam numa página clara.

@@ -158,6 +158,13 @@ class PreviaDeSoltar::Cartao : public views::View {
     SchedulePaint();
   }
 
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    SchedulePaint();
+  }
+
   void OnPaint(gfx::Canvas* canvas) override {
     const ui::ColorProvider* cores = GetColorProvider();
     if (!cores) {
@@ -401,6 +408,14 @@ tabs::TabInterface* AlcaDoPainel::Aba() const {
 }
 
 void AlcaDoPainel::AnimationProgressed(const gfx::Animation* animation) {
+  SchedulePaint();
+}
+
+// As cores vêm do tema e a pintura fica guardada (a alça tem camada
+// própria): sem repintar, ficava com as cores de antes ao trocar
+// claro/escuro.
+void AlcaDoPainel::OnThemeChanged() {
+  views::View::OnThemeChanged();
   SchedulePaint();
 }
 

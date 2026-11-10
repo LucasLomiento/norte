@@ -109,10 +109,13 @@ bool Acha(const std::u16string& texto,
 }
 
 // Conta com + - * / ^ %, parênteses, "x" e "×" como vezes, "÷" como
-// dividir, vírgula ou ponto decimal e "15% de 80".
+// dividir, vírgula ou ponto decimal (e o outro como milhar) e "15% de 80".
 class Conta {
  public:
-  explicit Conta(std::u16string_view texto) : texto_(texto) {}
+  // `virgula_padrao`: a língua escreve "1.000,5" (português); senão,
+  // "1,000.5".
+  Conta(std::u16string_view texto, bool virgula_padrao)
+      : texto_(texto), virgula_padrao_(virgula_padrao) {}
 
   std::optional<double> Avaliar() {
     std::optional<double> valor = Soma();
@@ -127,6 +130,7 @@ class Conta {
   bool usou_ponto() const { return usou_ponto_; }
   int operadores() const { return operadores_; }
   int menos() const { return menos_; }
+  int barras() const { return barras_; }
   bool usou_parenteses() const { return usou_parenteses_; }
 
  private:
@@ -191,6 +195,9 @@ class Conta {
         return std::nullopt;
       }
       if (c == u'/' || c == u'÷') {
+        if (c == u'/') {
+          ++barras_;
+        }
         if (*outro == 0) {
           return std::nullopt;
         }
@@ -268,22 +275,71 @@ class Conta {
     return Numero();
   }
 
+  // Um número com os separadores como a pessoa escreve: "1.000" e
+  // "1.000.000,50" em português (o ponto é milhar), "1,000.50" em inglês,
+  // "2,5" e "2.5" (decimal). Antes o ponto era sempre decimal: "1.000 + 2"
+  // dava 3 e "2.500 * 3", 7,5.
   std::optional<double> Numero() {
-    std::string digitos;
-    bool separador = false;
+    std::string escrito;
     while (pos_ < texto_.size()) {
       const char16_t c = texto_[pos_];
-      if (base::IsAsciiDigit(c)) {
-        digitos.push_back(static_cast<char>(c));
-      } else if ((c == u'.' || c == u',') && !separador) {
-        separador = true;
-        usou_virgula_ |= c == u',';
-        usou_ponto_ |= c == u'.';
-        digitos.push_back('.');
-      } else {
+      if (!base::IsAsciiDigit(c) && c != u'.' && c != u',') {
         break;
       }
+      escrito.push_back(static_cast<char>(c));
       ++pos_;
+    }
+    const size_t pontos = std::ranges::count(escrito, '.');
+    const size_t virgulas = std::ranges::count(escrito, ',');
+    // Quem é o decimal (0: nenhum, o número é inteiro).
+    char decimal = 0;
+    if (pontos && virgulas) {
+      // Os dois: o que vem por último é o decimal, e só aparece uma vez.
+      decimal = escrito.rfind('.') > escrito.rfind(',') ? '.' : ',';
+      if ((decimal == '.' ? pontos : virgulas) != 1) {
+        return std::nullopt;
+      }
+    } else if (pontos + virgulas == 1) {
+      const char separador = pontos ? '.' : ',';
+      const size_t onde = escrito.find(separador);
+      const size_t depois = escrito.size() - onde - 1;
+      // "2.500" em português (e "2,500" em inglês) é dois mil e quinhentos:
+      // um a três algarismos, o separador de milhar da língua e três
+      // algarismos. "0.500" e "2.5" são decimais.
+      const bool milhar = separador == (virgula_padrao_ ? '.' : ',') &&
+                          depois == 3 && onde >= 1 && onde <= 3 &&
+                          escrito[0] != '0';
+      if (!milhar) {
+        decimal = separador;
+      }
+    }
+    // O que sobra de separador é milhar: grupos de três, o primeiro com um
+    // a três algarismos.
+    const size_t fim_do_inteiro =
+        decimal ? escrito.rfind(decimal) : escrito.size();
+    std::string digitos;
+    size_t grupo = 0;
+    bool teve_milhar = false;
+    for (size_t i = 0; i < fim_do_inteiro; ++i) {
+      if (base::IsAsciiDigit(escrito[i])) {
+        digitos.push_back(escrito[i]);
+        ++grupo;
+        continue;
+      }
+      if (grupo == 0 || grupo > 3 || (teve_milhar && grupo != 3)) {
+        return std::nullopt;
+      }
+      teve_milhar = true;
+      grupo = 0;
+    }
+    if (teve_milhar && grupo != 3) {
+      return std::nullopt;
+    }
+    if (decimal) {
+      digitos.push_back('.');
+      digitos.append(escrito, fim_do_inteiro + 1);
+      usou_virgula_ |= decimal == ',';
+      usou_ponto_ |= decimal == '.';
     }
     double valor = 0;
     if (digitos.empty() || digitos == "." ||
@@ -294,13 +350,41 @@ class Conta {
   }
 
   const std::u16string_view texto_;
+  const bool virgula_padrao_;
   size_t pos_ = 0;
   bool usou_virgula_ = false;
   bool usou_ponto_ = false;
   bool usou_parenteses_ = false;
   int operadores_ = 0;
   int menos_ = 0;
+  int barras_ = 0;
 };
+
+// A língua da interface escreve o decimal com vírgula e o milhar com ponto
+// ("1.000,5"). O espanhol da América Latina (es-419, o do Norte em
+// espanhol) segue o México: ponto decimal.
+bool VirgulaDecimal(std::string_view locale) {
+  if (locale == "es-419" || locale == "es-MX" || locale == "es-US") {
+    return false;
+  }
+  static constexpr std::string_view kLinguas[] = {
+      "pt", "es", "de", "fr", "it", "nl", "ru", "pl", "tr", "id",
+      "sv", "da", "nb", "fi", "cs", "uk", "el", "ro", "hu"};
+  return std::ranges::contains(kLinguas, locale.substr(0, locale.find('-')));
+}
+
+// "0x10", "0xFF": número em base 16, não "zero vezes dez".
+bool PareceHexadecimal(std::u16string_view texto) {
+  for (size_t i = 0; i + 2 < texto.size(); ++i) {
+    if (texto[i] == u'0' && (texto[i + 1] == u'x' || texto[i + 1] == u'X') &&
+        base::IsHexDigit(texto[i + 2]) &&
+        (i == 0 || !(base::IsAsciiDigit(texto[i - 1]) ||
+                     texto[i - 1] == u'.' || texto[i - 1] == u','))) {
+      return true;
+    }
+  }
+  return false;
+}
 
 }  // namespace
 
@@ -324,14 +408,19 @@ std::optional<std::u16string> NavegadorProvider::Calcular(
        texto.back() != u'%')) {
     return std::nullopt;
   }
-  Conta conta(texto);
+  if (PareceHexadecimal(texto)) {
+    return std::nullopt;
+  }
+  Conta conta(texto, virgula_padrao);
   std::optional<double> valor = conta.Avaliar();
-  // Sem operador não é conta; só traços (2026-10-21, 11-98765-4321) é data
-  // ou telefone.
+  // Sem operador não é conta; só traços (2026-10-21, 11-98765-4321) ou só
+  // barras (21/10/2026), sem espaço, é data ou telefone.
+  const bool sem_espaco = texto.find(u' ') == std::u16string_view::npos;
   if (!valor || conta.operadores() == 0 ||
       (conta.menos() == conta.operadores() && conta.menos() >= 2 &&
-       !conta.usou_parenteses() &&
-       texto.find(u' ') == std::u16string_view::npos)) {
+       !conta.usou_parenteses() && sem_espaco) ||
+      (conta.barras() == conta.operadores() && conta.barras() >= 2 &&
+       !conta.usou_parenteses() && sem_espaco)) {
     return std::nullopt;
   }
   // -0 vira 0.
@@ -348,6 +437,11 @@ std::optional<std::u16string> NavegadorProvider::Calcular(
 void NavegadorProvider::Start(const AutocompleteInput& input,
                               bool minimal_changes) {
   matches_.clear();
+  // A busca na Memória que ainda não respondeu era do texto de antes: a
+  // resposta dela não entra nesta lista (o controlador não chama o `Stop`
+  // entre uma letra e outra).
+  ++pedido_;
+  done_ = true;
   if (input.IsZeroSuggest() ||
       input.type() == metrics::OmniboxInputType::EMPTY) {
     return;
@@ -500,6 +594,11 @@ void NavegadorProvider::Comandos(const AutocompleteInput& input,
     match.transition = ui::PAGE_TRANSITION_GENERATED;
     match.suggest_type = omnibox::TYPE_NATIVE_CHROME;
     match.allowed_to_be_default_match = i == 0;
+    // Juntos, logo depois do primeiro: a lista põe as sugestões de busca
+    // antes das outras (`GetSortingOrder`), e o "> - Pesquisa do Google"
+    // ficava no meio dos comandos, em segundo. Só o que é "impulsionado"
+    // passa na frente das buscas.
+    match.shortcut_boosted = true;
     matches_.push_back(std::move(match));
   }
 }
@@ -508,7 +607,7 @@ void NavegadorProvider::Calculadora(const AutocompleteInput& input) {
   const std::u16string conta(
       base::TrimWhitespace(input.text(), base::TRIM_ALL));
   std::optional<std::u16string> resultado =
-      Calcular(conta, client_->GetApplicationLocale().starts_with("pt"));
+      Calcular(conta, VirgulaDecimal(client_->GetApplicationLocale()));
   if (!resultado) {
     return;
   }

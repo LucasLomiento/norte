@@ -74,6 +74,13 @@ void ReabrirEmContainer(TabStripModel* tab_strip,
                         int index,
                         std::string_view id);
 
+// Tira do container `id` as abas abertas nele, em todas as janelas do perfil
+// (reabrem no mesmo endereço, sem container). Antes de excluir o container:
+// as abas que ficassem na partição dele continuariam gravando cookies e
+// logins num lugar que nada mais limpa (o "Limpar dados" só passa pelos
+// containers da lista), e ao reiniciar voltariam fora dele, sem o login.
+void TirarAbasDoContainer(Profile* profile, std::string_view id);
+
 // Menu de contexto da aba: "Abrir em container" com os containers do
 // perfil (e "Sem container", se a aba está em um). Reabre a aba no
 // escolhido e fecha a original.

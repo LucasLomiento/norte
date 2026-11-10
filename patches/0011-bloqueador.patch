@@ -143,10 +143,10 @@ index 846e4777c4..dd7568ebc7 100644
  #if BUILDFLAG(IS_MAC)
    // Isolated world ID for AppleScript.
 diff --git i/chrome/common/chrome_render_frame.mojom w/chrome/common/chrome_render_frame.mojom
-index c5b742e2fe..4e42119da9 100644
+index c5b742e2fe..556c917c62 100644
 --- i/chrome/common/chrome_render_frame.mojom
 +++ w/chrome/common/chrome_render_frame.mojom
-@@ -31,6 +31,16 @@ interface ChromeRenderFrame {
+@@ -31,6 +31,19 @@ interface ChromeRenderFrame {
    // Updates the window features of the main frame's render view.
    SetWindowFeatures(blink.mojom.WindowFeatures window_features);
  
@@ -157,8 +157,11 @@ index c5b742e2fe..4e42119da9 100644
 +  // mundo isolado (mexe só no DOM; marca_nos_sites.h): o do mundo da página
 +  // não roda onde o site não deixa script naquele momento (a Chrome Web
 +  // Store).
-+  NavegadorEsconderAnuncios(string css, string js, string estilo,
-+                            string js_isolado, url.mojom.Url url);
++  // `css_comum`: as regras genéricas, iguais em quase todo site (a parte
++  // grande): o quadro guarda a folha interpretada no processo e reaproveita.
++  NavegadorEsconderAnuncios(string css_comum, string css, string js,
++                            string estilo, string js_isolado,
++                            url.mojom.Url url);
 +
    // Reloads the image selected by the most recently opened context menu
    // (if there indeed is an image at that location).
@@ -180,7 +183,7 @@ index f209aa8405..6c193bf883 100644
    extensions::ExtensionsRendererClient::Get()->RunScriptsAtDocumentStart(
        render_frame);
 diff --git i/chrome/renderer/chrome_render_frame_observer.cc w/chrome/renderer/chrome_render_frame_observer.cc
-index f773945b67..3c276d3c33 100644
+index f773945b67..b7c829c471 100644
 --- i/chrome/renderer/chrome_render_frame_observer.cc
 +++ w/chrome/renderer/chrome_render_frame_observer.cc
 @@ -27,6 +27,7 @@
@@ -217,7 +220,7 @@ index f773945b67..3c276d3c33 100644
    // Update crash keys on any frame transition, not just the main frame.
    UpdateLoadedOriginCrashKeys();
  
-@@ -685,6 +691,108 @@ void ChromeRenderFrameObserver::LoadBlockedPlugins(
+@@ -685,6 +691,115 @@ void ChromeRenderFrameObserver::LoadBlockedPlugins(
  #endif  // BUILDFLAG(ENABLE_PLUGINS)
  }
  
@@ -226,12 +229,13 @@ index f773945b67..3c276d3c33 100644
 +// guardadas até o começo dele (DidCreateDocumentElement). Se chegarem depois
 +// que ele começou (a ordem entre os canais não é garantida), aplicam na hora.
 +void ChromeRenderFrameObserver::NavegadorEsconderAnuncios(
++    const std::string& css_comum,
 +    const std::string& css,
 +    const std::string& js,
 +    const std::string& estilo,
 +    const std::string& js_isolado,
 +    const GURL& url) {
-+  NavegadorRegras regras{url, css, js, estilo, js_isolado};
++  NavegadorRegras regras{url, css_comum, css, js, estilo, js_isolado};
 +  blink::WebLocalFrame* quadro = render_frame()->GetWebFrame();
 +  if (!navegador_aplicado_ && !quadro->IsProvisional() &&
 +      !quadro->GetDocument().IsNull() &&
@@ -287,6 +291,12 @@ index f773945b67..3c276d3c33 100644
 +    const NavegadorRegras& regras) {
 +  navegador_aplicado_ = true;
 +  blink::WebLocalFrame* quadro = render_frame()->GetWebFrame();
++  // As genéricas (a parte grande, igual em quase todo site): a folha
++  // interpretada fica guardada no processo (web_document.cc).
++  if (!regras.css_comum.empty()) {
++    quadro->GetDocument().NavegadorInserirFolhaComum(
++        blink::WebString::FromUtf8(regras.css_comum));
++  }
 +  if (!regras.css.empty()) {
 +    quadro->GetDocument().InsertStyleSheet(
 +        blink::WebString::FromUtf8(regras.css), nullptr,
@@ -327,7 +337,7 @@ index f773945b67..3c276d3c33 100644
    prerender::SetShouldDeferMediaLoad(render_frame(), should_defer);
  }
 diff --git i/chrome/renderer/chrome_render_frame_observer.h w/chrome/renderer/chrome_render_frame_observer.h
-index 80e224f9bc..1206f6fc87 100644
+index 80e224f9bc..c694cf6154 100644
 --- i/chrome/renderer/chrome_render_frame_observer.h
 +++ w/chrome/renderer/chrome_render_frame_observer.h
 @@ -6,6 +6,7 @@
@@ -373,11 +383,12 @@ index 80e224f9bc..1206f6fc87 100644
    void DidCreateScriptContext(v8::Local<v8::Context> context,
                                int32_t world_id) override;
    void DidMeaningfulLayout(blink::WebMeaningfulLayout layout_type) override;
-@@ -109,6 +119,11 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+@@ -109,6 +119,12 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
    void WillDetach(blink::DetachReason detach_reason) override;
  
    // chrome::mojom::ChromeRenderFrame:
-+  void NavegadorEsconderAnuncios(const std::string& css,
++  void NavegadorEsconderAnuncios(const std::string& css_comum,
++                                 const std::string& css,
 +                                 const std::string& js,
 +                                 const std::string& estilo,
 +                                 const std::string& js_isolado,
@@ -385,7 +396,7 @@ index 80e224f9bc..1206f6fc87 100644
    void SetWindowFeatures(
        blink::mojom::WindowFeaturesPtr window_features) override;
    void ExecuteWebUIJavaScript(const std::u16string& javascript) override;
-@@ -230,6 +245,23 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
+@@ -230,6 +246,24 @@ class ChromeRenderFrameObserver : public content::RenderFrameObserver,
  
    mojo::AssociatedReceiverSet<chrome::mojom::ChromeRenderFrame> receivers_;
  
@@ -393,6 +404,7 @@ index 80e224f9bc..1206f6fc87 100644
 +  // se o documento atual já recebeu as dele.
 +  struct NavegadorRegras {
 +    GURL url;
++    std::string css_comum;
 +    std::string css;
 +    std::string js;
 +    std::string estilo;
@@ -459,3 +471,96 @@ index 63e1b6c386..72a0c22fa0 100644
  #if BUILDFLAG(IS_ANDROID)
      if (messages::MessageDispatcherBridge::Get()
              ->IsMessagesEnabledForEmbedder()) {
+diff --git i/third_party/blink/public/web/web_document.h w/third_party/blink/public/web/web_document.h
+index a730b9e53a..8d92f19472 100644
+--- i/third_party/blink/public/web/web_document.h
++++ w/third_party/blink/public/web/web_document.h
+@@ -155,6 +155,14 @@ class BLINK_EXPORT WebDocument : public WebNode {
+       WebCssOrigin = WebCssOrigin::kAuthor,
+       BackForwardCacheAware = BackForwardCacheAware::kAllow);
+ 
++  // navegador: como o InsertStyleSheet com origem de usuário, pra uma folha
++  // grande que é a mesma em (quase) toda página: as regras genéricas do
++  // bloqueador. A folha interpretada (e as regras montadas a partir dela)
++  // fica guardada no processo e é reaproveitada pelos documentos seguintes,
++  // em vez de ~480 KB de CSS interpretados de novo a cada navegação. Só pra
++  // CSS sem url() nem @import (não tem endereço de base).
++  void NavegadorInserirFolhaComum(const WebString& source_code);
++
+   // Removes the CSS which was previously inserted by a call to
+   // InsertStyleSheet().
+   void RemoveInsertedStyleSheet(const WebStyleSheetKey&,
+diff --git i/third_party/blink/renderer/core/exported/web_document.cc w/third_party/blink/renderer/core/exported/web_document.cc
+index ca42f2acc0..6099a9dd71 100644
+--- i/third_party/blink/renderer/core/exported/web_document.cc
++++ w/third_party/blink/renderer/core/exported/web_document.cc
+@@ -46,6 +46,8 @@
+ #include "third_party/blink/public/web/web_form_element.h"
+ #include "third_party/blink/renderer/core/accessibility/ax_object_cache.h"
+ #include "third_party/blink/renderer/core/css/css_selector_watch.h"
++#include "third_party/blink/renderer/core/css/parser/css_parser_context.h"
++#include "third_party/blink/renderer/core/css/parser/css_parser_mode.h"
+ #include "third_party/blink/renderer/core/css/style_engine.h"
+ #include "third_party/blink/renderer/core/css/style_sheet_contents.h"
+ #include "third_party/blink/renderer/core/dom/document.h"
+@@ -57,6 +59,7 @@
+ #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
+ #include "third_party/blink/renderer/core/editing/iterators/text_iterator.h"
+ #include "third_party/blink/renderer/core/execution_context/execution_context.h"
++#include "third_party/blink/renderer/core/execution_context/security_context.h"
+ #include "third_party/blink/renderer/core/frame/local_dom_window.h"
+ #include "third_party/blink/renderer/core/frame/visual_viewport.h"
+ #include "third_party/blink/renderer/core/frame/web_local_frame_impl.h"
+@@ -76,10 +79,13 @@
+ #include "third_party/blink/renderer/core/script_tools/script_tool_types.h"
+ #include "third_party/blink/renderer/core/speculation_rules/document_speculation_rules.h"
+ #include "third_party/blink/renderer/platform/heap/garbage_collected.h"
++#include "third_party/blink/renderer/platform/heap/persistent.h"
+ #include "third_party/blink/renderer/platform/loader/fetch/resource_fetcher.h"
+ #include "third_party/blink/renderer/platform/runtime_enabled_features.h"
+ #include "third_party/blink/renderer/platform/weborigin/security_origin.h"
+ #include "third_party/blink/renderer/platform/wtf/casting.h"
++#include "third_party/blink/renderer/platform/wtf/std_lib_extras.h"
++#include "third_party/blink/renderer/platform/wtf/text/wtf_string.h"
+ #include "ui/accessibility/ax_mode.h"
+ 
+ namespace {
+@@ -301,6 +307,38 @@ WebStyleSheetKey WebDocument::InsertStyleSheet(
+   return injection_key;
+ }
+ 
++// navegador: a última folha comum, já interpretada, uma por modo do
++// documento (no modo quirks os seletores de classe e id são guardados em
++// minúsculas). Marcada como "do cache de texto": quem for modificar (as
++// ferramentas de desenvolvedor) trabalha numa cópia.
++void WebDocument::NavegadorInserirFolhaComum(const WebString& source_code) {
++  Document* document = Unwrap<Document>();
++  DCHECK(document);
++  struct Guardada {
++    String texto;
++    Persistent<StyleSheetContents> folhas[2];
++  };
++  DEFINE_STATIC_LOCAL(Guardada, guardada, ());
++  const String texto = source_code;
++  if (guardada.texto != texto) {
++    guardada.texto = texto;
++    guardada.folhas[0] = nullptr;
++    guardada.folhas[1] = nullptr;
++  }
++  const bool quirks = document->InQuirksMode();
++  Persistent<StyleSheetContents>& folha = guardada.folhas[quirks ? 1 : 0];
++  if (!folha || folha->IsMutable()) {
++    folha = MakeGarbageCollected<StyleSheetContents>(
++        MakeGarbageCollected<CSSParserContext>(
++            quirks ? kHTMLQuirksMode : kHTMLStandardMode,
++            SecureContextMode::kInsecureContext));
++    folha->ParseString(texto);
++    folha->SetIsUsedFromTextCache();
++  }
++  document->GetStyleEngine().InjectSheet(GenerateStyleSheetKey(), folha,
++                                         WebCssOrigin::kUser);
++}
++
+ void WebDocument::RemoveInsertedStyleSheet(const WebStyleSheetKey& key,
+                                            WebCssOrigin origin) {
+   Unwrap<Document>()->GetStyleEngine().RemoveInjectedSheet(key, origin);

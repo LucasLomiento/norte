@@ -80,6 +80,13 @@ class Linha : public views::View {
     SetVisible(false);
   }
 
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::View::OnThemeChanged();
+    SchedulePaint();
+  }
+
   void OnPaint(gfx::Canvas* canvas) override {
     canvas->DrawColor(GetColorProvider()->GetColor(ui::kColorAccent));
   }

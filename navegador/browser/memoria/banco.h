@@ -11,7 +11,9 @@
 #ifndef NAVEGADOR_BROWSER_MEMORIA_BANCO_H_
 #define NAVEGADOR_BROWSER_MEMORIA_BANCO_H_
 
+#include <atomic>
 #include <cstdint>
+#include <memory>
 #include <optional>
 #include <string>
 #include <vector>
@@ -66,6 +68,12 @@ struct Filtro {
   std::string espaco;
   size_t limite = 40;
   size_t tamanho_do_trecho = 180;
+  // Opcional: o contador de buscas de quem pediu e o número desta. Se o
+  // contador já andou quando a busca chega na vez dela (a pessoa digitou
+  // outra letra), ela nem roda. Sem isso, digitando rápido num banco grande
+  // as buscas velhas faziam fila na frente da que importa.
+  std::shared_ptr<std::atomic<int>> pedido;
+  int numero_do_pedido = 0;
 };
 
 struct Resumo {
@@ -100,6 +108,11 @@ class Banco {
 
   void EsquecerPagina(int64_t id);
   void EsquecerEnderecos(const std::vector<std::string>& urls);
+  // Dos endereços, os vistos pela última vez em [inicio, fim) (apagar um
+  // item de um dia na página do histórico).
+  void EsquecerEnderecosNoPeriodo(const std::vector<std::string>& urls,
+                                  base::Time inicio,
+                                  base::Time fim);
   // As vistas pela última vez em [inicio, fim).
   void EsquecerPeriodo(base::Time inicio, base::Time fim);
   // O site e os subdomínios.
@@ -114,9 +127,16 @@ class Banco {
              base::Time miniaturas_antes_de,
              size_t maximo_de_miniaturas);
 
+  // Tira do arquivo as palavras das páginas apagadas desde a última vez
+  // (quem apaga chama isto um pouco depois; a poda também).
+  void Limpar();
+
   Resumo Resumir();
 
  private:
+  // Aberto, ou reaberto depois de zerado por estar estragado.
+  bool Pronto();
+  void Erro(int erro, sql::Statement* comando);
   bool CriarTabelas();
   void Apagar(const std::vector<int64_t>& ids);
   std::vector<Resultado> Recentes(const Filtro& filtro);
@@ -128,6 +148,11 @@ class Banco {
   sql::Database db_;
   sql::MetaTable meta_;
   bool aberto_ = false;
+  // O arquivo é de uma versão mais nova do Norte: fica como está.
+  bool mais_novo_ = false;
+  int reaberturas_ = 0;
+  // Páginas apagadas com as palavras ainda no arquivo (`Limpar`).
+  bool sujo_ = false;
 };
 
 }  // namespace navegador::memoria

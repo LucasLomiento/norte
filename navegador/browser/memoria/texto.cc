@@ -328,6 +328,12 @@ std::u16string Dobrar(std::u16string_view texto) {
 }
 
 Consulta Montar(std::u16string_view digitado) {
+  // Um texto enorme colado no campo virava milhares de termos (e a busca
+  // com todos eles não acha nada mesmo): vale o começo.
+  constexpr size_t kMaximoDaConsulta = 300;
+  if (digitado.size() > kMaximoDaConsulta) {
+    digitado = digitado.substr(0, kMaximoDaConsulta);
+  }
   // Separa as "frases entre aspas" do resto; aspas sem par valem como
   // palavras soltas.
   struct Parte {

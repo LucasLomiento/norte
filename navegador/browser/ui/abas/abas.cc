@@ -14,6 +14,7 @@
 #include "cc/paint/paint_flags.h"
 #include "chrome/browser/ui/color/chrome_color_id.h"
 #include "chrome/browser/ui/layout_constants.h"
+#include "ui/aura/window.h"
 #include "ui/color/color_id.h"
 #include "ui/color/color_provider.h"
 #include "ui/gfx/canvas.h"
@@ -21,6 +22,7 @@
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/base/metadata/metadata_header_macros.h"
 #include "ui/base/metadata/metadata_impl_macros.h"
+#include "ui/display/screen.h"
 #include "ui/events/event.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/geometry/insets.h"
@@ -29,10 +31,13 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/controls/textfield/textfield.h"
 #include "ui/views/controls/textfield/textfield_controller.h"
+#include "ui/views/focus/focus_manager.h"
 #include "ui/views/view.h"
 #include "ui/views/view_class_properties.h"
 #include "ui/views/view_observer.h"
+#include "ui/views/view_tracker.h"
 #include "ui/views/view_utils.h"
+#include "ui/views/widget/widget.h"
 
 namespace navegador::abas {
 
@@ -102,6 +107,9 @@ class EditorNoLugar : public views::Textfield,
     Terminar(/*gravar=*/true);
   }
 
+  // Quem tinha o foco antes do campo abrir (a página, quase sempre).
+  void LembrarFoco(views::View* view) { foco_anterior_.SetView(view); }
+
  private:
   // Fora do evento: gravar pode refazer a linha (e apagar este campo junto).
   void Terminar(bool gravar) {
@@ -122,7 +130,17 @@ class EditorNoLugar : public views::Textfield,
               // Sem mudança não grava: o nome da página continua valendo
               // (um clique duplo sem querer congelava o título da aba).
               gravar = gravar && texto != editor->inicial_;
+              // Terminou com Enter ou Esc (o foco ainda está no campo): o
+              // foco volta pra onde estava. Tirar a view focada deixa a
+              // janela sem foco nenhum, e as teclas (espaço, setas, digitar)
+              // não chegavam à página até um clique. Saindo por um clique
+              // em outro lugar, o foco já foi pra lá.
+              views::View* anterior =
+                  editor->HasFocus() ? editor->foco_anterior_.view() : nullptr;
               editor->parent()->RemoveChildViewT(editor.get());
+              if (anterior && anterior->GetWidget()) {
+                anterior->RequestFocus();
+              }
               if (gravar && pronto) {
                 std::move(pronto).Run(std::move(texto));
               }
@@ -153,6 +171,7 @@ class EditorNoLugar : public views::Textfield,
   base::OnceCallback<void(std::u16string)> pronto_;
   const std::u16string inicial_;
   bool terminado_ = false;
+  views::ViewTracker foco_anterior_;
   base::WeakPtrFactory<EditorNoLugar> weak_factory_{this};
 };
 
@@ -177,7 +196,25 @@ void EditarNoLugar(views::View* dono,
       std::make_unique<EditorNoLugar>(&rotulo, inicial, std::move(pronto)));
   campo->Posicionar();
   campo->SelectAll(/*reversed=*/false);
+  if (views::FocusManager* foco = dono->GetFocusManager()) {
+    campo->LembrarFoco(foco->GetFocusedView());
+  }
   campo->RequestFocus();
+}
+
+bool PonteiroEmCima(const views::View* view) {
+  if (!view || !view->IsMouseHovered()) {
+    return false;
+  }
+  const views::Widget* widget = view->GetWidget();
+  display::Screen* tela = display::Screen::Get();
+  if (!widget || !widget->GetNativeWindow() || !tela) {
+    return false;
+  }
+  gfx::NativeWindow sob =
+      tela->GetWindowAtScreenPoint(tela->GetCursorScreenPoint());
+  return sob &&
+         sob->GetRootWindow() == widget->GetNativeWindow()->GetRootWindow();
 }
 
 bool Editando(const views::View* dono) {

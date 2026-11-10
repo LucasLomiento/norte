@@ -79,6 +79,9 @@ SkColor DeHsv(const Hsv& cor) {
 }
 
 // Marcador redondo (quadrado e barra de matiz): anel branco com contorno.
+// O raio de fora do marcador (com o contorno).
+constexpr float kRaioDoMarcador = 8.5f;
+
 void PintarMarcador(gfx::Canvas* canvas, const gfx::PointF& centro) {
   cc::PaintFlags flags;
   flags.setAntiAlias(true);
@@ -111,6 +114,13 @@ class Amostra : public views::Button {
       marcada_ = marcada;
       SchedulePaint();
     }
+  }
+
+  // As cores vêm do tema e a pintura fica guardada: sem repintar, o desenho
+  // ficava com as cores de antes ao trocar claro/escuro ou a cor do espaço.
+  void OnThemeChanged() override {
+    views::Button::OnThemeChanged();
+    SchedulePaint();
   }
 
   void PaintButtonContents(gfx::Canvas* canvas) override {
@@ -178,9 +188,16 @@ class QuadradoSV : public views::View {
         vertical, preto, nullptr, 2, SkTileMode::kClamp));
     canvas->DrawRoundRect(area, kRaio, flags);
 
-    PintarMarcador(canvas,
-                   gfx::PointF(area.x() + cor_.s * area.width(),
-                               area.y() + (1 - cor_.v) * area.height()));
+    // O marcador inteiro dentro do quadro: nas beiras (uma cor viva tem
+    // brilho 100%, no alto) metade dele ficava cortada.
+    PintarMarcador(
+        canvas,
+        gfx::PointF(std::clamp(area.x() + cor_.s * area.width(),
+                               area.x() + kRaioDoMarcador,
+                               area.right() - kRaioDoMarcador),
+                    std::clamp(area.y() + (1 - cor_.v) * area.height(),
+                               area.y() + kRaioDoMarcador,
+                               area.bottom() - kRaioDoMarcador)));
   }
 
   bool OnMousePressed(const ui::MouseEvent& event) override {
@@ -249,8 +266,11 @@ class BarraDeMatiz : public views::View {
         pontos, cores.data(), posicoes.data(), cores.size(),
         SkTileMode::kClamp));
     canvas->DrawRoundRect(barra, barra.height() / 2, flags);
-    PintarMarcador(canvas, gfx::PointF(barra.x() + matiz_ / 360 * barra.width(),
-                                       barra.CenterPoint().y()));
+    PintarMarcador(canvas,
+                   gfx::PointF(std::clamp(barra.x() + matiz_ / 360 * barra.width(),
+                                          barra.x() + kRaioDoMarcador,
+                                          barra.right() - kRaioDoMarcador),
+                               barra.CenterPoint().y()));
   }
 
   bool OnMousePressed(const ui::MouseEvent& event) override {
