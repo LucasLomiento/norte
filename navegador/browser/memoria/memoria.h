@@ -40,7 +40,7 @@ class ImageSkia;
 
 namespace navegador::memoria {
 
-// Cada aba (TabHelpers): lê a página e guarda na memória do perfil.
+// Cada aba (TabFeatures): lê a página e guarda na memória do perfil.
 void AcompanharAba(content::WebContents* contents);
 
 // Guardando páginas novas (Configurações do Norte → Memória). Desligada, a

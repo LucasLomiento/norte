@@ -285,7 +285,7 @@ class Vigia : public views::View, public TabStripModelObserver {
       return;
     }
     const bool em_segundo_plano =
-        *esperando_ == WindowOpenDisposition::NEW_BACKGROUND_TAB;
+        *esperando_ == WindowOpenDisposition::kNewBackgroundTab;
     esperando_.reset();
     for (const auto& inserida : change.GetInsert()->contents) {
       base::SingleThreadTaskRunner::GetCurrentDefault()->PostDelayedTask(
@@ -298,8 +298,8 @@ class Vigia : public views::View, public TabStripModelObserver {
 
  private:
   void LinkAbrindo(WindowOpenDisposition disposicao) {
-    if (disposicao != WindowOpenDisposition::NEW_FOREGROUND_TAB &&
-        disposicao != WindowOpenDisposition::NEW_BACKGROUND_TAB) {
+    if (disposicao != WindowOpenDisposition::kNewForegroundTab &&
+        disposicao != WindowOpenDisposition::kNewBackgroundTab) {
       return;
     }
     // A aba entra logo depois, na mesma chamada (Navigate); se não entrar

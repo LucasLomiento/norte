@@ -210,7 +210,7 @@ void AbrirPagina(BrowserWindowInterface* browser, std::string endereco) {
   }
   NavigateParams params(browser, GURL(endereco),
                         ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
-  params.disposition = WindowOpenDisposition::SINGLETON_TAB;
+  params.disposition = WindowOpenDisposition::kSingletonTab;
   Navigate(&params);
 }
 

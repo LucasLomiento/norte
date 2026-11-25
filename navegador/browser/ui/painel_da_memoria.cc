@@ -1054,9 +1054,9 @@ class Painel : public views::View,
     detalhe_ = AddChildView(std::make_unique<Detalhe>(
         this,
         base::BindRepeating(&Painel::AbrirEscolhida, base::Unretained(this),
-                            WindowOpenDisposition::NEW_FOREGROUND_TAB),
+                            WindowOpenDisposition::kNewForegroundTab),
         base::BindRepeating(&Painel::AbrirEscolhida, base::Unretained(this),
-                            WindowOpenDisposition::CURRENT_TAB),
+                            WindowOpenDisposition::kCurrentTab),
         base::BindRepeating(&Painel::EsquecerEscolhida,
                             base::Unretained(this))));
     rodape_ = AddChildView(std::make_unique<Rodape>());
@@ -1189,11 +1189,11 @@ class Painel : public views::View,
     Selecionar(indice, /*rolar=*/false);
     if (flags & ui::EF_MIDDLE_MOUSE_BUTTON ||
         flags & ui::EF_CONTROL_DOWN) {
-      Abrir(indice, WindowOpenDisposition::NEW_BACKGROUND_TAB);
+      Abrir(indice, WindowOpenDisposition::kNewBackgroundTab);
     } else if (flags & ui::EF_SHIFT_DOWN) {
-      Abrir(indice, WindowOpenDisposition::CURRENT_TAB);
+      Abrir(indice, WindowOpenDisposition::kCurrentTab);
     } else {
-      Abrir(indice, WindowOpenDisposition::NEW_FOREGROUND_TAB);
+      Abrir(indice, WindowOpenDisposition::kNewForegroundTab);
     }
   }
 
@@ -1378,9 +1378,9 @@ class Painel : public views::View,
       case ui::VKEY_RETURN:
         if (selecionada_) {
           Abrir(*selecionada_,
-                ctrl ? WindowOpenDisposition::NEW_BACKGROUND_TAB
-                : shift ? WindowOpenDisposition::CURRENT_TAB
-                        : WindowOpenDisposition::NEW_FOREGROUND_TAB);
+                ctrl ? WindowOpenDisposition::kNewBackgroundTab
+                : shift ? WindowOpenDisposition::kCurrentTab
+                        : WindowOpenDisposition::kNewForegroundTab);
         }
         return true;
       case ui::VKEY_DELETE:
@@ -1466,13 +1466,13 @@ class Painel : public views::View,
     }
     switch (comando) {
       case kAbrirNoTrecho:
-        Abrir(indice, WindowOpenDisposition::NEW_FOREGROUND_TAB);
+        Abrir(indice, WindowOpenDisposition::kNewForegroundTab);
         break;
       case kAbrirAqui:
-        Abrir(indice, WindowOpenDisposition::CURRENT_TAB);
+        Abrir(indice, WindowOpenDisposition::kCurrentTab);
         break;
       case kAbrirAoFundo:
-        Abrir(indice, WindowOpenDisposition::NEW_BACKGROUND_TAB);
+        Abrir(indice, WindowOpenDisposition::kNewBackgroundTab);
         break;
       case kCopiarEndereco:
         links::Copiar(browser_, base::UTF8ToUTF16(resultados_[indice].url));
@@ -1793,7 +1793,7 @@ class Painel : public views::View,
     }
     const Resultado resultado = resultados_[indice];
     BrowserWindowInterface* browser = browser_;
-    if (onde == WindowOpenDisposition::NEW_BACKGROUND_TAB) {
+    if (onde == WindowOpenDisposition::kNewBackgroundTab) {
       // O painel fica: dá pra abrir vários. A aba nova não troca a ativa.
       segurar_ = true;
       AbrirResultado(browser, resultado, onde);
@@ -1972,7 +1972,7 @@ void AbrirResultado(BrowserWindowInterface* browser,
                     WindowOpenDisposition onde) {
   Profile* perfil = browser->GetProfile();
   // Já aberta numa aba (de qualquer janela do perfil): vai pra ela.
-  if (onde != WindowOpenDisposition::CURRENT_TAB) {
+  if (onde != WindowOpenDisposition::kCurrentTab) {
     BrowserWindowInterface* achada = nullptr;
     int indice = TabStripModel::kNoTab;
     ForEachCurrentBrowserWindowInterfaceOrderedByActivation(
@@ -1992,7 +1992,7 @@ void AbrirResultado(BrowserWindowInterface* browser,
           return true;
         });
     if (achada) {
-      if (onde == WindowOpenDisposition::NEW_BACKGROUND_TAB) {
+      if (onde == WindowOpenDisposition::kNewBackgroundTab) {
         return;
       }
       if (achada != browser) {
@@ -2006,7 +2006,7 @@ void AbrirResultado(BrowserWindowInterface* browser,
   }
   const GURL url = EnderecoNoTrecho(resultado);
   TabStripModel* modelo = browser->GetTabStripModel();
-  if (onde == WindowOpenDisposition::CURRENT_TAB) {
+  if (onde == WindowOpenDisposition::kCurrentTab) {
     if (content::WebContents* ativa = modelo->GetActiveWebContents()) {
       content::NavigationController::LoadURLParams carregar(url);
       carregar.transition_type = ui::PAGE_TRANSITION_AUTO_BOOKMARK;
@@ -2023,7 +2023,7 @@ void AbrirResultado(BrowserWindowInterface* browser,
   }
   containers::AbrirEmContainer(
       modelo, url, container, modelo->active_index(),
-      /*ativar=*/onde != WindowOpenDisposition::NEW_BACKGROUND_TAB);
+      /*ativar=*/onde != WindowOpenDisposition::kNewBackgroundTab);
 }
 
 }  // namespace navegador::memoria

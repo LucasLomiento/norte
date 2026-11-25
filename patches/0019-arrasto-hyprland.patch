@@ -1,5 +1,5 @@
 diff --git i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
-index 0d1d2e15e0..8eecc37240 100644
+index 638df075e9..64f5c83ec8 100644
 --- i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
 +++ w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.cc
 @@ -8,6 +8,7 @@
@@ -10,7 +10,7 @@ index 0d1d2e15e0..8eecc37240 100644
  #include <memory>
  
  #include "base/check.h"
-@@ -372,6 +373,10 @@ void WaylandDataDragController::OnDragSurfaceFrame(void* data,
+@@ -376,6 +377,10 @@ void WaylandDataDragController::OnDragSurfaceFrame(void* data,
    self->DrawIconInternal();
    self->icon_frame_callback_.reset();
    self->connection_->Flush();
@@ -21,7 +21,7 @@ index 0d1d2e15e0..8eecc37240 100644
  }
  
  SkBitmap WaylandDataDragController::GetIconBitmap() {
-@@ -562,6 +567,10 @@ void WaylandDataDragController::OnDragLeave(base::TimeTicks timestamp) {
+@@ -566,6 +571,10 @@ void WaylandDataDragController::OnDragLeave(base::TimeTicks timestamp) {
  
  void WaylandDataDragController::OnDragDrop(base::TimeTicks timestamp) {
    VLOG(1) << __FUNCTION__ << " window=" << !!window_;
@@ -32,7 +32,7 @@ index 0d1d2e15e0..8eecc37240 100644
    if (!window_) {
      return;
    }
-@@ -587,6 +596,42 @@ void WaylandDataDragController::OnDataSourceFinish(WaylandDataSource* source,
+@@ -591,6 +600,42 @@ void WaylandDataDragController::OnDataSourceFinish(WaylandDataSource* source,
            << " origin=" << !!origin_window_
            << " nested_dispatcher=" << !!nested_dispatcher_;
  
@@ -75,7 +75,7 @@ index 0d1d2e15e0..8eecc37240 100644
    // HandleDragEnd below is likely no-op, though is called to protect against
    // buggy/malicious compositors, where no prior dnd_drop_performed was
    // received, for example. In which case, it could result in UI hangs where
-@@ -601,6 +646,7 @@ void WaylandDataDragController::OnDataSourceDropPerformed(
+@@ -605,6 +650,7 @@ void WaylandDataDragController::OnDataSourceDropPerformed(
      WaylandDataSource* source,
      base::TimeTicks timestamp) {
    CHECK_EQ(data_source_.get(), source);
@@ -83,7 +83,7 @@ index 0d1d2e15e0..8eecc37240 100644
    VLOG(1) << __FUNCTION__ << " window=" << !!window_
            << " origin=" << !!origin_window_
            << " nested_dispatcher=" << !!nested_dispatcher_;
-@@ -850,9 +896,43 @@ void WaylandDataDragController::Reset() {
+@@ -859,9 +905,43 @@ void WaylandDataDragController::Reset() {
    offered_exchange_data_provider_.reset();
    data_device_->ResetDragDelegate();
    has_received_enter_ = false;
@@ -128,7 +128,7 @@ index 0d1d2e15e0..8eecc37240 100644
  // `kDropping` and `kCancelling`, move `Reset` back into this function, called
  // conditionally depending on the state it would be transitioning to.
 diff --git i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
-index 5ae6436764..282988451a 100644
+index 35c53edca9..ae96fd9aa8 100644
 --- i/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
 +++ w/ui/ozone/platform/wayland/host/wayland_data_drag_controller.h
 @@ -21,6 +21,7 @@
@@ -139,7 +139,7 @@ index 5ae6436764..282988451a 100644
  #include "ui/base/dragdrop/mojom/drag_drop_types.mojom.h"
  #include "ui/base/dragdrop/os_exchange_data_provider.h"
  #include "ui/events/platform/platform_event_dispatcher.h"
-@@ -133,6 +134,11 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
+@@ -135,6 +136,11 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
    // TODO(crbug.com/40598679): Remove once focus is fixed during DND sessions.
    WaylandWindow* entered_window() const { return window_; }
  
@@ -151,7 +151,7 @@ index 5ae6436764..282988451a 100644
    WaylandPointer::Delegate* pointer_delegate() const {
      return pointer_delegate_;
    }
-@@ -164,6 +170,15 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
+@@ -166,6 +172,15 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
                             StartDragWithWrongMimeType);
    FRIEND_TEST_ALL_PREFIXES(WaylandDataDragControllerTest,
                             OutgoingSessionWithoutDndFinished);
@@ -167,7 +167,7 @@ index 5ae6436764..282988451a 100644
    FRIEND_TEST_ALL_PREFIXES(WaylandWindowDragControllerTest,
                             OutgoingSessionWithoutDndFinished);
  
-@@ -229,6 +244,11 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
+@@ -231,6 +246,11 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
    // already `kIdle`.
    void Reset();
  
@@ -179,7 +179,7 @@ index 5ae6436764..282988451a 100644
    // Perform steps required when ending a drag session. e.g: quit the nested
    // drag loop (if any), remove the event dispatcher override, and notify the
    // drag/drop handlers based on `result`.
-@@ -280,6 +300,15 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
+@@ -282,6 +302,15 @@ class WaylandDataDragController : public WaylandDataDevice::DragDelegate,
    // In outgoing sessions, tracks if any drag enter has already been received.
    bool has_received_enter_ = false;
  
@@ -196,7 +196,7 @@ index 5ae6436764..282988451a 100644
    std::unique_ptr<WaylandDataSource> data_source_;
  
 diff --git i/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc w/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc
-index 2b7c7c7119..c1fa6b80ce 100644
+index 57e9366575..b7cce91dfc 100644
 --- i/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc
 +++ w/ui/ozone/platform/wayland/host/wayland_data_drag_controller_unittest.cc
 @@ -9,6 +9,7 @@
@@ -216,7 +216,7 @@ index 2b7c7c7119..c1fa6b80ce 100644
  #include "ui/gfx/native_ui_types.h"
  #include "ui/ozone/platform/wayland/host/wayland_connection.h"
  #include "ui/ozone/platform/wayland/host/wayland_cursor_position.h"
-@@ -1550,6 +1553,196 @@ TEST_P(WaylandDataDragControllerTest, OutgoingSessionWithoutDndFinished) {
+@@ -1608,6 +1611,196 @@ TEST_P(WaylandDataDragControllerTest, OutgoingSessionWithoutDndFinished) {
    EXPECT_EQ(drag_controller_state(), WaylandDataDragController::State::kIdle);
  }
  

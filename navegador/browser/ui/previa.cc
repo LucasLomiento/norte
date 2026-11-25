@@ -438,7 +438,7 @@ class Previa : public content::WebContentsDelegate,
       const content::OpenURLParams& params,
       base::OnceCallback<void(content::NavigationHandle&)>
           navigation_handle_callback) override {
-    if (params.disposition == WindowOpenDisposition::CURRENT_TAB) {
+    if (params.disposition == WindowOpenDisposition::kCurrentTab) {
       content::NavigationController::LoadURLParams carregar(params);
       source->GetController().LoadURLWithParams(carregar);
       return source;
@@ -451,11 +451,11 @@ class Previa : public content::WebContentsDelegate,
       return nullptr;
     }
     nav.source_contents = origem_;
-    if (nav.disposition == WindowOpenDisposition::NEW_WINDOW ||
-        nav.disposition == WindowOpenDisposition::NEW_POPUP) {
-      nav.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+    if (nav.disposition == WindowOpenDisposition::kNewWindow ||
+        nav.disposition == WindowOpenDisposition::kNewPopup) {
+      nav.disposition = WindowOpenDisposition::kNewForegroundTab;
     }
-    if (nav.disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB) {
+    if (nav.disposition == WindowOpenDisposition::kNewForegroundTab) {
       FecharDepois(browser_);
     }
     Navigate(&nav);
@@ -477,12 +477,12 @@ class Previa : public content::WebContentsDelegate,
     }
     NavigateParams nav(browser_, std::move(new_contents));
     nav.source_contents = origem_;
-    nav.disposition = disposition == WindowOpenDisposition::NEW_POPUP
+    nav.disposition = disposition == WindowOpenDisposition::kNewPopup
                           ? disposition
-                          : WindowOpenDisposition::NEW_FOREGROUND_TAB;
+                          : WindowOpenDisposition::kNewForegroundTab;
     nav.window_features = window_features;
     nav.user_gesture = user_gesture;
-    if (nav.disposition == WindowOpenDisposition::NEW_FOREGROUND_TAB) {
+    if (nav.disposition == WindowOpenDisposition::kNewForegroundTab) {
       FecharDepois(browser_);
     }
     Navigate(&nav);

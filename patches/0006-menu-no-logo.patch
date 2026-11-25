@@ -1,8 +1,8 @@
 diff --git i/chrome/browser/ui/browser_command_controller.cc w/chrome/browser/ui/browser_command_controller.cc
-index 8db5695096..1e73f3b743 100644
+index e12e43ef64..20324efcf1 100644
 --- i/chrome/browser/ui/browser_command_controller.cc
 +++ w/chrome/browser/ui/browser_command_controller.cc
-@@ -1798,11 +1798,15 @@ void BrowserCommandController::InitCommandState() {
+@@ -1817,11 +1817,15 @@ void BrowserCommandController::InitCommandState() {
    command_updater_->UpdateCommandEnabled(IDC_RELOAD_CLEARING_CACHE, can_reload);
  
    // Tab group commands
@@ -20,19 +20,9 @@ index 8db5695096..1e73f3b743 100644
 +  command_updater_->UpdateCommandEnabled(IDC_CLOSE_TAB_GROUP, false);
    command_updater_->UpdateCommandEnabled(IDC_GROUP_UNGROUPED_TABS, true);
    command_updater_->UpdateCommandEnabled(IDC_ADD_NEW_TAB_RECENT_GROUP, true);
-   command_updater_->UpdateCommandEnabled(IDC_UNFOCUS_TAB_GROUP, true);
-@@ -2885,6 +2889,9 @@ void BrowserCommandController::UpdateCommandsForTabGroupFocusChanged() {
-   }
  
-   if (base::FeatureList::IsEnabled(features::kTabGroupsFocusing)) {
-+    // navegador: grupo focado é um espaço do Dia. O cabeçalho fica com o
-+    // logo (menu) e sai-se do espaço pela faixa do pé, sem o botão de
-+    // "desfocar" no lugar do logo.
-     if (auto* const action = FindAction(kActionUnfocusTabGroup, browser_)) {
-       action->SetVisible(false);
-     }
 diff --git i/chrome/browser/ui/views/frame/app_menu_button.cc w/chrome/browser/ui/views/frame/app_menu_button.cc
-index edf4150731..14da0ae02c 100644
+index 0b93b74161..7502e2b573 100644
 --- i/chrome/browser/ui/views/frame/app_menu_button.cc
 +++ w/chrome/browser/ui/views/frame/app_menu_button.cc
 @@ -58,7 +58,14 @@ views::BubbleAnchor AppMenuButton::GetAnchor() {
@@ -52,7 +42,7 @@ index edf4150731..14da0ae02c 100644
  }
  
 diff --git i/chrome/browser/ui/views/frame/browser_view.cc w/chrome/browser/ui/views/frame/browser_view.cc
-index d441b8a76b..0ff885584d 100644
+index 764e295293..20999f6224 100644
 --- i/chrome/browser/ui/views/frame/browser_view.cc
 +++ w/chrome/browser/ui/views/frame/browser_view.cc
 @@ -4,6 +4,12 @@
@@ -68,7 +58,7 @@ index d441b8a76b..0ff885584d 100644
  #include <stdint.h>
  
  #include <algorithm>
-@@ -318,6 +324,8 @@
+@@ -319,6 +325,8 @@
  #include "ui/accessibility/platform/ax_mode_observer.h"
  #include "ui/accessibility/platform/ax_platform.h"
  #include "ui/base/accelerators/accelerator.h"
@@ -77,7 +67,7 @@ index d441b8a76b..0ff885584d 100644
  #include "ui/base/dragdrop/os_exchange_data.h"
  #include "ui/base/hit_test.h"
  #include "ui/base/l10n/l10n_util.h"
-@@ -2031,7 +2039,8 @@ void BrowserView::OnActiveTabChanged(content::WebContents* old_contents,
+@@ -2047,7 +2055,8 @@ void BrowserView::OnActiveTabChanged(content::WebContents* old_contents,
        GetWidget()->GetFocusManager()->ClearFocus();
      }
  
@@ -87,7 +77,7 @@ index d441b8a76b..0ff885584d 100644
      active_contents_view->SetWebContents(nullptr);
    }
  
-@@ -2190,7 +2199,10 @@ void BrowserView::SetContentsSize(const gfx::Size& size) {
+@@ -2206,7 +2215,10 @@ void BrowserView::SetContentsSize(const gfx::Size& size) {
  
    // If in split view, the size diff needs to be scaled by the split ratio to
    // account for the combined width of both contents views.
@@ -99,7 +89,7 @@ index d441b8a76b..0ff885584d 100644
      const double split_ratio = multi_contents_view_->GetSplitRatio();
      CHECK(split_ratio > 0.0 && split_ratio < 1.0);
      const double divider = multi_contents_view_->GetActiveIndex() == 0
-@@ -2357,6 +2369,9 @@ void BrowserView::SetFocusToLocationBar(bool is_user_initiated) {
+@@ -2387,6 +2399,9 @@ void BrowserView::SetFocusToLocationBar(bool is_user_initiated) {
      return;
    }
  #endif
@@ -109,7 +99,7 @@ index d441b8a76b..0ff885584d 100644
    if (!IsLocationBarVisible()) {
      return;
    }
-@@ -2489,6 +2504,12 @@ void BrowserView::TabDraggingStatusChanged(bool is_dragging) {
+@@ -2519,6 +2534,12 @@ void BrowserView::TabDraggingStatusChanged(bool is_dragging) {
  
  TabDragTarget* BrowserView::GetTabDragTarget(
      const gfx::Point& point_in_screen) {
@@ -122,7 +112,7 @@ index d441b8a76b..0ff885584d 100644
    if (ShouldDrawVerticalTabStrip()) {
      if (vertical_tab_strip_region_view_) {
        if (auto* target = vertical_tab_strip_region_view_->GetTabDragTarget(
-@@ -2503,6 +2524,13 @@ TabDragTarget* BrowserView::GetTabDragTarget(
+@@ -2533,6 +2554,13 @@ TabDragTarget* BrowserView::GetTabDragTarget(
        return target;
      }
    }
@@ -136,7 +126,7 @@ index d441b8a76b..0ff885584d 100644
    if (multi_contents_view_->IsInSplitView() ||
        !multi_contents_view_->IsDragAndDropEnabled()) {
      return nullptr;
-@@ -3027,6 +3055,10 @@ bool BrowserView::IsBookmarkBarVisible() const {
+@@ -3058,6 +3086,10 @@ bool BrowserView::IsBookmarkBarVisible() const {
            WindowFeatureController::WindowFeature::kFeatureBookmarkBar)) {
      return false;
    }
@@ -147,7 +137,7 @@ index d441b8a76b..0ff885584d 100644
    if (!bookmark_bar_view_) {
      return false;
    }
-@@ -3080,7 +3112,7 @@ bool BrowserView::IsToolbarVisible() const {
+@@ -3111,7 +3143,7 @@ bool BrowserView::IsToolbarVisible() const {
                WindowFeatureController::WindowFeature::kFeatureToolbar) ||
            WindowFeatureController::From(browser_)->SupportsWindowFeature(
                WindowFeatureController::WindowFeature::kFeatureLocationBar)) &&
@@ -156,7 +146,7 @@ index d441b8a76b..0ff885584d 100644
  }
  
  bool BrowserView::IsToolbarShowing() const {
-@@ -3204,6 +3236,10 @@ void BrowserView::UserChangedTheme(BrowserThemeChangeType theme_change_type) {
+@@ -3235,6 +3267,10 @@ void BrowserView::UserChangedTheme(BrowserThemeChangeType theme_change_type) {
  }
  
  void BrowserView::ShowAppMenu() {
@@ -167,7 +157,7 @@ index d441b8a76b..0ff885584d 100644
    auto* control = ToolbarButtonProvider::From(browser_)->GetAppMenuControl();
    if (!control) {
      return;
-@@ -3268,6 +3304,14 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
+@@ -3299,6 +3335,14 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
      return result;
    }
  
@@ -182,7 +172,7 @@ index d441b8a76b..0ff885584d 100644
    int id;
    if (!FindCommandIdForAccelerator(accelerator, &id)) {
      // |accelerator| is not a browser command, it may be handled by ash (e.g.
-@@ -3302,6 +3346,23 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
+@@ -3334,6 +3378,23 @@ content::KeyboardEventProcessingResult BrowserView::PreHandleKeyboardEvent(
  
  void BrowserView::PreHandleDragUpdate(const content::DropData& drop_data,
                                        const gfx::PointF& point) {
@@ -206,7 +196,7 @@ index d441b8a76b..0ff885584d 100644
    if (multi_contents_view_->IsDragAndDropEnabled()) {
      // Read the split state from the active tab because when BrowserView is in
      // full screen it may not be rendering a split, even though the active tab
-@@ -3318,6 +3379,10 @@ void BrowserView::PreHandleDragUpdate(const content::DropData& drop_data,
+@@ -3350,6 +3411,10 @@ void BrowserView::PreHandleDragUpdate(const content::DropData& drop_data,
  }
  
  void BrowserView::PreHandleDragExit() {
@@ -217,7 +207,7 @@ index d441b8a76b..0ff885584d 100644
    if (multi_contents_view_->IsDragAndDropEnabled()) {
      multi_contents_view_->drop_target_controller().OnWebContentsDragExit();
    }
-@@ -3502,8 +3567,10 @@ void BrowserView::OnSplitTabChanged(const SplitTabChange& change) {
+@@ -3534,8 +3599,10 @@ void BrowserView::OnSplitTabChanged(const SplitTabChange& change) {
        const tabs::TabInterface* active_tab =
            browser_->GetTabStripModel()->GetActiveTab();
  
@@ -229,7 +219,7 @@ index d441b8a76b..0ff885584d 100644
        }
        break;
      }
-@@ -4326,15 +4393,17 @@ void BrowserView::ShowSplitView(bool focus_active_view) {
+@@ -4361,15 +4428,17 @@ void BrowserView::ShowSplitView(bool focus_active_view) {
  
    std::vector<tabs::TabInterface*> split_tabs = split_data->ListTabs();
  
@@ -252,7 +242,7 @@ index d441b8a76b..0ff885584d 100644
  
    // Set focus to the active contents avoid reentrency when setting the web
    // contents within MultiContentsView. See crbug.com/458189541 and
-@@ -4374,19 +4443,20 @@ void BrowserView::UpdateActiveTabInSplitView() {
+@@ -4409,19 +4478,20 @@ void BrowserView::UpdateActiveTabInSplitView() {
    // When active tab changes inside a split, it's generally due to focus change.
    // However, there are cases where inactive tab can be activated without a
    // focus change e.g. using tab shortcuts and in these cases update focus.
@@ -276,7 +266,7 @@ index d441b8a76b..0ff885584d 100644
  }
  
  void BrowserView::UpdateTabModalDialogHost() {
-@@ -4433,14 +4503,8 @@ void BrowserView::MaybeUpdateStoredFocusForWebContents(
+@@ -4468,14 +4538,8 @@ void BrowserView::MaybeUpdateStoredFocusForWebContents(
  }
  
  std::vector<ContentsWebView*> BrowserView::GetAllVisibleContentsWebViews() {
@@ -294,7 +284,7 @@ index d441b8a76b..0ff885584d 100644
  
  void BrowserView::RevealTopContainerIfNeeded() {
 diff --git i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
-index fc3337bf30..d661fb1abc 100644
+index c34734562b..50ba1acc57 100644
 --- i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 +++ w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.cc
 @@ -39,6 +39,13 @@ DEFINE_CLASS_ELEMENT_IDENTIFIER_VALUE(
@@ -311,26 +301,19 @@ index fc3337bf30..d661fb1abc 100644
  VerticalTabStripTopContainer::VerticalTabStripTopContainer(
      tabs::VerticalTabStripStateController* state_controller,
      actions::ActionItem* root_action_item,
-@@ -141,15 +148,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-                                  .width();
-   }
- 
--  const bool is_collapsed_with_combo =
--      is_collapsed && combo_button_ && combo_button_->GetVisible();
--
-   // Once the available width is below the collapse snap width, we update the
+@@ -137,8 +144,9 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
    // orientation in order to have smooth transition during animation.
-   if (!is_segmented_expand_on_hover &&
+   if (!keep_horizontal_layout &&
        (trailing_control_width >= available_width ||
 -       available_width < tabs::kVerticalTabStripCollapseSnapWidth ||
--       is_collapsed_with_combo)) {
+-       is_collapsed)) {
 +       // navegador: recolhida, a lateral só tem largura quando aparece por
 +       // cima da página (mouse na borda); aí o cabeçalho é o de sempre.
 +       available_width < tabs::kVerticalTabStripCollapseSnapWidth)) {
      combo_button_orientation_ = views::LayoutOrientation::kVertical;
      int current_y = 0;
  
-@@ -244,6 +249,10 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -219,6 +227,10 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      }
  
      host_size.SetToMax(gfx::Size(0, current_y));
@@ -341,12 +324,12 @@ index fc3337bf30..d661fb1abc 100644
    } else {
      // If the vertical tab strip is uncollapsed, then lay out the buttons
      // horizontally. The exact y-level of the buttons depends on if they can lay
-@@ -296,9 +305,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-               LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
+@@ -260,9 +272,13 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
      }
  
+     int current_y = 0;
 +    int depois_do_logo = left_alignment;
-     if (collapse_button_ && collapse_button_->GetVisible()) {
+     if (collapse_button_) {
 +      // navegador: 2 px pra dentro, o logo na coluna dos favicons das abas
 +      // (o nome do espaço fica onde estava).
 +      constexpr int kRecuoDoLogo = 2;
@@ -356,17 +339,17 @@ index fc3337bf30..d661fb1abc 100644
                         std::max(0, y_baseline - pref_size.height() / 2),
                         pref_size.width(), pref_size.height());
        layout.child_layouts.emplace_back(collapse_button_.get(),
-@@ -307,6 +320,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+@@ -271,6 +287,7 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
            bounds.bottom() +
            GetLayoutConstant(
                LayoutConstant::kVerticalTabStripCollapsedVerticalPadding);
 +      depois_do_logo = bounds.right() - kRecuoDoLogo;
      }
  
-     const int expected_uncollapsed_width =
-@@ -345,6 +359,20 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
-       layout.child_layouts.emplace_back(combo_button_.get(),
-                                         combo_button_->GetVisible(), bounds);
+     const int collapsed_width =
+@@ -328,6 +345,20 @@ views::ProposedLayout VerticalTabStripTopContainer::CalculateProposedLayout(
+       }
+       layout.child_layouts.emplace_back(combo_button_.get(), visible, bounds);
      }
 +
 +    // navegador: o nome do espaço ocupa o meio do cabeçalho.
@@ -385,7 +368,7 @@ index fc3337bf30..d661fb1abc 100644
    }
  
    layout.host_size = host_size;
-@@ -369,6 +397,15 @@ views::LabelButton* VerticalTabStripTopContainer::AddChildButtonFor(
+@@ -352,6 +383,15 @@ views::LabelButton* VerticalTabStripTopContainer::AddChildButtonFor(
    return container_button_ptr;
  }
  
@@ -401,7 +384,7 @@ index fc3337bf30..d661fb1abc 100644
  TabStripComboButton* VerticalTabStripTopContainer::GetComboButton() {
    return combo_button_.get();
  }
-@@ -400,6 +437,11 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
+@@ -378,6 +418,11 @@ bool VerticalTabStripTopContainer::IsPositionInWindowCaption(
      return false;
    }
  
@@ -413,7 +396,7 @@ index fc3337bf30..d661fb1abc 100644
    return true;
  }
  
-@@ -418,10 +460,18 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
+@@ -396,10 +441,18 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
      context_menu_runner_.reset();
  
      context_menu_model_ = std::make_unique<ui::SimpleMenuModel>(this);
@@ -434,7 +417,7 @@ index fc3337bf30..d661fb1abc 100644
      context_menu_model_->SetElementIdentifierAt(
          context_menu_model_->GetItemCount() - 1,
          kToggleVerticalTabsExpandOnHoverElementId);
-@@ -454,13 +504,15 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
+@@ -432,13 +485,15 @@ void VerticalTabStripTopContainer::ShowContextMenuForViewImpl(
  
  bool VerticalTabStripTopContainer::IsCommandIdChecked(int command_id) const {
    if (command_id == IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER) {
@@ -452,7 +435,7 @@ index fc3337bf30..d661fb1abc 100644
      return true;
    }
    return false;
-@@ -469,6 +521,15 @@ bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
+@@ -447,6 +502,15 @@ bool VerticalTabStripTopContainer::IsCommandIdEnabled(int command_id) const {
  void VerticalTabStripTopContainer::ExecuteCommand(int command_id,
                                                    int event_flags) {
    if (command_id == IDC_TOGGLE_VERTICAL_TABS_EXPAND_ON_HOVER) {
@@ -469,10 +452,10 @@ index fc3337bf30..d661fb1abc 100644
    }
  }
 diff --git i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-index c03539ffa6..c31cb4af12 100644
+index 3037c96db9..5f318b490e 100644
 --- i/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
 +++ w/chrome/browser/ui/views/tabs/vertical/vertical_tab_strip_top_container.h
-@@ -69,6 +69,10 @@ class VerticalTabStripTopContainer : public views::View,
+@@ -66,6 +66,10 @@ class VerticalTabStripTopContainer : public views::View,
  
    bool IsPositionInWindowCaption(const gfx::Point& point);
  
@@ -483,19 +466,19 @@ index c03539ffa6..c31cb4af12 100644
    // views::ContextMenuController:
    void ShowContextMenuForViewImpl(
        views::View* source,
-@@ -108,6 +112,7 @@ class VerticalTabStripTopContainer : public views::View,
+@@ -112,6 +116,7 @@ class VerticalTabStripTopContainer : public views::View,
+   raw_ptr<TabStripComboButton> combo_button_ = nullptr;
    raw_ptr<VerticalTabStripSegmentedControl> segmented_control_ = nullptr;
    raw_ptr<views::LabelButton> collapse_button_ = nullptr;
-   raw_ptr<views::LabelButton> unfocus_button_ = nullptr;
 +  raw_ptr<views::View> titulo_do_espaco_ = nullptr;
  
    PrefChangeRegistrar pref_registrar_;
-   base::CallbackListSubscription collapse_subscription_;
+   base::CallbackListSubscription expand_on_hover_subscription_;
 diff --git i/chrome/browser/ui/views/toolbar/app_menu.cc w/chrome/browser/ui/views/toolbar/app_menu.cc
-index 0d5179c864..bc0f0cae05 100644
+index 3f5a2e9c34..fa421ddcd0 100644
 --- i/chrome/browser/ui/views/toolbar/app_menu.cc
 +++ w/chrome/browser/ui/views/toolbar/app_menu.cc
-@@ -1115,13 +1115,14 @@ void AppMenu::RunMenu(views::MenuButtonController* host,
+@@ -1130,13 +1130,14 @@ void AppMenu::RunMenu(views::MenuButtonController* host,
  
  void AppMenu::RunMenu(views::Widget* parent,
                        const gfx::Rect& anchor_screen_bounds,
@@ -513,7 +496,7 @@ index 0d5179c864..bc0f0cae05 100644
                            /*corners=*/std::nullopt,
                            "Chrome.AppMenu.MenuHostInitToNextFramePresented");
 diff --git i/chrome/browser/ui/views/toolbar/app_menu.h w/chrome/browser/ui/views/toolbar/app_menu.h
-index 875b2cc11c..e16ddf263e 100644
+index 95858d0f3c..a07aea0379 100644
 --- i/chrome/browser/ui/views/toolbar/app_menu.h
 +++ w/chrome/browser/ui/views/toolbar/app_menu.h
 @@ -55,10 +55,13 @@ class AppMenu final : public views::MenuDelegate,
@@ -532,10 +515,10 @@ index 875b2cc11c..e16ddf263e 100644
    // Closes the menu if it is open, otherwise does nothing.
    void CloseMenu();
 diff --git i/chrome/browser/ui/views/toolbar/toolbar_view.cc w/chrome/browser/ui/views/toolbar/toolbar_view.cc
-index 184ae3e5bc..3317a0b23d 100644
+index 7f404c6864..9edb16747d 100644
 --- i/chrome/browser/ui/views/toolbar/toolbar_view.cc
 +++ w/chrome/browser/ui/views/toolbar/toolbar_view.cc
-@@ -215,7 +215,7 @@ auto& GetViewCommandMap() {
+@@ -220,7 +220,7 @@ auto& GetViewCommandMap() {
    return kViewCommandMap;
  }
  
@@ -544,7 +527,7 @@ index 184ae3e5bc..3317a0b23d 100644
  constexpr int kLargeSpaceBetweenButtons = 6;
  constexpr int kInsideBorderAroundGlicButtons = 2;
  constexpr int kGlicButtonMargin = 5;
-@@ -253,12 +253,25 @@ bool IsPositionInWindowCaptionForView(const views::View* view,
+@@ -258,12 +258,25 @@ bool IsPositionInWindowCaptionForView(const views::View* view,
  }
  
  void SetRefreshMargins(views::View* button, bool expanded) {
@@ -576,7 +559,7 @@ index 184ae3e5bc..3317a0b23d 100644
  }
  
  }  // namespace
-@@ -417,7 +430,9 @@ void ToolbarView::Init() {
+@@ -422,7 +435,9 @@ void ToolbarView::Init() {
    }
  
    std::unique_ptr<MediaToolbarButtonView> media_button;
@@ -587,7 +570,7 @@ index 184ae3e5bc..3317a0b23d 100644
    if (!features::IsWebUIMediaButtonEnabled()) {
      media_button = std::make_unique<MediaToolbarButtonView>(
          browser_view_, std::make_unique<MediaToolbarButtonContextualMenu>(
-@@ -604,6 +619,9 @@ void ToolbarView::Init() {
+@@ -608,6 +623,9 @@ void ToolbarView::Init() {
      bool show_avatar_toolbar_button =
          AvatarToolbarButtonInterface::CanShowForProfile(browser_->GetProfile());
      avatar_->SetVisible(show_avatar_toolbar_button);
@@ -597,7 +580,7 @@ index 184ae3e5bc..3317a0b23d 100644
    }
  
    // Only manage the overflow button when there are at least some views
-@@ -625,6 +643,8 @@ void ToolbarView::Init() {
+@@ -629,6 +647,8 @@ void ToolbarView::Init() {
          l10n_util::GetStringUTF16(IDS_APPMENU_TOOLTIP));
      app_menu_button->SetID(VIEW_ID_APP_MENU);
      app_menu_button_ = AddChildView(std::move(app_menu_button));
@@ -606,7 +589,7 @@ index 184ae3e5bc..3317a0b23d 100644
    }
  
    if (base::FeatureList::IsEnabled(contextual_tasks::kContextualTasks) &&
-@@ -1808,7 +1828,8 @@ void ToolbarView::LayoutCommon() {
+@@ -1813,7 +1833,8 @@ void ToolbarView::LayoutCommon() {
  
    if (toolbar_divider_ && extensions_container_) {
      views::ManualLayoutUtil(layout_manager_)

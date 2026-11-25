@@ -16,7 +16,7 @@ class WebContents;
 
 namespace navegador::temporarios {
 
-// tab_helpers.cc: acompanha toda aba (e, na primeira de cada perfil, marca
+// TabFeatures: acompanha toda aba (e, na primeira de cada perfil, marca
 // a limpeza da partida).
 void AcompanharAba(content::WebContents* contents);
 

@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/ui/startup/startup_browser_creator_impl.cc w/chrome/browser/ui/startup/startup_browser_creator_impl.cc
-index 1e34f398af..54d3ae0a47 100644
+index 6b030c1f66..7ab5cb4ea7 100644
 --- i/chrome/browser/ui/startup/startup_browser_creator_impl.cc
 +++ w/chrome/browser/ui/startup/startup_browser_creator_impl.cc
 @@ -69,6 +69,7 @@
@@ -10,7 +10,7 @@ index 1e34f398af..54d3ae0a47 100644
  #include "ui/base/page_transition_types.h"
  #include "ui/base/window_open_disposition.h"
  #include "url/origin.h"
-@@ -369,6 +370,15 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
+@@ -366,6 +367,15 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
    }
    CHECK(profile_);
  
@@ -26,7 +26,7 @@ index 1e34f398af..54d3ae0a47 100644
    bool first_tab = true;
    bool process_headless_commands = headless::ShouldProcessHeadlessCommands();
    custom_handlers::ProtocolHandlerRegistry* registry =
-@@ -468,6 +478,7 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
+@@ -465,6 +475,7 @@ BrowserWindowInterface* StartupBrowserCreatorImpl::OpenTabsInBrowser(
      Navigate(&params);
      first_tab = false;
    }
@@ -35,7 +35,7 @@ index 1e34f398af..54d3ae0a47 100644
        !process_headless_commands) {
      // TODO(sky): this is a work around for 110909. Figure out why it's needed.
 diff --git i/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc w/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
-index 629d76ab24..abe30f0c44 100644
+index f94e9e9559..8ecf41b21d 100644
 --- i/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
 +++ w/chrome/browser/ui/tabs/saved_tab_groups/tab_group_sync_delegate_desktop.cc
 @@ -227,6 +227,14 @@ void TabGroupSyncDelegateDesktop::ConnectLocalTabGroup(
@@ -67,7 +67,7 @@ index 629d76ab24..abe30f0c44 100644
    // Update the local group with the new data. This will open new tabs, close
    // tabs, and navigate tabs to match the saved group.
 diff --git i/chrome/browser/ui/tabs/tab_strip_model.cc w/chrome/browser/ui/tabs/tab_strip_model.cc
-index c8c7e12466..e334960d5a 100644
+index 4a85ea7e9e..cabeccc099 100644
 --- i/chrome/browser/ui/tabs/tab_strip_model.cc
 +++ w/chrome/browser/ui/tabs/tab_strip_model.cc
 @@ -4,6 +4,9 @@
@@ -80,15 +80,15 @@ index c8c7e12466..e334960d5a 100644
  #include <algorithm>
  #include <cstddef>
  #include <cstdint>
-@@ -82,6 +85,7 @@
- #include "chrome/browser/web_applications/web_app_tab_helper.h"
+@@ -88,6 +91,7 @@
  #include "chrome/common/chrome_features.h"
  #include "chrome/common/webui_url_constants.h"
+ #include "chrome/grit/generated_resources.h"
 +#include "navegador/browser/divisao/visual.h"
  #include "components/commerce/core/commerce_utils.h"
  #include "components/content_settings/core/browser/host_content_settings_map.h"
  #include "components/content_settings/core/common/content_settings.h"
-@@ -184,6 +188,73 @@ void RecordToggleFocusGroupMetrics(bool is_unfocus,
+@@ -195,6 +199,73 @@ void RecordToggleFocusGroupMetrics(bool is_unfocus,
    }
  }
  
@@ -162,7 +162,7 @@ index c8c7e12466..e334960d5a 100644
  }  // namespace
  
  TabGroupModelFactory::TabGroupModelFactory() {
-@@ -1005,6 +1076,9 @@ void TabStripModel::SendDetachWebContentsNotifications(
+@@ -1016,6 +1087,9 @@ void TabStripModel::SendDetachWebContentsNotifications(
      }
    }
  
@@ -172,7 +172,7 @@ index c8c7e12466..e334960d5a 100644
    if (empty()) {
      for (auto& observer : observers_) {
        observer.TabStripEmpty();
-@@ -1030,14 +1104,35 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
+@@ -1041,14 +1115,35 @@ void TabStripModel::ActivateTab(tabs::TabInterface* tab,
  
    scrubbing_metrics_.IncrementPressCount(user_gesture);
  
@@ -208,7 +208,7 @@ index c8c7e12466..e334960d5a 100644
  }
  
  int TabStripModel::MoveWebContentsAt(int index,
-@@ -1331,7 +1426,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
+@@ -1342,7 +1437,15 @@ void TabStripModel::CloseWebContents(content::WebContents* contents,
  
    CHECK(contents);
    CHECK_NE(GetIndexOfWebContents(contents), kNoTab);
@@ -224,7 +224,7 @@ index c8c7e12466..e334960d5a 100644
  }
  
  void TabStripModel::CloseWebContentsAt(int index, uint32_t close_types) {
-@@ -1578,7 +1681,10 @@ void TabStripModel::DeselectTabAt(int index) {
+@@ -1589,7 +1692,10 @@ void TabStripModel::DeselectTabAt(int index) {
      // If the tab is already deselected, no need to do anything.
      return;
    } else if (selection_model_.size() == 1 ||
@@ -236,7 +236,7 @@ index c8c7e12466..e334960d5a 100644
      // One tab must be selected and this tab is currently selected so we can't
      // unselect it.
      return;
-@@ -1888,6 +1994,24 @@ void TabStripModel::UpdateSplitLayout(
+@@ -1898,6 +2004,24 @@ void TabStripModel::UpdateSplitLayout(
  
    split_tabs::SplitTabData* split_data = GetSplitData(split_id);
  
@@ -261,7 +261,7 @@ index c8c7e12466..e334960d5a 100644
    if (split_data->visual_data()->split_layout() == tab_layout) {
      return;
    }
-@@ -1977,7 +2101,10 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
+@@ -1987,7 +2111,10 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
      split_tabs::SplitTabCreatedSource source) {
    ReentrancyCheck reentrancy_check(&reentrancy_guard_);
  
@@ -273,7 +273,7 @@ index c8c7e12466..e334960d5a 100644
        << "Invalid index count: " << indices.size();
  
    // If there is only one entry in `indices`, use the active index as the pivot
-@@ -1985,6 +2112,8 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
+@@ -1995,6 +2122,8 @@ split_tabs::SplitTabId TabStripModel::AddToNewSplit(
    if (indices.size() == 1u) {
      indices.insert(indices.begin(), active_index());
    }
@@ -282,7 +282,7 @@ index c8c7e12466..e334960d5a 100644
    int pivot_index = indices[0];
    CHECK(pivot_index != kNoTab);
    // Check that the indices are unique.
-@@ -2020,7 +2149,12 @@ void TabStripModel::RestoreSplit(split_tabs::SplitTabId split_id,
+@@ -2030,7 +2159,12 @@ void TabStripModel::RestoreSplit(split_tabs::SplitTabId split_id,
                                   split_tabs::SplitTabVisualData visual_data) {
    ReentrancyCheck reentrancy_check(&reentrancy_guard_);
    CHECK(std::ranges::is_sorted(indices));
@@ -296,7 +296,7 @@ index c8c7e12466..e334960d5a 100644
  
    // Ideally these are consecutive indices from the restore flow and the pivot
    // index does not matter. However, given there are numerous steps in restore
-@@ -2207,6 +2341,164 @@ void TabStripModel::PromoteEphemeralTabGroup(
+@@ -2205,6 +2339,164 @@ void TabStripModel::PromoteEphemeralTabGroup(
    }
  }
  
@@ -461,7 +461,7 @@ index c8c7e12466..e334960d5a 100644
  // Returns the ID of the group that is focused. If no group is focused,
  // returns nullopt.
  std::optional<tab_groups::TabGroupId> TabStripModel::GetFocusedGroup() const {
-@@ -2918,6 +3210,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
+@@ -2966,6 +3258,11 @@ void TabStripModel::ExecuteContextMenuCommand(int context_index,
      }
  
      case CommandTogglePinned: {
@@ -473,18 +473,18 @@ index c8c7e12466..e334960d5a 100644
        base::UmaHistogramCounts1000(
            "Tab.ContextMenu.TogglePinned.SelectedTabsCount",
            selection_model_.size());
-@@ -3454,6 +3751,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
-         get_tabs_to_close,
-     bool delete_groups) {
-   std::vector<tabs::TabInterface*> tabs_to_close = get_tabs_to_close.Run();
+@@ -3538,6 +3835,10 @@ void TabStripModel::ExecuteCloseTabsCommand(
+       tabs_to_close.push_back(t);
+     }
+   }
 +  // navegador: a última aba do espaço não leva o espaço (nem a janela) junto.
 +  const bool fecha_a_ativa =
 +      std::ranges::find(tabs_to_close, GetActiveTab()) != tabs_to_close.end();
 +  const tabs::TabHandle nova = NavegadorManterEspaco(this, tabs_to_close);
    std::vector<tab_groups::TabGroupId> groups_to_delete =
-       GetGroupsDestroyedFromRemovingTabs(get_tabs_to_close.Run());
+       GetGroupsDestroyedFromRemovingTabs(tabs_to_close);
  
-@@ -3477,7 +3778,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
+@@ -3561,7 +3862,11 @@ void TabStripModel::ExecuteCloseTabsCommand(
      delegate_->OnGroupsDestruction(groups_to_delete, std::move(close_callback),
                                     delete_groups);
    } else {
@@ -496,7 +496,7 @@ index c8c7e12466..e334960d5a 100644
    }
  }
  
-@@ -4981,6 +5286,36 @@ std::unique_ptr<tabs::TabModel> TabStripModel::RemoveTabFromIndexImpl(
+@@ -5051,6 +5356,36 @@ std::unique_ptr<tabs::TabModel> TabStripModel::RemoveTabFromIndexImpl(
    if (removed_tab_is_split) {
      next_selected_index = GetIndexOfTab(
          GetSplitData(tab_to_remove->GetSplit().value())->ListTabs()[0]);
@@ -533,7 +533,7 @@ index c8c7e12466..e334960d5a 100644
      RemoveSplitImpl(tab_to_remove->GetSplit().value(),
                      SplitTabChange::SplitTabRemoveReason::kSplitTabRemoved);
    }
-@@ -5145,12 +5480,21 @@ void TabStripModel::MoveTabsToIndexImpl(
+@@ -5215,12 +5550,21 @@ void TabStripModel::MoveTabsToIndexImpl(
    CHECK(all_tabs_pinned || all_tabs_unpinned);
    CHECK(std::ranges::is_sorted(tab_indices));
  
@@ -556,7 +556,7 @@ index c8c7e12466..e334960d5a 100644
  }
  
  void TabStripModel::TabGroupStateChanged(
-@@ -6141,7 +6485,9 @@ void TabStripModel::CreateHistoricalSplitIfClosing(
+@@ -6238,7 +6582,9 @@ void TabStripModel::CreateHistoricalSplitIfClosing(
        }
      }
      for (const auto& [split_id, count] : split_closing_counts) {
@@ -568,10 +568,10 @@ index c8c7e12466..e334960d5a 100644
        }
      }
 diff --git i/chrome/browser/ui/views/animations/tab_strip_animations.cc w/chrome/browser/ui/views/animations/tab_strip_animations.cc
-index fc93de5933..d70ccee7cd 100644
+index 6460d13872..e761ce8723 100644
 --- i/chrome/browser/ui/views/animations/tab_strip_animations.cc
 +++ w/chrome/browser/ui/views/animations/tab_strip_animations.cc
-@@ -68,6 +68,10 @@ TabStripAnimations::GroupInfos TabStripAnimations::GenerateAnimations() const {
+@@ -67,6 +67,10 @@ TabStripAnimations::GroupInfos TabStripAnimations::GenerateAnimations() const {
    // these changes happen.
    constexpr double kFirstCheckpoint = 0.25;
    constexpr double kSecondCheckpoint = 0.75;
@@ -582,7 +582,7 @@ index fc93de5933..d70ccee7cd 100644
  
    return Groups(Group(
        kVerticalTabStrip,
-@@ -107,28 +111,26 @@ TabStripAnimations::GroupInfos TabStripAnimations::GenerateAnimations() const {
+@@ -106,28 +110,26 @@ TabStripAnimations::GroupInfos TabStripAnimations::GenerateAnimations() const {
        // The expand and collapse hover animation doesn't shift contents during
        // the animation and so shares the same animation parameters across all
        // the supported platforms.
@@ -626,7 +626,7 @@ index fc93de5933..d70ccee7cd 100644
                           browser_animations::kFlyoutFadeOutTween)))));
  }
 diff --git i/chrome/browser/ui/views/tabs/common/root_tab_collection_node.cc w/chrome/browser/ui/views/tabs/common/root_tab_collection_node.cc
-index 7c362fa413..b17508cd9a 100644
+index c5c871f198..c465a21b3e 100644
 --- i/chrome/browser/ui/views/tabs/common/root_tab_collection_node.cc
 +++ w/chrome/browser/ui/views/tabs/common/root_tab_collection_node.cc
 @@ -2,6 +2,7 @@
@@ -637,7 +637,7 @@ index 7c362fa413..b17508cd9a 100644
  #include "chrome/browser/ui/views/tabs/common/root_tab_collection_node.h"
  
  #include "base/stl_util.h"
-@@ -261,6 +262,8 @@ void RootTabCollectionNode::OnTabGroupFocusChanged(
+@@ -266,6 +267,8 @@ void RootTabCollectionNode::OnTabGroupFocusChanged(
    tab_strip_controller_->TabGroupFocusChanged(new_focused_group_id,
                                                old_focused_group_id);
  
@@ -647,18 +647,18 @@ index 7c362fa413..b17508cd9a 100644
      view()->InvalidateLayout();
    }
 diff --git i/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.cc w/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.cc
-index 86331af3bb..de670af17e 100644
+index b2158e2ccc..1874070cb7 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.cc
-@@ -7,6 +7,7 @@
- #include <algorithm>
+@@ -8,6 +8,7 @@
  #include <vector>
  
+ #include "base/auto_reset.h"
 +#include "base/time/time.h"  // navegador
  #include "base/check_deref.h"
  #include "base/containers/flat_map.h"
  #include "base/containers/flat_set.h"
-@@ -464,6 +465,20 @@ void TabCollectionAnimatingLayoutManager::UpdateCurrentLayout() {
+@@ -496,6 +497,20 @@ void TabCollectionAnimatingLayoutManager::UpdateCurrentLayout() {
    current_layout_ = InterpolateLayout(percent);
  }
  
@@ -676,10 +676,10 @@ index 86331af3bb..de670af17e 100644
 +  PularAnimacaoAte() = base::TimeTicks::Now() + base::Milliseconds(150);
 +}
 +
- bool TabCollectionAnimatingLayoutManager::RecalculateTarget() {
+ views::SizeBounds TabCollectionAnimatingLayoutManager::GetAvailableHostSize()
+     const {
    if (!host_view()) {
-     return false;
-@@ -511,6 +526,15 @@ bool TabCollectionAnimatingLayoutManager::RecalculateTarget() {
+@@ -590,6 +605,15 @@ bool TabCollectionAnimatingLayoutManager::RecalculateTarget() {
      return false;
    }
  
@@ -696,10 +696,10 @@ index 86331af3bb..de670af17e 100644
    // immediately snap to target for cross-axis bounds changes.
    const bool cross_axis_changed =
 diff --git i/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h w/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h
-index 039c009046..c559378ee7 100644
+index e95017e783..822ef799be 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h
 +++ w/chrome/browser/ui/views/tabs/common/tab_collection_animating_layout_manager.h
-@@ -174,6 +174,11 @@ class TabCollectionAnimatingLayoutManager : public views::LayoutManagerBase {
+@@ -168,6 +168,11 @@ class TabCollectionAnimatingLayoutManager : public views::LayoutManagerBase {
      return *animation_coordinator_;
    }
  
@@ -712,7 +712,7 @@ index 039c009046..c559378ee7 100644
      return &*target_layout_manager_;
    }
 diff --git i/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc w/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc
-index 383e9e7810..49d33b2741 100644
+index 997eab88b6..a77eb37253 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_strip_collection_controller.cc
 @@ -4,6 +4,8 @@
@@ -721,10 +721,10 @@ index 383e9e7810..49d33b2741 100644
  
 +#include "navegador/browser/containers/espacos_dados.h"
 +
+ #include <algorithm>
  #include <variant>
  
- #include "base/check_deref.h"
-@@ -127,7 +129,12 @@ const TabCollectionNode* TabStripCollectionController::GetAdjacentTab(
+@@ -135,7 +137,12 @@ const TabCollectionNode* TabStripCollectionController::GetAdjacentTab(
  
  std::optional<tab_groups::TabGroupId>
  TabStripCollectionController::GetFocusedGroup() const {
@@ -739,7 +739,7 @@ index 383e9e7810..49d33b2741 100644
  
  bool TabStripCollectionController::IsGroupCollapsed(
 diff --git i/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc w/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
-index d588f4350d..4852093b09 100644
+index f016525adc..69af230416 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_strip_view_layout.cc
 @@ -4,6 +4,8 @@
@@ -751,7 +751,7 @@ index d588f4350d..4852093b09 100644
  #include <algorithm>
  
  #include "base/logging.h"
-@@ -304,6 +306,34 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
+@@ -335,6 +337,34 @@ views::ProposedLayout TabStripViewLayout::CalculateVerticalLayout(
      }
    }
  

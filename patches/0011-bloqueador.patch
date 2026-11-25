@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/chrome_browser_main.cc w/chrome/browser/chrome_browser_main.cc
-index 1651c5defa..5280c1abf2 100644
+index 9aa6f338c7..7b9c3dcc0d 100644
 --- i/chrome/browser/chrome_browser_main.cc
 +++ w/chrome/browser/chrome_browser_main.cc
 @@ -132,6 +132,8 @@
@@ -11,7 +11,7 @@ index 1651c5defa..5280c1abf2 100644
  #include "net/base/data_url.h"
  #include "net/base/module/net_module.h"
  #include "pdf/buildflags.h"
-@@ -1958,6 +1960,12 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
+@@ -1962,6 +1964,12 @@ int ChromeBrowserMainParts::PreMainMessageLoopRunImpl() {
            switches::kDisableComponentUpdate)) {
      component_updater::RegisterComponentsForUpdate();
    }
@@ -25,10 +25,10 @@ index 1651c5defa..5280c1abf2 100644
    // `profile` may be nullptr if the profile picker is shown.
    Profile* profile = profile_info.profile;
 diff --git i/chrome/browser/chrome_content_browser_client.cc w/chrome/browser/chrome_content_browser_client.cc
-index 1defcfa514..780ab69aaa 100644
+index 565bd580ba..d8d3587ecf 100644
 --- i/chrome/browser/chrome_content_browser_client.cc
 +++ w/chrome/browser/chrome_content_browser_client.cc
-@@ -412,6 +412,7 @@
+@@ -416,6 +416,7 @@
  #include "media/mojo/buildflags.h"
  #include "media/mojo/mojom/speech_recognizer.mojom.h"
  #include "mojo/public/cpp/bindings/remote.h"
@@ -36,7 +36,7 @@ index 1defcfa514..780ab69aaa 100644
  #include "net/base/data_url.h"
  #include "net/base/features.h"
  #include "net/base/url_util.h"
-@@ -4763,7 +4764,10 @@ void ChromeContentBrowserClient::OverrideWebPreferences(
+@@ -4814,7 +4815,10 @@ void ChromeContentBrowserClient::OverrideWebPreferences(
        prefs::kAccessibilityTouchpadOverscrollHistoryNavigation);
  #endif
    web_prefs->force_dark_mode_enabled =
@@ -48,14 +48,14 @@ index 1defcfa514..780ab69aaa 100644
  
  #if BUILDFLAG(IS_CHROMEOS)
    web_prefs->always_show_focus =
-@@ -5098,6 +5102,18 @@ bool ChromeContentBrowserClient::OverrideWebPreferencesAfterNavigation(
+@@ -5151,6 +5155,18 @@ bool ChromeContentBrowserClient::OverrideWebPreferencesAfterNavigation(
          web_contents, main_frame_site, web_prefs);
    }
  
 +  // navegador: o modo escuro por site (estilos.h), ao entrar e ao sair dele.
++  // Com o `profile` do começo da função (o perfil do usuário): o do contexto,
++  // nas páginas da interface do 158 (TopChromeWebUIProfile), não tem a pref.
 +  {
-+    Profile* profile =
-+        Profile::FromBrowserContext(web_contents->GetBrowserContext());
 +    const bool escuro =
 +        profile->GetPrefs()->GetBoolean(prefs::kWebKitForceDarkModeEnabled) ||
 +        navegador::estilos::EscuroNoSite(profile,
@@ -68,10 +68,10 @@ index 1defcfa514..780ab69aaa 100644
    const auto old_is_forced_colors_disabled =
        web_prefs->is_forced_colors_disabled;
 diff --git i/chrome/browser/component_updater/registration.cc w/chrome/browser/component_updater/registration.cc
-index 9cf5a226c7..21c4f7df68 100644
+index 6a083ad696..d1f7a30cf9 100644
 --- i/chrome/browser/component_updater/registration.cc
 +++ w/chrome/browser/component_updater/registration.cc
-@@ -152,7 +152,6 @@ void RegisterComponentsForUpdate() {
+@@ -153,14 +153,14 @@ void RegisterComponentsForUpdate() {
    RegisterWidevineCdmComponent(cus);
  #endif  // BUILDFLAG(ENABLE_WIDEVINE_CDM_COMPONENT)
  
@@ -79,9 +79,8 @@ index 9cf5a226c7..21c4f7df68 100644
    RegisterOnDeviceHeadSuggestComponent(
        cus, g_browser_process->GetApplicationLocale());
    RegisterOptimizationHintsComponent(cus);
-@@ -160,7 +159,8 @@ void RegisterComponentsForUpdate() {
+   RegisterTrustTokenKeyCommitmentsComponentIfTrustTokensEnabled(cus);
    RegisterPrivateVerificationTokensComponentIfEnabled(cus);
-   RegisterFirstPartySetsComponent(cus);
    RegisterPrivacySandboxAttestationsComponent(cus);
 -  RegisterActorSafetyListsComponent(cus, base::OnceClosure());
 +  // navegador: sem as listas de segurança do agente do Gemini (o Gemini não
@@ -102,31 +101,65 @@ index 9cf5a226c7..21c4f7df68 100644
  
    RegisterCaptchaProviderComponent(cus);
  
-diff --git i/chrome/browser/ui/tab_helpers.cc w/chrome/browser/ui/tab_helpers.cc
-index 8dccf1cf05..c1e527419b 100644
---- i/chrome/browser/ui/tab_helpers.cc
-+++ w/chrome/browser/ui/tab_helpers.cc
+diff --git i/chrome/browser/preloading/prerender/prerender_web_contents_delegate.cc w/chrome/browser/preloading/prerender/prerender_web_contents_delegate.cc
+index d080689fc1..4417fd3b10 100644
+--- i/chrome/browser/preloading/prerender/prerender_web_contents_delegate.cc
++++ w/chrome/browser/preloading/prerender/prerender_web_contents_delegate.cc
 @@ -4,6 +4,10 @@
  
- #include "chrome/browser/ui/tab_helpers.h"
+ #include "chrome/browser/preloading/prerender/prerender_web_contents_delegate.h"
  
 +#include "navegador/browser/memoria/memoria.h"
 +#include "navegador/browser/ui/bloqueador.h"
 +#include "navegador/browser/ui/temporarios.h"
 +
- #include <cstdint>
+ #include "build/build_config.h"
+ #include "chrome/browser/content_settings/page_specific_content_settings_delegate.h"
+ #include "chrome/browser/optimization_guide/optimization_guide_web_contents_observer.h"
+@@ -28,6 +32,9 @@
+ void PrerenderWebContentsDelegateImpl::PrerenderWebContentsCreated(
+     content::WebContents* prerender_web_contents) {
+   CreateSubresourceFilterWebContentsHelper(prerender_web_contents);
++  navegador::bloqueador::AcompanharAba(prerender_web_contents);  // navegador
++  navegador::temporarios::AcompanharAba(prerender_web_contents);  // navegador
++  navegador::memoria::AcompanharAba(prerender_web_contents);  // navegador
+   content_settings::PageSpecificContentSettings::CreateForWebContents(
+       prerender_web_contents,
+       std::make_unique<PageSpecificContentSettingsDelegate>(
+diff --git i/chrome/browser/ui/tabs/tab_features.cc w/chrome/browser/ui/tabs/tab_features.cc
+index 5b0269fbf6..99e79f3a10 100644
+--- i/chrome/browser/ui/tabs/tab_features.cc
++++ w/chrome/browser/ui/tabs/tab_features.cc
+@@ -4,6 +4,10 @@
+ 
+ #include "chrome/browser/ui/tabs/public/tab_features.h"
+ 
++#include "navegador/browser/memoria/memoria.h"
++#include "navegador/browser/ui/bloqueador.h"
++#include "navegador/browser/ui/temporarios.h"
++
  #include <memory>
  #include <optional>
-@@ -108,6 +112,10 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents,
-     autofill_client_provider.CreateClientForWebContents(web_contents);
+ 
+@@ -445,6 +449,9 @@ void TabFeatures::Init(TabInterface& tab, Profile* profile) {
    }
  
-+  navegador::bloqueador::AcompanharAba(web_contents);  // navegador
-+  navegador::temporarios::AcompanharAba(web_contents);  // navegador
-+  navegador::memoria::AcompanharAba(web_contents);  // navegador
-+
-   // NO! Do not just add your tab helper here. This is a large alphabetized
-   // block; please insert your tab helper above in alphabetical order.
+   CreateSubresourceFilterWebContentsHelper(tab.GetContents());
++  navegador::bloqueador::AcompanharAba(tab.GetContents());  // navegador
++  navegador::temporarios::AcompanharAba(tab.GetContents());  // navegador
++  navegador::memoria::AcompanharAba(tab.GetContents());  // navegador
+ 
+   ChromeTranslateClient::CreateForWebContents(tab.GetContents());
+ 
+@@ -1521,6 +1528,9 @@ void TabFeatures::WillDiscardContents(tabs::TabInterface* tab,
+   }
+ 
+   CreateSubresourceFilterWebContentsHelper(new_contents);
++  navegador::bloqueador::AcompanharAba(new_contents);  // navegador
++  navegador::temporarios::AcompanharAba(new_contents);  // navegador
++  navegador::memoria::AcompanharAba(new_contents);  // navegador
+ 
+   ChromeTranslateClient::CreateForWebContents(new_contents);
  
 diff --git i/chrome/common/chrome_isolated_world_ids.h w/chrome/common/chrome_isolated_world_ids.h
 index 846e4777c4..dd7568ebc7 100644
@@ -143,10 +176,10 @@ index 846e4777c4..dd7568ebc7 100644
  #if BUILDFLAG(IS_MAC)
    // Isolated world ID for AppleScript.
 diff --git i/chrome/common/chrome_render_frame.mojom w/chrome/common/chrome_render_frame.mojom
-index c5b742e2fe..556c917c62 100644
+index de6e6c8d88..ad96930bb0 100644
 --- i/chrome/common/chrome_render_frame.mojom
 +++ w/chrome/common/chrome_render_frame.mojom
-@@ -31,6 +31,19 @@ interface ChromeRenderFrame {
+@@ -32,6 +32,19 @@ interface ChromeRenderFrame {
    // Updates the window features of the main frame's render view.
    SetWindowFeatures(blink.mojom.WindowFeatures window_features);
  
@@ -167,10 +200,10 @@ index c5b742e2fe..556c917c62 100644
    // (if there indeed is an image at that location).
    RequestReloadImageForContextNode();
 diff --git i/chrome/renderer/chrome_content_renderer_client.cc w/chrome/renderer/chrome_content_renderer_client.cc
-index f209aa8405..6c193bf883 100644
+index 792412915d..fcd2cddf45 100644
 --- i/chrome/renderer/chrome_content_renderer_client.cc
 +++ w/chrome/renderer/chrome_content_renderer_client.cc
-@@ -1492,6 +1492,11 @@ ChromeContentRendererClient::CreateSpeechRecognitionClient(
+@@ -1489,6 +1489,11 @@ ChromeContentRendererClient::CreateSpeechRecognitionClient(
  
  void ChromeContentRendererClient::RunScriptsAtDocumentStart(
      content::RenderFrame* render_frame) {
@@ -183,7 +216,7 @@ index f209aa8405..6c193bf883 100644
    extensions::ExtensionsRendererClient::Get()->RunScriptsAtDocumentStart(
        render_frame);
 diff --git i/chrome/renderer/chrome_render_frame_observer.cc w/chrome/renderer/chrome_render_frame_observer.cc
-index f773945b67..b7c829c471 100644
+index 0cd3d2a1fb..37faea0b15 100644
 --- i/chrome/renderer/chrome_render_frame_observer.cc
 +++ w/chrome/renderer/chrome_render_frame_observer.cc
 @@ -27,6 +27,7 @@
@@ -337,7 +370,7 @@ index f773945b67..b7c829c471 100644
    prerender::SetShouldDeferMediaLoad(render_frame(), should_defer);
  }
 diff --git i/chrome/renderer/chrome_render_frame_observer.h w/chrome/renderer/chrome_render_frame_observer.h
-index 80e224f9bc..c694cf6154 100644
+index 6f06ca507e..b1fe95fddf 100644
 --- i/chrome/renderer/chrome_render_frame_observer.h
 +++ w/chrome/renderer/chrome_render_frame_observer.h
 @@ -6,6 +6,7 @@
@@ -422,7 +455,7 @@ index 80e224f9bc..c694cf6154 100644
    blink::AssociatedInterfaceRegistry associated_interfaces_;
  };
 diff --git i/components/page_info/page_info.cc w/components/page_info/page_info.cc
-index e56071dd2f..2d5093287f 100644
+index dc31f82b9b..b0ddab8bc7 100644
 --- i/components/page_info/page_info.cc
 +++ w/components/page_info/page_info.cc
 @@ -1454,7 +1454,10 @@ bool PageInfo::ShouldShowPermission(
@@ -472,7 +505,7 @@ index 63e1b6c386..72a0c22fa0 100644
      if (messages::MessageDispatcherBridge::Get()
              ->IsMessagesEnabledForEmbedder()) {
 diff --git i/third_party/blink/public/web/web_document.h w/third_party/blink/public/web/web_document.h
-index a730b9e53a..8d92f19472 100644
+index 8358cd0127..3f9b409bf9 100644
 --- i/third_party/blink/public/web/web_document.h
 +++ w/third_party/blink/public/web/web_document.h
 @@ -155,6 +155,14 @@ class BLINK_EXPORT WebDocument : public WebNode {
@@ -491,7 +524,7 @@ index a730b9e53a..8d92f19472 100644
    // InsertStyleSheet().
    void RemoveInsertedStyleSheet(const WebStyleSheetKey&,
 diff --git i/third_party/blink/renderer/core/exported/web_document.cc w/third_party/blink/renderer/core/exported/web_document.cc
-index ca42f2acc0..6099a9dd71 100644
+index 87daa9ddae..e333fc2d60 100644
 --- i/third_party/blink/renderer/core/exported/web_document.cc
 +++ w/third_party/blink/renderer/core/exported/web_document.cc
 @@ -46,6 +46,8 @@

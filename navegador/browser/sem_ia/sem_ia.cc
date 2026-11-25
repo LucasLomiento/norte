@@ -129,7 +129,12 @@ constexpr char kSemIA[] =
     "VoiceSearchCoherenceComposeboxes,"
     "AutofillAiWalletServerProvidedDeepLink,"
     "MagiChromePasskeySignIn,"
-    "EnableAiSubscriptionAvatarRing";
+    "EnableAiSubscriptionAvatarRing,"
+    // Novos na lista de teste do Chromium 158 (conferido em 25/11/2026): filtro
+    // do histórico pelo que o agente de IA abriu e o motor de conversa do
+    // Gemini Nano local.
+    "BrowsingHistoryFilterByActor,"
+    "OnDeviceModelConversationBackend";
 
 // Ligadas por padrão: "<flag>" ou "<flag>:<parâmetro>/<valor>".
 //
@@ -144,12 +149,6 @@ constexpr const char* kLigadas[] = {
     // que só aparecem rolando, como no Dia e no macOS; no lugar das cinzas
     // com setinhas, que ocupavam a borda de toda página.
     "OverlayScrollbar:mode/overlay",
-    // Recolhendo ou abrindo a lateral (Ctrl+S), a página muda de largura a
-    // cada quadro: a janela espera o quadro da página no tamanho novo antes
-    // de mostrar (no Chromium, só no Mac com ARM). Sem isso o conteúdo
-    // chegava 1 ou 2 quadros atrasado e a borda direita tremia (até 120 px
-    // numa página pesada).
-    "UseDefaultDeadlineWhenAnimatingBounds",
 
     // Formato do que fica gravado no perfil. A lista de teste pôs os perfis
     // nesses formatos (IndexedDB e localStorage em SQLite, favoritos e sessão
@@ -248,6 +247,9 @@ constexpr const char* kDesligadas[] = {
     "IPH_SendTabToSelfTutorial",
     "IPH_SignInBenefits",
     "IPH_TabSearchComboButton",
+    // Novo no 158: a cada grupo focado (toda troca de espaço) tenta apontar o
+    // botão "Desfocar o grupo", que o Norte não tem.
+    "IPH_TabGroupsUnfocusingFeature",
     "MobilePromoOnDesktopWithQRCodeWave1",
     "EnableManagementPromotionBanner",
     // Componentes de fala baixados sem pedir na primeira abertura de cada

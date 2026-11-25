@@ -62,7 +62,27 @@ echo "$ANTIGA" > "$SRC/.versao-anterior-do-norte"
 cd "$SRC"
 git stash push -q -m "norte em cima do $ANTIGA"
 "${PRIO[@]}" git fetch -q --depth 1 origin "refs/tags/$NOVA:refs/tags/$NOVA"
-"${PRIO[@]}" git checkout -q --detach "$NOVA"
+# Dependência que vinha do DEPS (com git próprio) e passou a fazer parte do src
+# barra o checkout com "untracked working tree files would be overwritten" (no
+# 158, a third_party/libsync/src): a pasta dela vai pro backup.
+if ! saida=$("${PRIO[@]}" git checkout -q --detach "$NOVA" 2>&1); then
+  mapfile -t presos < <(sed -n 's/^\t//p' <<<"$saida")
+  [[ ${#presos[@]} -gt 0 ]] || { echo "$saida" >&2; exit 1; }
+  # Primeiro acha todas as pastas (com o .git ainda no lugar), depois move.
+  declare -A pastas=()
+  for arquivo in "${presos[@]}"; do
+    dir=$(dirname "$arquivo")
+    while [[ "$dir" != . && ! -e "$dir/.git" ]]; do dir=$(dirname "$dir"); done
+    [[ "$dir" != . ]] || { echo "$saida" >&2; exit 1; }
+    pastas["$dir"]=1
+  done
+  mkdir -p "$GUARDAR/deps"
+  for dir in "${!pastas[@]}"; do
+    mv "$dir" "$GUARDAR/deps/${dir//\//_}"
+    echo "Agora faz parte do src, foi pro backup: $dir"
+  done
+  "${PRIO[@]}" git checkout -q --detach "$NOVA"
+fi
 cd ..
 sed -i "s#refs/tags/$ANTIGA#refs/tags/$NOVA#" .gclient
 "${PRIO[@]}" gclient sync --no-history --shallow --nohooks -j 8 --force

@@ -1,8 +1,8 @@
 diff --git i/chrome/browser/chrome_content_browser_client_navigation_throttles.cc w/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-index ce3cc119e6..ec281611d1 100644
+index 1dc3fdf54f..6ca9666ff5 100644
 --- i/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
 +++ w/chrome/browser/chrome_content_browser_client_navigation_throttles.cc
-@@ -80,6 +80,7 @@
+@@ -81,6 +81,7 @@
  #include "content/public/common/content_switches.h"
  #include "extensions/buildflags/buildflags.h"
  #include "extensions/common/extension_features.h"
@@ -10,7 +10,7 @@ index ce3cc119e6..ec281611d1 100644
  #include "pdf/buildflags.h"
  #include "services/network/public/mojom/referrer_policy.mojom.h"
  #include "third_party/blink/public/common/features.h"
-@@ -299,6 +300,9 @@ void CreateAndAddChromeThrottlesForNavigation(
+@@ -300,6 +301,9 @@ void CreateAndAddChromeThrottlesForNavigation(
      // NavigationThrottleRegistry::AddThrottle().
      page_load_metrics::MetricsNavigationThrottle::CreateAndAdd(registry);
  
@@ -21,7 +21,7 @@ index ce3cc119e6..ec281611d1 100644
      if (auto throttle =
              GeolocationNavigationThrottle::MaybeCreateThrottleFor(registry)) {
 diff --git i/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts w/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
-index 03c5693592..7882fa2d90 100644
+index b2aaf8dca5..2c62509534 100644
 --- i/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 +++ w/chrome/browser/resources/settings/appearance_page/appearance_page.html.ts
 @@ -11,8 +11,10 @@ export function getHtml(this: SettingsAppearancePageElement) {
@@ -324,7 +324,7 @@ index 6d8db4344e..0e0868caf3 100644
    split_tabs::SplitTabId GetSplitTabId() const;
    const gfx::VectorIcon& GetReversePositionIcon(
 diff --git i/chrome/browser/ui/tabs/tab_menu_model.cc w/chrome/browser/ui/tabs/tab_menu_model.cc
-index 948fb35bd6..b8ac147772 100644
+index c89651404a..5c1d0563bc 100644
 --- i/chrome/browser/ui/tabs/tab_menu_model.cc
 +++ w/chrome/browser/ui/tabs/tab_menu_model.cc
 @@ -4,6 +4,9 @@
@@ -337,7 +337,7 @@ index 948fb35bd6..b8ac147772 100644
  #include <memory>
  #include <optional>
  
-@@ -337,14 +340,21 @@ void TabMenuModel::Build(int index) {
+@@ -341,14 +344,21 @@ void TabMenuModel::Build(int index) {
                                              : IDS_TAB_CXMENU_NEWTABTORIGHT);
    }
    SetElementIdentifierAt(GetItemCount() - 1, kAddNewTabAdjacentMenuItem);
@@ -362,7 +362,7 @@ index 948fb35bd6..b8ac147772 100644
            ui::ImageModel::FromVectorIcon(features::IsRoundedIconsEnabled()
                                               ? kSplitSceneIcon
                                               : kSplitSceneOldIcon,
-@@ -406,79 +416,34 @@ void TabMenuModel::Build(int index) {
+@@ -410,93 +420,34 @@ void TabMenuModel::Build(int index) {
      SetElementIdentifierAt(GetItemCount() - 1, kArrangeSplitTabsMenuItem);
    }
  
@@ -376,7 +376,7 @@ index 948fb35bd6..b8ac147772 100644
 -      std::ranges::none_of(
 -          indices, [&](int idx) { return tab_strip_->IsTabPinned(idx); })) {
 -    if (std::optional<tab_groups::TabGroupId> group =
--            tab_strip_->GetCommonGroupForIndices(indices)) {
+-            tab_strip_->GetCommonGroupForTabs(tab_handles)) {
 -      const bool is_focused = tab_strip_->GetFocusedGroup() == group;
 -      if (tab_strip_->IsEphemeralTabGroup(*group)) {
 -        const size_t group_tab_count =
@@ -390,14 +390,28 @@ index 948fb35bd6..b8ac147772 100644
 -        AddItemWithStringId(TabStripModel::CommandToggleFocusGroup,
 -                            is_focused ? IDS_TAB_CXMENU_UNFOCUS_TAB_GROUP
 -                                       : IDS_TAB_CXMENU_FOCUS_TAB_GROUP);
+-        if (!is_focused) {
+-          const user_education::DisplayNewBadge show_badge =
+-              UserEducationService::MaybeShowNewBadge(
+-                  tab_strip_->profile(), features::kTabGroupsFocusing);
+-          SetIsNewFeatureAt(GetItemCount() - 1, show_badge);
+-        }
 -      }
--      SetElementIdentifierAt(GetItemCount() - 1, kFocusSelectionMenuItem);
 -    } else if (base::FeatureList::IsEnabled(features::kNonGroupFocus) &&
--               tab_strip_->AreAllUngrouped(indices)) {
+-               tab_strip_->AreAllUngrouped(tab_handles)) {
 -      AddItem(TabStripModel::CommandToggleFocusGroup,
 -              l10n_util::GetPluralStringFUTF16(IDS_TAB_CXMENU_FOCUS_TABS,
 -                                               num_tabs));
--      SetElementIdentifierAt(GetItemCount() - 1, kFocusSelectionMenuItem);
+-    }
+-
+-    if (std::optional<size_t> focus_index =
+-            GetIndexOfCommandId(TabStripModel::CommandToggleFocusGroup)) {
+-      SetElementIdentifierAt(*focus_index, kFocusSelectionMenuItem);
+-      if (features::IsMenuSimplificationEnabled()) {
+-        SetIcon(*focus_index, ui::ImageModel::FromVectorIcon(
+-                                  kFilterTiltShiftIcon, ui::kColorMenuIcon,
+-                                  ui::SimpleMenuModel::kDefaultIconSize));
+-      }
 -    }
 -  }
 -
@@ -467,7 +481,7 @@ index 948fb35bd6..b8ac147772 100644
    }
  
    if (ExistingWindowSubMenuModel::ShouldShowSubmenu(tab_strip_->profile())) {
-@@ -513,17 +478,48 @@ void TabMenuModel::Build(int index) {
+@@ -531,17 +482,48 @@ void TabMenuModel::Build(int index) {
  
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(TabStripModel::CommandReload, IDS_TAB_CXMENU_RELOAD);
@@ -520,7 +534,7 @@ index 948fb35bd6..b8ac147772 100644
      SetIconForCommandId(
          TabStripModel::CommandTogglePinned,
          ui::ImageModel::FromVectorIcon(
-@@ -584,7 +580,8 @@ void TabMenuModel::Build(int index) {
+@@ -614,7 +596,8 @@ void TabMenuModel::Build(int index) {
      glic_displayed = true;
    }
  
@@ -530,7 +544,7 @@ index 948fb35bd6..b8ac147772 100644
    const bool display_send_to_self = send_tab_to_self::ShouldDisplayEntryPoint(
        tab_strip_->GetWebContentsAt(index));
  
-@@ -613,32 +610,21 @@ void TabMenuModel::Build(int index) {
+@@ -647,32 +630,21 @@ void TabMenuModel::Build(int index) {
      BuildSendTabToSelfItem(index, indices);
    }
  
@@ -577,7 +591,7 @@ index 948fb35bd6..b8ac147772 100644
    }
  
    // Append extension items for the 'tab' context if the feature is enabled.
-@@ -666,6 +652,12 @@ void TabMenuModel::Build(int index) {
+@@ -700,6 +672,12 @@ void TabMenuModel::Build(int index) {
    // Separator Close Tab items
    AddSeparator(ui::NORMAL_SEPARATOR);
    AddItemWithStringId(TabStripModel::CommandCloseTab, IDS_TAB_CXMENU_CLOSETAB);
@@ -609,7 +623,7 @@ index 9a855747c2..44973ce49f 100644
    registry->RegisterBooleanPref(prefs::kVerticalTabsEnabledFirstTime, false);
    registry->RegisterBooleanPref(prefs::kVerticalTabsCollapsedState, false);
 diff --git i/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc w/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
-index 931bdaed37..264e582f90 100644
+index 4eb92203f6..e247378d4b 100644
 --- i/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
 +++ w/chrome/browser/ui/tabs/vertical_tab_strip_state_controller_impl.cc
 @@ -4,6 +4,8 @@
@@ -653,7 +667,7 @@ index 931bdaed37..264e582f90 100644
  }
  
  void VerticalTabStripStateControllerImpl::SetExpandOnHoverEnabled(
-@@ -345,12 +356,6 @@ void VerticalTabStripStateControllerImpl::UpdateCollapseActionItem() {
+@@ -346,12 +357,6 @@ void VerticalTabStripStateControllerImpl::UpdateCollapseActionItem() {
    const bool is_collapsed =
        GetCollapseState() != VerticalTabStripCollapseState::kExpanded;
  
@@ -666,7 +680,7 @@ index 931bdaed37..264e582f90 100644
    const auto& text =
        is_collapsed ? IDS_EXPAND_VERTICAL_TABS : IDS_COLLAPSE_VERTICAL_TABS;
  
-@@ -361,8 +366,13 @@ void VerticalTabStripStateControllerImpl::UpdateCollapseActionItem() {
+@@ -362,8 +367,13 @@ void VerticalTabStripStateControllerImpl::UpdateCollapseActionItem() {
        actions::ActionManager::Get().FindAction(kActionToggleCollapseVertical,
                                                 root_action_item_);
    if (collapse_action) {
@@ -679,11 +693,11 @@ index 931bdaed37..264e582f90 100644
 +        ui::ImageModel::FromVectorIcon(vector_icons::kProductIcon,
 +                                       ui::kColorIconDisabled));
      collapse_action->SetText(
-         chrome::GetCleanTitleAndTooltipText(l10n_util::GetStringUTF16(text)));
+         chrome::GetCleanText(l10n_util::GetStringUTF16(text)));
  
 @@ -374,7 +384,9 @@ void VerticalTabStripStateControllerImpl::UpdateCollapseActionItem() {
-                   l10n_util::GetStringUTF16(text))
-             : chrome::GetCleanTitleAndTooltipText(
+             ? chrome::GetCleanText(l10n_util::GetStringUTF16(text))
+             : chrome::GetCleanText(
                    l10n_util::GetStringFUTF16(tooltip_id, shortcut_text));
 -    collapse_action->SetTooltipText(tooltip_text);
 +    collapse_action->SetTooltipText(
@@ -693,7 +707,7 @@ index 931bdaed37..264e582f90 100644
      collapse_action->SetEnabled(ShouldDisplayVerticalTabs());
    }
 diff --git i/chrome/browser/ui/toolbar/app_menu_model.cc w/chrome/browser/ui/toolbar/app_menu_model.cc
-index bd2dc982ea..ef246d5574 100644
+index 49ef721d9e..4c6906365c 100644
 --- i/chrome/browser/ui/toolbar/app_menu_model.cc
 +++ w/chrome/browser/ui/toolbar/app_menu_model.cc
 @@ -4,6 +4,8 @@
@@ -705,7 +719,7 @@ index bd2dc982ea..ef246d5574 100644
  #include <algorithm>
  #include <cmath>
  #include <memory>
-@@ -1066,26 +1068,7 @@ void ToolsMenuModel::Build(BrowserWindowInterface* browser) {
+@@ -1075,26 +1077,7 @@ void ToolsMenuModel::Build(BrowserWindowInterface* browser) {
        this, IDC_NAME_WINDOW, IDS_NAME_WINDOW,
        features::IsRoundedIconsEnabled() ? kWebAssetIcon : kNameWindowOldIcon);
  
@@ -733,7 +747,7 @@ index bd2dc982ea..ef246d5574 100644
  
    if (CustomizeChromePageHandler::IsSupported(
            NtpCustomBackgroundServiceFactory::GetForProfile(
-@@ -1288,6 +1271,15 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
+@@ -1297,6 +1280,15 @@ void AppMenuModel::ExecuteCommand(int command_id, int event_flags) {
    LogMenuMetrics(command_id);
  
    switch (command_id) {
@@ -749,10 +763,10 @@ index bd2dc982ea..ef246d5574 100644
      case IDC_SHOW_BOOKMARK_SIDE_PANEL:
      case IDC_SHOW_HISTORY_CLUSTERS_SIDE_PANEL:
      case IDC_SHOW_READING_MODE:
-@@ -2052,6 +2044,10 @@ bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
-       return IncognitoModePrefs::IsIncognitoTypeAllowed(
-           browser_->GetProfile(),
+@@ -2067,6 +2059,10 @@ bool AppMenuModel::IsCommandIdEnabled(int command_id) const {
            IncognitoModePrefs::IncognitoModeType::kStandard);
+     case kOtherDeviceTabsMenuPlaceholder:
+       return base::FeatureList::IsEnabled(syncer::kCrossDeviceTabsInAppMenu);
 +    case kNavegadorContainersMenu:
 +    case kNavegadorConfiguracoes:
 +    case kNavegadorMemoria:
@@ -760,7 +774,7 @@ index bd2dc982ea..ef246d5574 100644
      default:
        return chrome::IsCommandEnabled(browser_, command_id);
    }
-@@ -2074,6 +2070,16 @@ bool AppMenuModel::GetAcceleratorForCommandId(
+@@ -2089,6 +2085,16 @@ bool AppMenuModel::GetAcceleratorForCommandId(
                                                   accelerator);
    }
  
@@ -777,7 +791,7 @@ index bd2dc982ea..ef246d5574 100644
    // Reading mode uses different command IDs for different ways of opening
    // it, so adjust to use the command ID for the keyboard shortcut to grab
    // the proper accelerator.
-@@ -2172,6 +2178,21 @@ void AppMenuModel::Build() {
+@@ -2189,6 +2195,21 @@ void AppMenuModel::Build() {
      }
    }
  
@@ -799,7 +813,7 @@ index bd2dc982ea..ef246d5574 100644
    AddSeparator(ui::NORMAL_SEPARATOR);
  
  #if !BUILDFLAG(IS_CHROMEOS)
-@@ -2218,6 +2239,12 @@ void AppMenuModel::Build() {
+@@ -2235,6 +2256,12 @@ void AppMenuModel::Build() {
      SetElementIdentifierAt(
          GetIndexOfCommandId(kRecentTabsMenuPlaceholder).value(),
          kHistoryMenuItem);
@@ -809,10 +823,10 @@ index bd2dc982ea..ef246d5574 100644
 +                        vector_icons::kSearchIcon,
 +                        ui::kColorMenuIcon,
 +                        ui::SimpleMenuModel::kDefaultIconSize));
-   }
-   AddItemWithStringIdAndVectorIcon(
-       this, IDC_SHOW_DOWNLOADS, IDS_SHOW_DOWNLOADS,
-@@ -2238,7 +2265,10 @@ void AppMenuModel::Build() {
+ 
+     if (base::FeatureList::IsEnabled(syncer::kCrossDeviceTabsInAppMenu)) {
+       sub_menus_.push_back(std::make_unique<OtherDeviceTabsSubMenuModel>());
+@@ -2267,7 +2294,10 @@ void AppMenuModel::Build() {
          kBookmarksMenuItem);
    }
  
@@ -825,10 +839,10 @@ index bd2dc982ea..ef246d5574 100644
      sub_menus_.push_back(std::move(saved_tab_groups_model));
      AddSubMenuWithStringIdAndVectorIcon(
 diff --git i/chrome/browser/ui/toolbar/app_menu_model.h w/chrome/browser/ui/toolbar/app_menu_model.h
-index 00d9ff6f3f..795b54d323 100644
+index 0278148c51..6a2730573e 100644
 --- i/chrome/browser/ui/toolbar/app_menu_model.h
 +++ w/chrome/browser/ui/toolbar/app_menu_model.h
-@@ -280,6 +280,13 @@ class AppMenuModel : public ui::SimpleMenuModel,
+@@ -285,6 +285,13 @@ class AppMenuModel : public ui::SimpleMenuModel,
        IDC_SAVED_TAB_GROUPS_MENU;
    static constexpr int kMoreToolsMenuPlaceholder = IDC_MORE_TOOLS_MENU;
    static constexpr int kHelpMenuPlaceholder = IDC_HELP_MENU;
@@ -843,10 +857,10 @@ index 00d9ff6f3f..795b54d323 100644
    // Number of menus within the app menu with an arbitrarily high (variable)
    // number of menu items. For example, the number of bookmarks menu items
 diff --git i/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc w/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc
-index 7a362cd3c6..a5ecdff535 100644
+index 78880464bb..671767d0e1 100644
 --- i/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc
 +++ w/chrome/browser/ui/views/app_menu/action_app_menu_manager.cc
-@@ -1040,37 +1040,7 @@ void ActionAppMenuManager::AddToolsAndActionsActions(
+@@ -1105,37 +1105,7 @@ void ActionAppMenuManager::AddToolsAndActionsActions(
  
                sub.AddAction(kActionNameWindow);
  
@@ -886,10 +900,10 @@ index 7a362cd3c6..a5ecdff535 100644
                Profile* profile = browser_window_interface_->GetProfile();
                if (CustomizeChromePageHandler::IsSupported(
 diff --git i/chrome/browser/ui/views/frame/system_menu_model_builder.cc w/chrome/browser/ui/views/frame/system_menu_model_builder.cc
-index 3505b4e7b8..e329073214 100644
+index 1c5647608d..59c2172102 100644
 --- i/chrome/browser/ui/views/frame/system_menu_model_builder.cc
 +++ w/chrome/browser/ui/views/frame/system_menu_model_builder.cc
-@@ -200,13 +200,6 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
+@@ -213,13 +213,6 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
  
      model->AddSeparator(ui::NORMAL_SEPARATOR);
  
@@ -903,7 +917,7 @@ index 3505b4e7b8..e329073214 100644
      const int switch_to_vertical_id =
  #if BUILDFLAG(IS_MAC)
          IDS_SWITCH_TO_VERTICAL_TAB_MAC;
-@@ -214,9 +207,7 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
+@@ -227,9 +220,7 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
          IDS_SWITCH_TO_VERTICAL_TAB;
  #endif
      if (display_vertical_tabs) {
@@ -914,7 +928,7 @@ index 3505b4e7b8..e329073214 100644
        model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE,
                                   controller->IsCollapsed()
                                       ? IDS_EXPAND_VERTICAL_TABS
-@@ -225,15 +216,10 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
+@@ -238,15 +229,10 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
            model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS_COLLAPSE).value(),
            kToggleVerticalTabsCollapseElementId);
  
@@ -934,7 +948,7 @@ index 3505b4e7b8..e329073214 100644
      } else {
        model->AddItemWithStringId(IDC_TOGGLE_VERTICAL_TABS,
                                   switch_to_vertical_id);
-@@ -244,12 +230,12 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
+@@ -257,12 +243,12 @@ void SystemMenuModelBuilder::BuildSystemMenuForBrowserWindow(
            model->GetIndexOfCommandId(IDC_TOGGLE_VERTICAL_TABS).value(),
            show_badge, ui::NewBadgeType::kNew);
      }
@@ -953,7 +967,7 @@ index 3505b4e7b8..e329073214 100644
  
    if (chrome::CanOpenTaskManager()) {
 diff --git i/chrome/browser/ui/views/tabs/common/tab_strip_view.cc w/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
-index a6ac0cc24e..1a325575bb 100644
+index 50da31fe97..529326c8b4 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_strip_view.cc
 @@ -35,6 +35,7 @@

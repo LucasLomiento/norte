@@ -1,5 +1,5 @@
 diff --git i/sql/database.cc w/sql/database.cc
-index 6a39a5b83c..e9485da49e 100644
+index fe0290f354..910bf2da01 100644
 --- i/sql/database.cc
 +++ w/sql/database.cc
 @@ -107,7 +107,7 @@ static constexpr char kSqliteOpenInMemoryPath[] = ":memory:";
