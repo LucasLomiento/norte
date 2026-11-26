@@ -9,8 +9,8 @@
 # estiver numa versão com o atualizador novo (--ask=4), vira pkgname=norte
 # com replaces/conflicts/provides=navegador.
 pkgname=navegador
-pkgver=157.0.8103.38
-pkgrel=68
+pkgver=158.0.8127.88
+pkgrel=69
 pkgdesc="Norte: navegador em cima do Chromium, com abas na lateral, espaços e containers"
 provides=(norte)
 arch=(x86_64)

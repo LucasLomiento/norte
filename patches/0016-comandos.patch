@@ -1,8 +1,8 @@
 diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
-index 868d7421ef..a90a818de8 100644
+index 6f696e5d95..f8b656d07f 100644
 --- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
 +++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.cc
-@@ -102,6 +102,8 @@
+@@ -103,6 +103,8 @@
  #include "content/public/browser/web_contents.h"
  #include "content/public/browser/web_contents_user_data.h"
  #include "extensions/buildflags/buildflags.h"
@@ -11,7 +11,7 @@ index 868d7421ef..a90a818de8 100644
  #include "net/base/url_util.h"
  #include "net/traffic_annotation/network_traffic_annotation.h"
  #include "services/network/public/cpp/shared_url_loader_factory.h"
-@@ -782,6 +784,58 @@ void ChromeAutocompleteProviderClient::NewIncognitoWindow() {
+@@ -788,6 +790,58 @@ void ChromeAutocompleteProviderClient::NewIncognitoWindow() {
  #endif  // !BUILDFLAG(IS_ANDROID)
  }
  
@@ -71,10 +71,10 @@ index 868d7421ef..a90a818de8 100644
  #if !BUILDFLAG(IS_ANDROID)
    if (BrowserWindowInterface* const bwi =
 diff --git i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
-index 6efa1d8289..ebcc6af257 100644
+index a89d323d88..47576ec267 100644
 --- i/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
 +++ w/chrome/browser/autocomplete/chrome_autocomplete_provider_client.h
-@@ -146,9 +146,18 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
+@@ -151,9 +151,18 @@ class ChromeAutocompleteProviderClient : public AutocompleteProviderClient {
        LensOverlaySuggestInputsCallback callback) const override;
    base::WeakPtr<AutocompleteProviderClient> GetWeakPtr() override;
    bool IsWebUiNtpEnabledForDesktopAndroid() const override;
@@ -94,7 +94,7 @@ index 6efa1d8289..ebcc6af257 100644
    void OpenIncognitoClearBrowsingDataDialog() override;
    void CloseIncognitoWindows() override;
 diff --git i/components/omnibox/browser/BUILD.gn w/components/omnibox/browser/BUILD.gn
-index 916f06eb1a..366521ffca 100644
+index f7aaba4a98..91bde43e30 100644
 --- i/components/omnibox/browser/BUILD.gn
 +++ w/components/omnibox/browser/BUILD.gn
 @@ -282,6 +282,10 @@ static_library("browser") {
@@ -109,7 +109,7 @@ index 916f06eb1a..366521ffca 100644
      "omnibox_event_global_tracker.h",
      "omnibox_field_trial.cc",
 diff --git i/components/omnibox/browser/actions/omnibox_action.h w/components/omnibox/browser/actions/omnibox_action.h
-index 232744c14b..a87aebec41 100644
+index 8fbca5ee28..fdf4e0a0ae 100644
 --- i/components/omnibox/browser/actions/omnibox_action.h
 +++ w/components/omnibox/browser/actions/omnibox_action.h
 @@ -107,6 +107,10 @@ class OmniboxAction : public base::RefCountedThreadSafe<OmniboxAction> {
@@ -151,7 +151,7 @@ index bcbbff3b3e..6ad01a3b60 100644
   protected:
    const raw_ptr<OmniboxAction::Client> delegate_;
 diff --git i/components/omnibox/browser/autocomplete_classifier.cc w/components/omnibox/browser/autocomplete_classifier.cc
-index 0ed14baa0e..2f38d3f641 100644
+index e717833b13..3c4c83942e 100644
 --- i/components/omnibox/browser/autocomplete_classifier.cc
 +++ w/components/omnibox/browser/autocomplete_classifier.cc
 @@ -60,6 +60,8 @@ int AutocompleteClassifier::DefaultOmniboxProviders(bool is_low_memory_device) {
@@ -164,10 +164,10 @@ index 0ed14baa0e..2f38d3f641 100644
        (omnibox_feature_configs::OmniboxUrlSuggestionsOnFocus::Get().enabled
             ? AutocompleteProvider::Type::kMostVisitedSites
 diff --git i/components/omnibox/browser/autocomplete_controller.cc w/components/omnibox/browser/autocomplete_controller.cc
-index f847fa3bcd..2f40bb69b2 100644
+index 6057740766..c71a88727d 100644
 --- i/components/omnibox/browser/autocomplete_controller.cc
 +++ w/components/omnibox/browser/autocomplete_controller.cc
-@@ -98,6 +98,7 @@
+@@ -99,6 +99,7 @@
  #include "components/search_engines/template_url_starter_pack_data.h"
  #include "components/strings/grit/components_strings.h"
  #include "components/url_formatter/elide_url.h"
@@ -175,7 +175,7 @@ index f847fa3bcd..2f40bb69b2 100644
  #include "net/base/url_util.h"
  #include "net/http/http_util.h"
  #include "third_party/metrics_proto/omnibox_focus_type.pb.h"
-@@ -1532,6 +1533,11 @@ void AutocompleteController::InitializeSyncProviders(int provider_types) {
+@@ -1542,6 +1543,11 @@ void AutocompleteController::InitializeSyncProviders(int provider_types) {
      providers_.push_back(
          base::MakeRefCounted<CrossDeviceTabProvider>(provider_client_.get()));
    }
@@ -223,10 +223,10 @@ index 302f57cdc7..2c039b8d8f 100644
      // When adding a value here, also update:
      // - omnibox_event.proto
 diff --git i/components/omnibox/browser/autocomplete_provider_client.cc w/components/omnibox/browser/autocomplete_provider_client.cc
-index 8b5acf5ed6..036d3e4b6a 100644
+index 68d75c98d3..b1e7dff5dc 100644
 --- i/components/omnibox/browser/autocomplete_provider_client.cc
 +++ w/components/omnibox/browser/autocomplete_provider_client.cc
-@@ -113,3 +113,13 @@ bool AutocompleteProviderClient::ShouldOpenComposeboxForAskG() const {
+@@ -118,3 +118,13 @@ bool AutocompleteProviderClient::ShouldOpenComposeboxForAskG() const {
  }
  
  void AutocompleteProviderClient::OpenComposeboxForAskG() {}
@@ -241,7 +241,7 @@ index 8b5acf5ed6..036d3e4b6a 100644
 +    default;
 +NavegadorLembranca::~NavegadorLembranca() = default;
 diff --git i/components/omnibox/browser/autocomplete_provider_client.h w/components/omnibox/browser/autocomplete_provider_client.h
-index 1c215d2214..032bdbf76e 100644
+index 8780e00050..88cb21b7f5 100644
 --- i/components/omnibox/browser/autocomplete_provider_client.h
 +++ w/components/omnibox/browser/autocomplete_provider_client.h
 @@ -7,15 +7,18 @@
@@ -263,7 +263,7 @@ index 1c215d2214..032bdbf76e 100644
  
  class AiModeButtonService;
  class AimEligibilityService;
-@@ -82,10 +85,49 @@ class TabGroupSyncService;
+@@ -86,10 +89,49 @@ class TabGroupSyncService;
  
  class TemplateURLService;
  

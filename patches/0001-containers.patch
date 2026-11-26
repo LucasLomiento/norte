@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/browsing_data/BUILD.gn w/chrome/browser/browsing_data/BUILD.gn
-index 58f0f40459..bf04511786 100644
+index bde16a01f0..0cce2b1ea7 100644
 --- i/chrome/browser/browsing_data/BUILD.gn
 +++ w/chrome/browser/browsing_data/BUILD.gn
 @@ -97,6 +97,7 @@ source_set("impl") {
@@ -11,7 +11,7 @@ index 58f0f40459..bf04511786 100644
      ":constants",
      "//chrome/browser:browser_process",
 diff --git i/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc w/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
-index a3038fa051..2a14d8841b 100644
+index a1ed9c9e7b..f4646a4275 100644
 --- i/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
 +++ w/chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.cc
 @@ -169,6 +169,7 @@
@@ -52,7 +52,7 @@ index a3038fa051..2a14d8841b 100644
    // DATA_TYPE_TABS
    if (remove_mask & constants::DATA_TYPE_TABS) {
 diff --git i/chrome/browser/prefs/BUILD.gn w/chrome/browser/prefs/BUILD.gn
-index 66f9c0d285..60e3f783ee 100644
+index f73a22f476..a897318ea5 100644
 --- i/chrome/browser/prefs/BUILD.gn
 +++ w/chrome/browser/prefs/BUILD.gn
 @@ -57,6 +57,7 @@ source_set("impl") {
@@ -64,10 +64,10 @@ index 66f9c0d285..60e3f783ee 100644
      ":util",
      "//chrome/browser:browser_process",
 diff --git i/chrome/browser/prefs/browser_prefs.cc w/chrome/browser/prefs/browser_prefs.cc
-index 334da9ad62..44c38ac8a6 100644
+index fdd05fad32..5351b30d09 100644
 --- i/chrome/browser/prefs/browser_prefs.cc
 +++ w/chrome/browser/prefs/browser_prefs.cc
-@@ -225,6 +225,8 @@
+@@ -227,6 +227,8 @@
  #include "components/webui/chrome_urls/pref_names.h"
  #include "components/webui/flags/pref_service_flags_storage.h"
  #include "content/public/browser/render_process_host.h"
@@ -76,7 +76,7 @@ index 334da9ad62..44c38ac8a6 100644
  #include "content/public/common/buildflags.h"
  #include "extensions/buildflags/buildflags.h"
  #include "net/http/http_server_properties_manager.h"
-@@ -1656,6 +1658,7 @@ std::string GetCountry() {
+@@ -1715,6 +1717,7 @@ std::string GetCountry() {
  }
  
  void RegisterLocalState(PrefRegistrySimple* registry) {
@@ -84,7 +84,7 @@ index 334da9ad62..44c38ac8a6 100644
    // Call outs to individual subsystems that register Local State (browser-wide)
    // prefs en masse. See RegisterProfilePrefs for per-profile prefs. Please
    // keep this list alphabetized.
-@@ -1994,6 +1997,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -2050,6 +2053,7 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
                            const std::string& locale) {
    TRACE_EVENT0("browser", "chrome::RegisterProfilePrefs");
    // User prefs. Please keep this list alphabetized.
@@ -92,7 +92,7 @@ index 334da9ad62..44c38ac8a6 100644
    AccessibilityLabelsService::RegisterProfilePrefs(registry);
    registry->RegisterBooleanPref(prefs::kRendererAccessibilityEnabled, true);
    AccessibilityUIMessageHandler::RegisterProfilePrefs(registry);
-@@ -2078,6 +2082,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -2135,6 +2139,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
    personal_context::prefs::RegisterProfilePrefs(registry);
    privacy_sandbox::RegisterProfilePrefs(registry);
    Profile::RegisterProfilePrefs(registry);
@@ -103,7 +103,7 @@ index 334da9ad62..44c38ac8a6 100644
    ProfileImpl::RegisterProfilePrefs(registry);
    ProfileNetworkContextService::RegisterProfilePrefs(registry);
    custom_handlers::ProtocolHandlerRegistry::RegisterProfilePrefs(registry);
-@@ -2213,6 +2221,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
+@@ -2271,6 +2279,10 @@ void RegisterProfilePrefs(user_prefs::PrefRegistrySyncable* registry,
    ThemeColorPickerHandler::RegisterProfilePrefs(registry);
    NewTabPageUI::RegisterProfilePrefs(registry);
    MostVisitedPrefObserver::RegisterProfilePrefs(registry);
@@ -179,7 +179,7 @@ index fd19a4fbea..56e399c735 100644
    content::RenderFrameHost* main_frame = web_contents->GetPrimaryMainFrame();
    bool is_primary_main_frame_navigation =
 diff --git i/chrome/browser/renderer_context_menu/BUILD.gn w/chrome/browser/renderer_context_menu/BUILD.gn
-index 710da547b7..ba6899c7c5 100644
+index fe5a6b11df..0f9142bf9e 100644
 --- i/chrome/browser/renderer_context_menu/BUILD.gn
 +++ w/chrome/browser/renderer_context_menu/BUILD.gn
 @@ -78,6 +78,8 @@ source_set("impl") {
@@ -192,7 +192,7 @@ index 710da547b7..ba6899c7c5 100644
      "//base",
      "//base:i18n",
 diff --git i/chrome/browser/renderer_context_menu/render_view_context_menu.cc w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
-index cd1fc2e4db..ae4e4de6fc 100644
+index 28b124adca..719a3f67bf 100644
 --- i/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 +++ w/chrome/browser/renderer_context_menu/render_view_context_menu.cc
 @@ -4,6 +4,10 @@
@@ -206,7 +206,7 @@ index cd1fc2e4db..ae4e4de6fc 100644
  #include <stddef.h>
  
  #include <algorithm>
-@@ -444,6 +448,134 @@ constexpr int IDC_SPELLCHECK_LANGUAGES_LAST =
+@@ -445,6 +449,134 @@ constexpr int IDC_SPELLCHECK_LANGUAGES_LAST =
  
  constexpr int kTabMenuIconSize = 16;
  
@@ -341,7 +341,7 @@ index cd1fc2e4db..ae4e4de6fc 100644
  base::OnceCallback<void(RenderViewContextMenu*)>* GetMenuShownCallback() {
    static base::NoDestructor<base::OnceCallback<void(RenderViewContextMenu*)>>
        callback;
-@@ -1619,6 +1751,15 @@ void RenderViewContextMenu::InitMenu() {
+@@ -1622,6 +1754,15 @@ void RenderViewContextMenu::InitMenu() {
        AppendReadAnythingItem();
      }
    }
@@ -357,7 +357,7 @@ index cd1fc2e4db..ae4e4de6fc 100644
  }
  
  Profile* RenderViewContextMenu::GetProfile() const {
-@@ -1691,6 +1832,12 @@ void RenderViewContextMenu::RecordUsedItem(int id) {
+@@ -1694,6 +1835,12 @@ void RenderViewContextMenu::RecordUsedItem(int id) {
    int enum_id =
        FindUMAEnumValueForCommand(id, UmaEnumIdLookupType::GeneralEnumId);
    if (enum_id == -1) {
@@ -370,7 +370,7 @@ index cd1fc2e4db..ae4e4de6fc 100644
      NOTREACHED() << "Update UmaEnumForCommand(). Unhandled IDC: " << id;
    }
  
-@@ -2189,6 +2336,21 @@ void RenderViewContextMenu::AppendLinkItems() {
+@@ -2192,6 +2339,21 @@ void RenderViewContextMenu::AppendLinkItems() {
      }
  #endif  // !BUILDFLAG(IS_CHROMEOS)
  
@@ -393,10 +393,10 @@ index cd1fc2e4db..ae4e4de6fc 100644
  
      // Send-Tab-To-Self (user's other devices), link level.
 diff --git i/chrome/browser/renderer_context_menu/render_view_context_menu.h w/chrome/browser/renderer_context_menu/render_view_context_menu.h
-index 4734822d37..013dd78e28 100644
+index 545bcad552..6a6fcf45bb 100644
 --- i/chrome/browser/renderer_context_menu/render_view_context_menu.h
 +++ w/chrome/browser/renderer_context_menu/render_view_context_menu.h
-@@ -555,6 +555,11 @@ class RenderViewContextMenu
+@@ -558,6 +558,11 @@ class RenderViewContextMenu
    GURL main_frame_url_;
  
    ui::SimpleMenuModel profile_link_submenu_model_;
@@ -526,10 +526,10 @@ index ee887add6a..e1995fbaba 100644
    content::SessionStorageNamespaceHandle* session_storage_namespace =
        tab->GetController().GetDefaultSessionStorageNamespace();
 diff --git i/chrome/browser/ui/browser_live_tab_context.cc w/chrome/browser/ui/browser_live_tab_context.cc
-index d48ee3c659..c5d44063db 100644
+index cc8786f0d1..de0f6b0a68 100644
 --- i/chrome/browser/ui/browser_live_tab_context.cc
 +++ w/chrome/browser/ui/browser_live_tab_context.cc
-@@ -59,6 +59,9 @@
+@@ -61,6 +61,9 @@
  #include "content/public/browser/navigation_controller.h"
  #include "content/public/browser/session_storage_namespace_handle.h"
  #include "content/public/browser/web_contents.h"
@@ -539,24 +539,21 @@ index d48ee3c659..c5d44063db 100644
  #include "ui/base/mojom/window_show_state.mojom.h"
  #include "ui/base/window_open_disposition.h"
  
-@@ -200,6 +203,12 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
- 
-   glic::PopulateGlicExtraData(tab_strip_model_->GetTabAtIndex(index),
-                               &extra_data);
-+  navegador::containers::AddExtraData(
-+      tab_strip_model_->GetWebContentsAt(index), extra_data);
-+  navegador::titulos::AddExtraData(tab_strip_model_->GetWebContentsAt(index),
-+                                   extra_data);
-+  navegador::fixos::AddExtraData(tab_strip_model_->GetWebContentsAt(index),
-+                                 extra_data);
+@@ -207,6 +210,9 @@ std::map<std::string, std::string> BrowserLiveTabContext::GetExtraDataForTab(
+               &browser_.get())) {
+     extra_data.merge(contextual_tasks_controller->GetTabRestoreData(tab));
+   }
++  navegador::containers::AddExtraData(tab->GetContents(), extra_data);
++  navegador::titulos::AddExtraData(tab->GetContents(), extra_data);
++  navegador::fixos::AddExtraData(tab->GetContents(), extra_data);
  
    return extra_data;
  }
 diff --git i/chrome/browser/ui/browser_tabrestore.cc w/chrome/browser/ui/browser_tabrestore.cc
-index 6aca93a450..e09f5b4906 100644
+index f2a9542aea..430df95a1f 100644
 --- i/chrome/browser/ui/browser_tabrestore.cc
 +++ w/chrome/browser/ui/browser_tabrestore.cc
-@@ -36,6 +36,9 @@
+@@ -37,6 +37,9 @@
  #include "content/public/browser/restore_type.h"
  #include "content/public/browser/session_storage_namespace_handle.h"
  #include "content/public/browser/web_contents.h"
@@ -566,7 +563,7 @@ index 6aca93a450..e09f5b4906 100644
  #include "third_party/blink/public/common/user_agent/user_agent_metadata.h"
  #include "ui/gfx/geometry/size.h"
  #include "ui/gfx/range/range.h"
-@@ -70,7 +73,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
+@@ -71,7 +74,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
    content::SessionStorageNamespaceHandleMap session_storage_namespace_map =
        content::CreateMapWithDefaultSessionStorageNamespace(
            browser->GetProfile(), session_storage_namespace);
@@ -578,10 +575,10 @@ index 6aca93a450..e09f5b4906 100644
    create_params.initially_hidden = initially_hidden;
    create_params.desired_renderer_state =
        WebContents::CreateParams::kNoRendererProcess;
-@@ -83,6 +89,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
-                                extension_app_id);
- 
+@@ -86,6 +92,10 @@ std::unique_ptr<WebContents> CreateRestoredTab(
    glic::RestoreGlicStateFromExtraData(web_contents.get(), extra_data);
+   contextual_tasks::ContextualTasksTabRestoreData::RestoreFromExtraData(
+       web_contents.get(), extra_data);
 +  // navegador: aba ligada a um site fixado do espaço.
 +  navegador::fixos::RestaurarDaSessao(web_contents.get(), extra_data);
 +  // navegador: nome dado à aba.
@@ -602,7 +599,7 @@ index 7dbf9fb2fd..c7b159def3 100644
        "//chrome/browser/actor",
        "//chrome/browser/background",
 diff --git i/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc w/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
-index 2e02cc461e..eb16af1485 100644
+index 3c3aaff4f9..ec3fdfed1f 100644
 --- i/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 +++ w/chrome/browser/ui/browser_web_contents_delegate/browser_web_contents_delegate.cc
 @@ -4,6 +4,8 @@
@@ -612,9 +609,9 @@ index 2e02cc461e..eb16af1485 100644
 +#include "navegador/browser/containers/containers.h"
 +
  #include "base/check_deref.h"
+ #include "base/feature_list.h"
  #include "base/metrics/histogram_macros.h"
- #include "base/notimplemented.h"
-@@ -510,6 +512,12 @@ content::PreloadingEligibility
+@@ -549,6 +551,12 @@ content::PreloadingEligibility
  BrowserWebContentsDelegate::IsPrerender2Supported(
      content::WebContents& web_contents,
      content::PreloadingTriggerType trigger_type) {
@@ -628,10 +625,10 @@ index 2e02cc461e..eb16af1485 100644
        Profile::FromBrowserContext(web_contents.GetBrowserContext());
    return prefetch::IsSomePreloadingEnabled(*profile->GetPrefs());
 diff --git i/chrome/browser/ui/navigator/BUILD.gn w/chrome/browser/ui/navigator/BUILD.gn
-index 580b0feca8..f64be43bd2 100644
+index 335b892348..865a614a93 100644
 --- i/chrome/browser/ui/navigator/BUILD.gn
 +++ w/chrome/browser/ui/navigator/BUILD.gn
-@@ -86,6 +86,8 @@ source_set("impl") {
+@@ -87,6 +87,8 @@ source_set("impl") {
      ]
  
      deps += [
@@ -641,19 +638,19 @@ index 580b0feca8..f64be43bd2 100644
        "//chrome/browser/apps/link_capturing",
        "//chrome/browser/ui:browser_init_state",
 diff --git i/chrome/browser/ui/navigator/browser_navigator.cc w/chrome/browser/ui/navigator/browser_navigator.cc
-index 1e98a3d7cb..35375322fb 100644
+index d5d5691f0b..df7e5b067d 100644
 --- i/chrome/browser/ui/navigator/browser_navigator.cc
 +++ w/chrome/browser/ui/navigator/browser_navigator.cc
-@@ -74,6 +74,8 @@
+@@ -76,6 +76,8 @@
  #include "content/public/browser/render_view_host.h"
  #include "content/public/browser/site_isolation_policy.h"
  #include "content/public/browser/web_contents.h"
 +#include "navegador/browser/containers/containers.h"
 +#include "navegador/browser/ui/containers/espaco.h"
  #include "extensions/buildflags/buildflags.h"
- #include "ui/base/page_transition_types.h"
- #include "ui/base/window_open_disposition.h"
-@@ -503,10 +505,42 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
+ #include "third_party/blink/public/common/features_generated.h"
+ #include "third_party/blink/public/common/permissions/permission_utils.h"
+@@ -575,10 +577,42 @@ std::unique_ptr<content::WebContents> CreateTargetContents(
    // subsequent navigation is cross-process (i.e. cross-SiteInstance), then it
    // will stay in the same BrowsingInstance (creating frame proxies as needed)
    // preserving the requested opener relationship along the way.
@@ -699,14 +696,14 @@ index 1e98a3d7cb..35375322fb 100644
  
    WebContents::CreateParams create_params(
        params.browser->GetProfile(), initial_site_instance_for_new_contents);
-@@ -660,6 +694,20 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
+@@ -732,6 +766,20 @@ base::WeakPtr<content::NavigationHandle> NavigateImpl(
      return nullptr;
    }
  
 +  // navegador: Shift+clique num link (a página pede janela nova) abre a
 +  // prévia por cima da aba, como o Glance do Zen e o Peek do Arc. O "Abrir em
 +  // nova janela" do menu não é da página e segue abrindo a janela.
-+  if (params->disposition == WindowOpenDisposition::NEW_WINDOW &&
++  if (params->disposition == WindowOpenDisposition::kNewWindow &&
 +      params->is_renderer_initiated && !params->contents_to_insert &&
 +      !params->post_data && params->browser && params->source_contents &&
 +      ui::PageTransitionCoreTypeIs(params->transition,
@@ -721,10 +718,10 @@ index 1e98a3d7cb..35375322fb 100644
    // Block navigation requests when in locked fullscreen mode. We allow
    // navigation requests in the webapp when locked for OnTask (only relevant for
 diff --git i/chrome/browser/ui/tabs/BUILD.gn w/chrome/browser/ui/tabs/BUILD.gn
-index bb4b18f7dc..0d06abbf36 100644
+index d747eb7206..0455357bfc 100644
 --- i/chrome/browser/ui/tabs/BUILD.gn
 +++ w/chrome/browser/ui/tabs/BUILD.gn
-@@ -173,6 +173,8 @@ if (!is_android) {
+@@ -176,6 +176,8 @@ if (!is_android) {
      ]
  
      deps = [
@@ -733,7 +730,7 @@ index bb4b18f7dc..0d06abbf36 100644
        ":tab_menu",
        ":tab_model",
        ":tab_strip",
-@@ -318,6 +320,7 @@ if (!is_android) {
+@@ -324,6 +326,7 @@ if (!is_android) {
        ":tab_strip",
        ":tabs",
        "//chrome/app/vector_icons",
@@ -741,7 +738,7 @@ index bb4b18f7dc..0d06abbf36 100644
        "//chrome/browser/commerce",
        "//chrome/browser/feedback",
        "//chrome/browser/profiles:profile",
-@@ -384,6 +387,7 @@ if (!is_android) {
+@@ -388,6 +391,7 @@ if (!is_android) {
      ]
  
      deps = [
@@ -750,10 +747,10 @@ index bb4b18f7dc..0d06abbf36 100644
        ":tab_model",
        ":tab_strip",
 diff --git i/chrome/browser/ui/tabs/tab_menu_model.h w/chrome/browser/ui/tabs/tab_menu_model.h
-index 63f6cd9a0e..836f25621e 100644
+index f1cc0e7b16..0acc027738 100644
 --- i/chrome/browser/ui/tabs/tab_menu_model.h
 +++ w/chrome/browser/ui/tabs/tab_menu_model.h
-@@ -96,6 +96,10 @@ class TabMenuModel : public ui::SimpleMenuModel {
+@@ -100,6 +100,10 @@ class TabMenuModel : public ui::SimpleMenuModel {
    std::unique_ptr<ui::SimpleMenuModel>
        add_to_existing_comparison_table_submenu_;
    std::unique_ptr<ui::SimpleMenuModel> swap_with_split_submenu_;
@@ -765,10 +762,10 @@ index 63f6cd9a0e..836f25621e 100644
    std::unique_ptr<ui::SimpleMenuModel> arrange_split_view_submenu_;
    std::unique_ptr<ui::SimpleMenuModel> split_mute_submenu_;
 diff --git i/chrome/browser/ui/views/tabs/common/BUILD.gn w/chrome/browser/ui/views/tabs/common/BUILD.gn
-index 7571027287..27d15384c9 100644
+index 032f6ef564..327c88f578 100644
 --- i/chrome/browser/ui/views/tabs/common/BUILD.gn
 +++ w/chrome/browser/ui/views/tabs/common/BUILD.gn
-@@ -89,6 +89,9 @@ source_set("impl") {
+@@ -97,6 +97,9 @@ source_set("impl") {
    ]
  
    deps = [
@@ -779,7 +776,7 @@ index 7571027287..27d15384c9 100644
      "//cc/paint",
      "//chrome/app/theme:theme_resources",
 diff --git i/chrome/browser/ui/views/tabs/common/tab_view.cc w/chrome/browser/ui/views/tabs/common/tab_view.cc
-index 61a57c1534..61c873b453 100644
+index 7ad4897a75..7ef87cb21e 100644
 --- i/chrome/browser/ui/views/tabs/common/tab_view.cc
 +++ w/chrome/browser/ui/views/tabs/common/tab_view.cc
 @@ -4,6 +4,10 @@
@@ -805,7 +802,7 @@ index 61a57c1534..61c873b453 100644
    const views::LayoutOrientation layout_orientation =
        orientation_ == TabStripOrientation::kVertical
            ? views::LayoutOrientation::kVertical
-@@ -618,6 +627,10 @@ bool TabView::OnKeyPressed(const ui::KeyEvent& event) {
+@@ -605,6 +614,10 @@ bool TabView::OnKeyPressed(const ui::KeyEvent& event) {
  bool TabView::OnKeyReleased(const ui::KeyEvent& event) {
    CHECK(collection_node_);
  
@@ -816,7 +813,7 @@ index 61a57c1534..61c873b453 100644
    if (event.key_code() == ui::VKEY_SPACE && !selected_) {
      collection_node_->GetController()->SelectTab(GetTabInterface(),
                                                   GetGestureDetail(event));
-@@ -626,9 +639,35 @@ bool TabView::OnKeyReleased(const ui::KeyEvent& event) {
+@@ -613,9 +626,35 @@ bool TabView::OnKeyReleased(const ui::KeyEvent& event) {
    return false;
  }
  
@@ -852,7 +849,7 @@ index 61a57c1534..61c873b453 100644
    auto* controller = collection_node_->GetController();
    shift_pressed_on_mouse_down_ = event.IsShiftDown();
    RecordMousePressedInTab();
-@@ -671,6 +710,13 @@ bool TabView::OnMousePressed(const ui::MouseEvent& event) {
+@@ -667,6 +706,13 @@ bool TabView::OnMousePressed(const ui::MouseEvent& event) {
  void TabView::OnMouseReleased(const ui::MouseEvent& event) {
    CHECK(collection_node_);
  
@@ -866,7 +863,7 @@ index 61a57c1534..61c873b453 100644
    auto* controller = collection_node_->GetController();
    base::WeakPtr<TabView> self = weak_ptr_factory_.GetWeakPtr();
    if (event.IsOnlyMiddleMouseButton()) {
-@@ -841,7 +887,14 @@ void TabView::OnPaint(gfx::Canvas* canvas) {
+@@ -837,7 +883,14 @@ void TabView::OnPaint(gfx::Canvas* canvas) {
      return;
    }
  
@@ -882,7 +879,7 @@ index 61a57c1534..61c873b453 100644
    views::View::OnPaint(canvas);
  }
 diff --git i/chrome/browser/ui/views/tabs/shared/BUILD.gn w/chrome/browser/ui/views/tabs/shared/BUILD.gn
-index 846ec37ee4..0d3e15973b 100644
+index 4cb0824c4b..9b178fe442 100644
 --- i/chrome/browser/ui/views/tabs/shared/BUILD.gn
 +++ w/chrome/browser/ui/views/tabs/shared/BUILD.gn
 @@ -37,6 +37,7 @@ source_set("impl") {
@@ -894,7 +891,7 @@ index 846ec37ee4..0d3e15973b 100644
      "//chrome/app:generated_resources_grit",
      "//chrome/app/vector_icons",
 diff --git i/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc w/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
-index 1802a7dcca..ba00607e3c 100644
+index 4a94dc6dfc..99746087f5 100644
 --- i/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
 +++ w/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.cc
 @@ -4,6 +4,8 @@
@@ -906,23 +903,23 @@ index 1802a7dcca..ba00607e3c 100644
  #include <optional>
  #include <string>
  
-@@ -38,6 +40,16 @@ NewTabButtonMenuModel::NewTabButtonMenuModel(BrowserWindowInterface* browser)
-   SetElementIdentifierAt(GetIndexOfCommandId(IDC_NEW_TAB).value(), kNewTab);
-   AddNewTabInGroupItem();
+@@ -42,6 +44,16 @@ NewTabButtonMenuModel::NewTabButtonMenuModel(BrowserWindowInterface* browser)
+   if (tab_strip_model->SupportsTabGroups()) {
+     AddNewTabInGroupItem();
  
-+  // navegador: "Nova aba em container". O item do submenu nunca é
-+  // executado (os itens têm delegate próprio); o id só não pode colidir.
-+  navegador_containers_submenu_ = navegador::containers::CriarSubmenuNovaAba(
-+      browser_->GetTabStripModel());
-+  if (navegador_containers_submenu_->GetItemCount() > 0) {
-+    constexpr int kNavegadorContainers = 0x6E61;
-+    AddSubMenu(kNavegadorContainers, u"Nova aba em container",
-+               navegador_containers_submenu_.get());
-+  }
++    // navegador: "Nova aba em container". O item do submenu nunca é
++    // executado (os itens têm delegate próprio); o id só não pode colidir.
++    navegador_containers_submenu_ =
++        navegador::containers::CriarSubmenuNovaAba(tab_strip_model);
++    if (navegador_containers_submenu_->GetItemCount() > 0) {
++      constexpr int kNavegadorContainers = 0x6E61;
++      AddSubMenu(kNavegadorContainers, u"Nova aba em container",
++                 navegador_containers_submenu_.get());
++    }
 +
-   AddSeparator(ui::NORMAL_SEPARATOR);
+     AddSeparator(ui::NORMAL_SEPARATOR);
  
-   AddItemWithStringId(IDC_CREATE_NEW_TAB_GROUP, IDS_NEW_TAB_GROUP);
+     AddItemWithStringId(IDC_CREATE_NEW_TAB_GROUP, IDS_NEW_TAB_GROUP);
 diff --git i/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.h w/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.h
 index 60489fb251..cc45dbdcca 100644
 --- i/chrome/browser/ui/views/tabs/shared/new_tab_button_menu_model.h
@@ -946,10 +943,10 @@ index 60489fb251..cc45dbdcca 100644
  
  #endif  // CHROME_BROWSER_UI_VIEWS_TABS_SHARED_NEW_TAB_BUTTON_MENU_MODEL_H_
 diff --git i/chrome/browser/ui/web_applications/BUILD.gn w/chrome/browser/ui/web_applications/BUILD.gn
-index 3b68d83e2b..a7a451de5a 100644
+index 98f3a252a8..5fb1f8db98 100644
 --- i/chrome/browser/ui/web_applications/BUILD.gn
 +++ w/chrome/browser/ui/web_applications/BUILD.gn
-@@ -170,10 +170,17 @@ source_set("impl") {
+@@ -176,10 +176,17 @@ source_set("impl") {
        "web_app_ui_manager_impl.cc",
        "web_app_ui_utils.cc",
        "webui_web_app_navigation_throttle.cc",
@@ -968,7 +965,7 @@ index 3b68d83e2b..a7a451de5a 100644
        "//chrome/browser/app_mode",
        "//chrome/browser/apps/app_service",
 diff --git i/chrome/browser/ui/web_applications/web_app_menu_model.cc w/chrome/browser/ui/web_applications/web_app_menu_model.cc
-index 61a404a278..b0f1a01fec 100644
+index 00b1b4245a..3ef3cbde01 100644
 --- i/chrome/browser/ui/web_applications/web_app_menu_model.cc
 +++ w/chrome/browser/ui/web_applications/web_app_menu_model.cc
 @@ -30,6 +30,8 @@
@@ -1023,10 +1020,10 @@ index 8949aa792b..c8c7093e04 100644
  
  #endif  // CHROME_BROWSER_UI_WEB_APPLICATIONS_WEB_APP_MENU_MODEL_H_
 diff --git i/chrome/browser/web_applications/BUILD.gn w/chrome/browser/web_applications/BUILD.gn
-index 0f477a1376..fc36c9002f 100644
+index 7799e77862..d079f835ab 100644
 --- i/chrome/browser/web_applications/BUILD.gn
 +++ w/chrome/browser/web_applications/BUILD.gn
-@@ -591,6 +591,8 @@ source_set("web_applications") {
+@@ -592,6 +592,8 @@ source_set("web_applications") {
      "//components/user_manager",
      "//components/web_package",
      "//components/webapps/browser",
@@ -1036,7 +1033,7 @@ index 0f477a1376..fc36c9002f 100644
      "//components/webapps/common:mojo_bindings",
      "//components/webapps/isolated_web_apps",
 diff --git i/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc w/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc
-index e36f3fa89c..797361b6b5 100644
+index a14ed7da4e..140ea5c2e0 100644
 --- i/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc
 +++ w/chrome/browser/web_applications/commands/fetch_manifest_and_install_command.cc
 @@ -59,6 +59,7 @@
@@ -1059,7 +1056,7 @@ index e36f3fa89c..797361b6b5 100644
  
    SCOPED_CRASH_KEY_NUMBER("PWA", "install_surface",
 diff --git i/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc w/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
-index ecb3123778..ed45175dce 100644
+index d44d0186e9..2871b4a077 100644
 --- i/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
 +++ w/chrome/browser/web_applications/commands/garbage_collect_storage_partitions_command.cc
 @@ -21,6 +21,7 @@
@@ -1294,10 +1291,10 @@ index 0e2177fdef..394552c97c 100644
    GetPrefetch(
        *prefetch_service, tentative_resource_request.url,
 diff --git i/content/browser/storage_partition_impl.cc w/content/browser/storage_partition_impl.cc
-index 7b69ec7f35..7e821dd6a4 100644
+index 969d2800a1..f8c5b51ea2 100644
 --- i/content/browser/storage_partition_impl.cc
 +++ w/content/browser/storage_partition_impl.cc
-@@ -1503,6 +1503,12 @@ void StoragePartitionImpl::Initialize(
+@@ -1495,6 +1495,12 @@ void StoragePartitionImpl::Initialize(
  
    platform_notification_context_ = new PlatformNotificationContextImpl(
        path, browser_context_, service_worker_context_);
@@ -1311,10 +1308,10 @@ index 7b69ec7f35..7e821dd6a4 100644
  
    devtools_background_services_context_ =
 diff --git i/content/browser/web_contents/web_contents_impl.cc w/content/browser/web_contents/web_contents_impl.cc
-index a2704216f1..eaf55d7407 100644
+index a2638c29d4..cfa4894843 100644
 --- i/content/browser/web_contents/web_contents_impl.cc
 +++ w/content/browser/web_contents/web_contents_impl.cc
-@@ -5825,6 +5825,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
+@@ -5807,6 +5807,12 @@ FrameTree* WebContentsImpl::CreateNewWindow(
        // as long as they preserve the guest's StoragePartition.
        site_instance =
            SiteInstance::CreateForGuest(GetBrowserContext(), partition_config);

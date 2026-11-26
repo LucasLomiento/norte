@@ -1,8 +1,8 @@
 diff --git i/chrome/BUILD.gn w/chrome/BUILD.gn
-index f1d133b6cd..b91c51ec63 100644
+index 06bfcf5a90..42b7fa37ac 100644
 --- i/chrome/BUILD.gn
 +++ w/chrome/BUILD.gn
-@@ -1636,6 +1636,7 @@ group("dependencies") {
+@@ -1651,6 +1651,7 @@ group("dependencies") {
      "//build:branding_buildflags",
      "//build:chromeos_buildflags",
      "//chrome/browser",
@@ -11,10 +11,10 @@ index f1d133b6cd..b91c51ec63 100644
      "//chrome/browser:shell_integration",
      "//chrome/browser/diagnostics",
 diff --git i/chrome/browser/ui/BUILD.gn w/chrome/browser/ui/BUILD.gn
-index 1e352a02e9..6b7743415d 100644
+index 88668a0b3e..b267be9dea 100644
 --- i/chrome/browser/ui/BUILD.gn
 +++ w/chrome/browser/ui/BUILD.gn
-@@ -237,6 +237,8 @@ if (!is_android) {
+@@ -238,6 +238,8 @@ if (!is_android) {
        "//ui/base/unowned_user_data",
      ]
      deps = [
@@ -23,7 +23,7 @@ index 1e352a02e9..6b7743415d 100644
        "//chrome/app:generated_resources",
        "//chrome/browser/favicon",
        "//chrome/browser/resource_coordinator:mojo_bindings",
-@@ -498,6 +500,7 @@ if (!is_android) {
+@@ -499,6 +501,7 @@ if (!is_android) {
      public_deps = [ ":browser_tabrestore" ]
      deps = [
        ":browser_window_header",
@@ -31,7 +31,7 @@ index 1e352a02e9..6b7743415d 100644
        ":tab_ui_helper",
        "//base",
        "//chrome/browser/apps/app_service",
-@@ -1709,6 +1712,10 @@ source_set("layout_constants") {
+@@ -1510,6 +1513,10 @@ source_set("layout_constants") {
    sources = [
      "layout_constants.cc",
      "layout_constants.h",

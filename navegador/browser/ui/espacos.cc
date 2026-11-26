@@ -1679,7 +1679,7 @@ class FaixaDeEspacos : public views::View,
     {
       containers::EspacoPendente pendente(browser_, espaco);
       NavigateParams params(browser_, url, ui::PAGE_TRANSITION_AUTO_TOPLEVEL);
-      params.disposition = WindowOpenDisposition::NEW_BACKGROUND_TAB;
+      params.disposition = WindowOpenDisposition::kNewBackgroundTab;
       Navigate(&params);
       aba = params.navigated_or_inserted_contents;
     }

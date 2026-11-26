@@ -188,10 +188,10 @@ index 04e88e027a..79875bd8c0 100644
  </body>
  </html>
 diff --git i/chrome/browser/resources/new_tab_page_third_party/BUILD.gn w/chrome/browser/resources/new_tab_page_third_party/BUILD.gn
-index 0c145046f3..4f04218cea 100644
+index 04c9b82419..edbc8f68dd 100644
 --- i/chrome/browser/resources/new_tab_page_third_party/BUILD.gn
 +++ w/chrome/browser/resources/new_tab_page_third_party/BUILD.gn
-@@ -24,4 +24,7 @@ build_webui("build") {
+@@ -21,4 +21,7 @@ build_webui("build") {
      "//ui/webui/resources/mojo:build_ts",
    ]
    webui_context_type = "trusted"
@@ -215,7 +215,7 @@ index 964590c8ee..8d4e9be0c4 100644
    deps = [
      ":mojo_bindings",
 diff --git i/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc w/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc
-index bfc7d44eb6..7f33ecdb92 100644
+index 31569eca90..d28cf4ea66 100644
 --- i/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc
 +++ w/chrome/browser/ui/webui/new_tab_page_third_party/new_tab_page_third_party_ui.cc
 @@ -15,6 +15,7 @@

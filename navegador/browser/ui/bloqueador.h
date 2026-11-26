@@ -31,7 +31,7 @@ namespace navegador::bloqueador {
 // as entrega às páginas. No lugar das listas que o Chrome baixa do Google.
 void CarregarListas();
 
-// Cada aba (TabHelpers): esconde os elementos de anúncio da página principal
+// Cada aba (TabFeatures): esconde os elementos de anúncio da página principal
 // com as regras cosméticas das listas (CSS de origem do usuário, que a página
 // não vê nem sobrescreve).
 void AcompanharAba(content::WebContents* contents);

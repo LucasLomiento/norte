@@ -1,5 +1,5 @@
 diff --git i/chrome/browser/metrics/BUILD.gn w/chrome/browser/metrics/BUILD.gn
-index a7d7369374..23b333ea0e 100644
+index cc1a6de91b..2f761cea07 100644
 --- i/chrome/browser/metrics/BUILD.gn
 +++ w/chrome/browser/metrics/BUILD.gn
 @@ -269,6 +269,7 @@ source_set("impl") {
@@ -11,7 +11,7 @@ index a7d7369374..23b333ea0e 100644
      "//chrome/browser:browser_process_platform_part",
      "//chrome/browser:buildflags",
 diff --git i/chrome/browser/metrics/chrome_feature_list_creator.cc w/chrome/browser/metrics/chrome_feature_list_creator.cc
-index f45f66f62c..986c46f282 100644
+index dbf10a26ea..4b764d0f5f 100644
 --- i/chrome/browser/metrics/chrome_feature_list_creator.cc
 +++ w/chrome/browser/metrics/chrome_feature_list_creator.cc
 @@ -4,6 +4,8 @@
@@ -35,12 +35,12 @@ index f45f66f62c..986c46f282 100644
    SetupInitialPrefs();
    SetUpFieldTrials();
 diff --git i/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc w/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
-index 2fcf49e588..e706ffeb3e 100644
+index 0130436990..689d50b862 100644
 --- i/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
 +++ w/chrome/browser/optimization_guide/model_execution/optimization_guide_global_state.cc
 @@ -30,6 +30,7 @@
  #include "components/optimization_guide/core/model_execution/manifest_broker/override_manifest_asset_manager_delegate.h"
- #include "components/optimization_guide/core/model_execution/model_execution_prefs.h"
+ #include "components/optimization_guide/core/model_execution/on_device_prefs.h"
  #include "components/optimization_guide/core/model_execution/performance_class.h"
 +#include "components/optimization_guide/core/optimization_guide_features.h"
  #include "components/prefs/pref_service.h"
@@ -77,10 +77,10 @@ index 220db2ad86..8ad8b171ef 100644
    policy::CloudPolicyManager* policy_manager = profile->GetCloudPolicyManager();
  
 diff --git i/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc w/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
-index aedbca990b..560afd7b37 100644
+index a7100cfeb8..099d51d963 100644
 --- i/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
 +++ w/chrome/browser/ui/views/profiles/avatar_toolbar_button_state_manager.cc
-@@ -1292,7 +1292,9 @@ class PromoStateProvider : public StateProvider {
+@@ -1310,7 +1310,9 @@ class PromoStateProvider : public StateProvider {
  
    // StateProvider:
    bool IsActive() const override {
@@ -92,7 +92,7 @@ index aedbca990b..560afd7b37 100644
  
    std::u16string GetText() const override {
 diff --git i/chrome/browser/ui/webui/history/browsing_history_handler.cc w/chrome/browser/ui/webui/history/browsing_history_handler.cc
-index 6735f3ff24..26f0c52ea1 100644
+index 2ca7d2b90f..bc87540cf9 100644
 --- i/chrome/browser/ui/webui/history/browsing_history_handler.cc
 +++ w/chrome/browser/ui/webui/history/browsing_history_handler.cc
 @@ -728,6 +728,12 @@ void BrowsingHistoryHandler::IncrementHistoryPageHistorySyncPromoShownCount() {}
@@ -109,10 +109,10 @@ index 6735f3ff24..26f0c52ea1 100644
  
    // If the promo has been shown more than the threshold, the promo should not
 diff --git i/chrome/browser/ui/webui/settings/settings_ui.cc w/chrome/browser/ui/webui/settings/settings_ui.cc
-index 0e2111a106..d212dc7ed4 100644
+index 1437a643e2..cec774c5a1 100644
 --- i/chrome/browser/ui/webui/settings/settings_ui.cc
 +++ w/chrome/browser/ui/webui/settings/settings_ui.cc
-@@ -679,9 +679,13 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
+@@ -688,9 +688,13 @@ SettingsUI::SettingsUI(content::WebUI* web_ui)
    // Within the AI subpage are separate sections for Glic, for GEIC, and for all
    // other AI features. The visibility of these is separately controlled, but
    // we want to show the subpage if any of them are enabled.
@@ -130,7 +130,7 @@ index 0e2111a106..d212dc7ed4 100644
                            show_ai_features_section);
  
 diff --git i/components/signin/internal/identity_manager/primary_account_manager.cc w/components/signin/internal/identity_manager/primary_account_manager.cc
-index cb7399be2c..2efe80cb60 100644
+index b7c706aa23..e39f473fdf 100644
 --- i/components/signin/internal/identity_manager/primary_account_manager.cc
 +++ w/components/signin/internal/identity_manager/primary_account_manager.cc
 @@ -391,7 +391,9 @@ void PrimaryAccountManager::RegisterProfilePrefs(PrefRegistrySimple* registry) {

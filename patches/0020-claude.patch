@@ -1,8 +1,8 @@
 diff --git i/chrome/browser/extensions/BUILD.gn w/chrome/browser/extensions/BUILD.gn
-index 8f5ae8c9a3..b3f03675ac 100644
+index aa70420081..c5d9c8b431 100644
 --- i/chrome/browser/extensions/BUILD.gn
 +++ w/chrome/browser/extensions/BUILD.gn
-@@ -497,6 +497,7 @@ source_set("extensions") {
+@@ -496,6 +496,7 @@ source_set("extensions") {
      "//base",
      "//chrome/app:command_ids",
      "//chrome/app/theme:chrome_unscaled_resources",
@@ -23,10 +23,10 @@ index 6248e7dfdf..bff8e30dc2 100644
      "//pdf:features",
      "//ui/base",
 diff --git i/chrome/browser/extensions/api/debugger/debugger_api.cc w/chrome/browser/extensions/api/debugger/debugger_api.cc
-index 2045d721ba..0d75924d5b 100644
+index 7d9cd373a8..bab8b9be73 100644
 --- i/chrome/browser/extensions/api/debugger/debugger_api.cc
 +++ w/chrome/browser/extensions/api/debugger/debugger_api.cc
-@@ -62,6 +62,7 @@
+@@ -64,6 +64,7 @@
  #include "extensions/common/manifest_constants.h"
  #include "extensions/common/permissions/permissions_data.h"
  #include "extensions/common/switches.h"
@@ -34,7 +34,7 @@ index 2045d721ba..0d75924d5b 100644
  #include "pdf/buildflags.h"
  #include "url/origin.h"
  #include "url/url_constants.h"
-@@ -652,6 +653,15 @@ void ExtensionDevToolsClientHost::CreateWarningMessage() {
+@@ -767,6 +768,15 @@ void ExtensionDevToolsClientHost::CreateWarningMessage() {
  #else
  // Win/Mac/Linux/Chrome OS use the infobar API for the warning message.
  void ExtensionDevToolsClientHost::CreateWarningInfobar() {
@@ -51,7 +51,7 @@ index 2045d721ba..0d75924d5b 100644
            infobars::InfoBarDelegate::EXTENSION_DEV_TOOLS_INFOBAR_DELEGATE)) {
      ExtensionDevToolsInfoBarController::GetInstance()->OnClientHostAttached(
 diff --git i/chrome/browser/extensions/open_tab_helper.cc w/chrome/browser/extensions/open_tab_helper.cc
-index 46f1f8146d..71f4afd408 100644
+index e18669b5d2..bf812fd4ec 100644
 --- i/chrome/browser/extensions/open_tab_helper.cc
 +++ w/chrome/browser/extensions/open_tab_helper.cc
 @@ -4,6 +4,8 @@
@@ -63,7 +63,7 @@ index 46f1f8146d..71f4afd408 100644
  #include "base/memory/weak_ptr.h"
  #include "base/strings/string_number_conversions.h"
  #include "base/types/expected_macros.h"
-@@ -28,6 +30,7 @@
+@@ -29,6 +31,7 @@
  #include "extensions/common/constants.h"
  #include "extensions/common/extension_features.h"
  #include "extensions/common/manifest_handlers/incognito_info.h"
@@ -71,7 +71,7 @@ index 46f1f8146d..71f4afd408 100644
  #include "ui/base/base_window.h"
  #include "ui/base/page_transition_types.h"
  #include "ui/base/window_open_disposition.h"
-@@ -250,6 +253,13 @@ base::expected<content::WebContents*, std::string> OpenTabHelper::OpenTab(
+@@ -247,6 +250,13 @@ base::expected<content::WebContents*, std::string> OpenTabHelper::OpenTab(
  
    MaybeSetPdfNavigateParams(function, navigate_params);
  

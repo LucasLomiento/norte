@@ -878,7 +878,7 @@ class Aviso : public views::View {
   void AbrirNotas() {
     NavigateParams params(browser_, GURL(Atual().andamento.pagina),
                           ui::PAGE_TRANSITION_LINK);
-    params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
+    params.disposition = WindowOpenDisposition::kNewForegroundTab;
     Navigate(&params);
   }
 

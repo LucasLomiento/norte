@@ -1339,8 +1339,8 @@ class AreaDeFixos : public views::View,
   void AbrirSite(const Site& site, bool ativar) {
     NavigateParams params(browser_, site.url,
                           ui::PAGE_TRANSITION_AUTO_BOOKMARK);
-    params.disposition = ativar ? WindowOpenDisposition::NEW_FOREGROUND_TAB
-                                : WindowOpenDisposition::NEW_BACKGROUND_TAB;
+    params.disposition = ativar ? WindowOpenDisposition::kNewForegroundTab
+                                : WindowOpenDisposition::kNewBackgroundTab;
     Navigate(&params);
     content::WebContents* aba = params.navigated_or_inserted_contents;
     if (!aba) {
